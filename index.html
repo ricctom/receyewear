@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tienda online de RecEyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Montserrat',Arial,sans-serif;font-size:14px;color:#333;background:#fff}
+a{text-decoration:none;color:inherit}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer}
+
+/* ─── ANNOUNCE BAR ─── */
+.announce{background:#000;color:#fff;text-align:center;padding:8px 16px;font-size:13px;letter-spacing:.3px}
+
+/* ─── TOP UTILITY ROW ─── */
+.top-util{border-bottom:1px solid #eee;padding:8px 40px;display:flex;align-items:center;justify-content:space-between}
+.top-util a{font-size:12px;color:#555;transition:color .15s}
+.top-util a:hover{color:#000}
+.top-util .sep{color:#ddd;margin:0 8px}
+.top-right{display:flex;align-items:center;gap:20px}
+.top-search-btn{background:none;border:none;font-size:18px;color:#555;cursor:pointer;padding:2px}
+.top-search-btn:hover{color:#000}
+.top-cart{display:flex;align-items:center;gap:6px;font-size:13px;color:#555;cursor:pointer;border:none;background:none}
+.top-cart:hover{color:#000}
+.top-cart .ci{font-size:18px}
+
+/* ─── LOGO AREA ─── */
+.logo-area{display:flex;justify-content:center;align-items:center;padding:24px 20px}
+.logo-area img{height:60px;width:auto}
+
+/* ─── NAV ─── */
+.sitenav{border-top:1px solid #eee;border-bottom:1px solid #eee}
+.nav-in{display:flex;justify-content:center;align-items:center;gap:0}
+.ni{position:relative}
+.ni>a{display:flex;align-items:center;gap:5px;padding:14px 22px;font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#333;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.ni>a:hover,.ni:hover>a{color:#000;border-bottom-color:#000}
+.nav-arrow{font-size:9px;color:#aaa}
+.ddrop{display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #eee;border-top:2px solid #000;min-width:220px;z-index:900;box-shadow:0 6px 20px rgba(0,0,0,.09)}
+.ni:hover .ddrop{display:block}
+.ddrop a{display:block;padding:10px 20px;font-size:12px;border-bottom:1px solid #f5f5f5;transition:background .1s}
+.ddrop a:last-child{border:none}
+.ddrop a:hover{background:#f9f9f9}
+.dlbl{padding:10px 20px 4px;font-size:10px;font-weight:700;letter-spacing:1.5px;color:#aaa;text-transform:uppercase}
+.dlbl-link{display:block;padding:10px 20px 4px;font-size:10px;font-weight:700;letter-spacing:1.5px;color:#aaa;text-transform:uppercase;text-decoration:none}
+.dlbl-link:hover{color:#000}
+
+/* ─── SEARCH BAR (dropdown) ─── */
+.search-bar{display:none;background:#f9f9f9;border-bottom:1px solid #eee;padding:12px 40px}
+.search-bar.open{display:flex}
+.search-bar input{flex:1;border:1px solid #ddd;padding:9px 14px;font-size:13px;outline:none;font-family:inherit}
+.search-bar input:focus{border-color:#000}
+
+/* ─── PRODUCT SECTION ─── */
+/* ─── CAROUSEL ─── */
+.carousel{position:relative;width:100%;overflow:hidden;background:#000;user-select:none}
+.carousel-track{display:flex;transition:transform .5s ease}
+.carousel-slide{min-width:100%;height:340px;position:relative;cursor:pointer;overflow:hidden}
+.carousel-slide img{width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .4s ease}
+.carousel-slide:hover img{transform:scale(1.03)}
+.carousel-dots{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+.cdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45);border:none;cursor:pointer;padding:0;transition:background .2s,transform .2s}
+.cdot.active{background:#fff;transform:scale(1.3)}
+.carousel-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.35);border:none;color:#fff;font-size:22px;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;z-index:2}
+.carousel-arrow:hover{background:rgba(0,0,0,.65)}
+.carousel-arrow.prev{left:12px}
+.carousel-arrow.next{right:12px}
+@media(max-width:700px){
+  .carousel-slide{height:220px}
+  .carousel-body{padding:0 24px}
+  .carousel-title{font-size:20px}
+  .carousel-tag{font-size:10px}
+}
+/* ─── CAROUSEL SEPARATOR ─── */
+.carousel-sep{display:flex;align-items:center;gap:20px;max-width:1280px;margin:40px auto 0;padding:0 24px}
+.carousel-sep span{white-space:nowrap;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#aaa}
+.carousel-sep::before,.carousel-sep::after{content:'';flex:1;height:1px;background:#e8e8e8}
+.prod-section{max-width:1280px;margin:0 auto;padding:24px 24px 60px}
+
+/* ─── PRODUCT GRID ─── */
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+@media(max-width:1024px){.pgrid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.pgrid{grid-template-columns:repeat(2,1fr);gap:12px}}
+
+/* ─── PRODUCT CARD ─── */
+.pcard{cursor:pointer;position:relative}
+.pcard:hover .pcard-img img{transform:scale(1.04)}
+.pcard-img{position:relative;width:100%;padding-top:100%;overflow:hidden;background:#f9f9f9}
+.pcard-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+.disc-tag{position:absolute;top:10px;right:10px;background:#222;color:#fff;font-size:10px;font-weight:700;padding:4px 8px;letter-spacing:.5px;z-index:1}
+.pcard-info{padding:12px 4px 4px;text-align:center}
+.pcard-name{font-size:12px;font-weight:500;color:#333;line-height:1.45;margin-bottom:7px}
+.pcard-prices{margin-bottom:3px}
+.pcard-old{font-size:11px;color:#aaa;text-decoration:line-through;display:inline;margin-right:4px}
+.pcard-price{font-size:14px;font-weight:700;color:#222;display:inline}
+.pcard-lbl{font-size:10px;color:#aaa;letter-spacing:.3px}
+.pcard-add{margin-top:8px;width:100%;padding:7px 0;background:#000;color:#fff;border:none;font-size:11px;font-weight:600;letter-spacing:.5px;cursor:pointer;border-radius:2px;transition:background .2s}
+.pcard-add:hover{background:#333}
+/* Hover overlay */
+.pcard-hover{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);color:#fff;font-size:12px;font-weight:600;letter-spacing:.5px;opacity:0;transition:opacity .25s;pointer-events:none}
+.pcard:hover .pcard-hover{opacity:1}
+
+/* ─── INFINITE SCROLL SENTINEL ─── */
+.scroll-sentinel{height:1px;margin-top:32px}
+.loading-spinner{display:none;justify-content:center;align-items:center;gap:10px;padding:28px;color:#aaa;font-size:13px}
+.loading-spinner.show{display:flex}
+.spinner{width:22px;height:22px;border:2px solid #eee;border-top-color:#333;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── PRODUCT DETAIL PAGE ─── */
+.pd-wrap{max-width:1280px;margin:0 auto;padding:32px 24px 60px}
+.pd-back{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#888;cursor:pointer;margin-bottom:24px;border:none;background:none}
+.pd-back:hover{color:#000}
+.pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+@media(max-width:700px){.pd-grid{grid-template-columns:1fr}}
+.pd-main{background:#f9f9f9;width:100%;aspect-ratio:1;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.pd-main img{width:100%;height:100%;object-fit:contain}
+.pd-main{position:relative}
+.pd-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.45);color:#fff;border:none;font-size:2rem;line-height:1;padding:6px 14px;cursor:pointer;z-index:2;border-radius:4px;transition:background .2s}
+.pd-arrow:hover{background:rgba(0,0,0,.75)}
+.pd-arrow-prev{left:6px}
+.pd-arrow-next{right:6px}
+.pd-arrow.hidden{display:none}
+.pd-thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.pd-thumb{width:64px;height:64px;border:1.5px solid #eee;overflow:hidden;cursor:pointer;background:#f9f9f9;flex-shrink:0}
+.pd-thumb.on,.pd-thumb:hover{border-color:#000}
+.pd-thumb img{width:100%;height:100%;object-fit:cover}
+.pd-name{font-size:20px;font-weight:700;margin-bottom:10px;line-height:1.3}
+.pd-disc-tag{display:inline-block;background:#222;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;margin-bottom:10px}
+.pd-old{font-size:13px;color:#aaa;text-decoration:line-through;margin-bottom:4px}
+.pd-price{font-size:28px;font-weight:700;color:#222;margin-bottom:4px}
+.pd-lbl{font-size:11px;color:#aaa;letter-spacing:.5px;margin-bottom:20px}
+.pd-desc{font-size:13px;color:#666;line-height:1.7;margin-bottom:22px}
+.qty-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.qty-row label{font-size:13px;font-weight:600}
+.qty-ctrl{display:flex;border:1px solid #ddd}
+.qty-ctrl button{width:32px;height:32px;background:#f5f5f5;border:none;font-size:16px;font-weight:700;transition:background .1s}
+.qty-ctrl button:hover{background:#eee}
+.qty-ctrl span{width:40px;text-align:center;font-size:14px;font-weight:600;border-left:1px solid #ddd;border-right:1px solid #ddd;line-height:32px}
+.pd-add-btn{width:100%;background:#000;color:#fff;border:none;padding:13px;font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;transition:background .15s;margin-bottom:10px}
+.pd-add-btn:hover{background:#333}
+.pd-wa-btn{width:100%;background:#25d366;color:#fff;border:none;padding:11px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s}
+.pd-wa-btn:hover{opacity:.9}
+
+/* ─── CART DRAWER ─── */
+.cart-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1800}
+.cart-ov.open{display:block}
+.cart-drw{position:fixed;top:0;right:-450px;width:420px;max-width:95vw;height:100vh;background:#fff;z-index:1801;display:flex;flex-direction:column;transition:right .3s ease}
+.cart-drw.open{right:0}
+.cart-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #eee}
+.cart-hdr h3{font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.cart-cls{background:none;border:none;font-size:22px;color:#aaa}
+.cart-cls:hover{color:#000}
+.cart-body{flex:1;overflow-y:auto;padding:16px}
+.cempty{text-align:center;padding:60px 20px;color:#aaa}
+.cline{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #eee}
+.cline img{width:72px;height:72px;object-fit:cover;flex-shrink:0;background:#f9f9f9}
+.cline-info{flex:1}
+.cline-name{font-size:12px;font-weight:600;margin-bottom:4px;line-height:1.4}
+.cline-price{font-size:13px;font-weight:700}
+.cline-qty{display:flex;align-items:center;gap:8px;margin-top:8px}
+.cqb{background:#f5f5f5;border:1px solid #eee;width:24px;height:24px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.cqb:hover{background:#eee}
+.cqn{font-size:13px;font-weight:700;min-width:18px;text-align:center}
+.cdel{background:none;border:none;color:#ccc;font-size:14px;margin-left:auto}
+.cdel:hover{color:#c00}
+.cart-ftr{padding:20px;border-top:1px solid #eee}
+.cart-total-row{display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-bottom:14px}
+.cart-chk{width:100%;background:#000;color:#fff;border:none;padding:13px;font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;transition:background .15s}
+.cart-chk:hover{background:#333}
+
+/* ─── FAQ ─── */
+.page-wrap{max-width:860px;margin:0 auto;padding:40px 24px 60px}
+.pg-title{font-size:22px;font-weight:700;margin-bottom:28px;text-transform:uppercase;letter-spacing:.5px}
+.faqitem{border-bottom:1px solid #eee}
+.faqq{width:100%;text-align:left;background:none;border:none;padding:18px 0;font-size:14px;font-weight:600;color:#333;display:flex;justify-content:space-between;align-items:center}
+.faqq:hover{color:#000}
+.faqarrow{font-size:12px;color:#aaa;transition:transform .25s;flex-shrink:0}
+.faqitem.open .faqarrow{transform:rotate(180deg)}
+.faqa{max-height:0;overflow:hidden;transition:max-height .3s,padding .3s;padding:0;font-size:13px;color:#666;line-height:1.8}
+.faqitem.open .faqa{max-height:250px;padding:0 0 18px}
+
+/* ─── CONTACT ─── */
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+@media(max-width:600px){.contact-grid{grid-template-columns:1fr}}
+.cbox h3{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:18px}
+.crow{display:flex;gap:12px;margin-bottom:14px}
+.crow .ci{font-size:18px;flex-shrink:0;margin-top:2px}
+.crow p{font-size:13px;color:#666;line-height:1.55}
+.crow strong{display:block;font-weight:600;color:#333;margin-bottom:2px}
+.wa-cta{display:inline-flex;align-items:center;gap:8px;background:#25d366;color:#fff;padding:11px 24px;font-weight:700;font-size:13px;margin-top:16px;transition:opacity .15s;border:none}
+.wa-cta:hover{opacity:.9}
+.cform{display:flex;flex-direction:column;gap:10px}
+.cform input,.cform textarea{border:1px solid #ddd;padding:10px 14px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+.cform input:focus,.cform textarea:focus{border-color:#000}
+.cform textarea{resize:vertical;min-height:110px}
+.cform-submit{background:#000;color:#fff;border:none;padding:11px;font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;transition:background .15s}
+.cform-submit:hover{background:#333}
+
+/* ─── FOOTER ─── */
+.footer{border-top:1px solid #eee;padding:36px 40px 20px;font-size:12px;color:#666}
+.footer-top{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;margin-bottom:28px}
+@media(max-width:700px){.footer-top{grid-template-columns:1fr 1fr}}
+.fcol h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#222;margin-bottom:12px}
+.footer-icons{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:22px}
+.footer-btm{border-top:1px solid #eee;padding-top:16px;text-align:center;font-size:11px;color:#aaa}
+.footer-btm a{color:#aaa}
+.footer-btm a:hover{color:#000}
+
+/* ─── WA FLOAT ─── */
+.wa-float{position:fixed;bottom:24px;right:24px;background:#25d366;color:#fff;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 18px rgba(37,211,102,.4);z-index:1500;transition:transform .2s}
+.wa-float:hover{transform:scale(1.08)}
+
+/* ─── TOAST ─── */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);background:#222;color:#fff;padding:11px 22px;font-size:13px;font-weight:600;z-index:3000;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ─── PAGES ─── */
+.page{display:none}
+.page.active{display:block}
+
+@media(max-width:768px){
+  .top-util{padding:8px 16px}
+  .logo-area{padding:16px}
+  .logo-area img{height:44px}
+  .ni>a{padding:12px 10px;font-size:11px}
+  .prod-section{padding:20px 12px 40px}
+  .pd-name{font-size:17px}
+  .pd-price{font-size:22px}
+  .footer{padding:28px 16px 16px}
+  .footer-top{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ANNOUNCE -->
+<div class="announce">Anteojos y accesorios para ópticas, consulta por personalizados.</div>
+
+<!-- TOP UTILITY -->
+<div class="top-util">
+  <div>
+    <a href="#" onclick="showToast('Función próximamente');return false;">Crear cuenta</a>
+    <span class="sep">|</span>
+    <a href="#" onclick="showToast('Función próximamente');return false;">Iniciar sesión</a>
+  </div>
+  <div class="top-right">
+    <button class="top-search-btn" onclick="toggleSearch()" title="Buscar">🔍</button>
+    <button class="top-cart" onclick="openCart()">
+      <span class="ci">🛒</span>
+      <span id="cartLbl">0 - $0,00</span>
+    </button>
+  </div>
+</div>
+
+<!-- SEARCH BAR -->
+<div class="search-bar" id="searchBar">
+  <input type="text" id="srch" placeholder="Buscar productos..." oninput="doSearch()" autofocus/>
+</div>
+
+<!-- LOGO -->
+<div class="logo-area">
+  <a href="#" onclick="goHome();return false;">
+    <img src="https://d22fxaf9t8d39k.cloudfront.net/139f83b193da313929a9a86e8f3475455bd8744025ca8d3c6777c5e0d963345e461944.png" alt="REC Eyewear"/>
+  </a>
+</div>
+
+<!-- NAV -->
+<nav class="sitenav">
+  <div class="nav-in">
+    <div class="ni"><a href="#" onclick="goHome();return false;">Inicio</a></div>
+    <div class="ni">
+      <a href="#">Productos <span class="nav-arrow">▾</span></a>
+      <div class="ddrop">
+        <a href="#" onclick="filterCat('all');return false;">Ver todos</a>
+        <div class="dlbl">Receta</div>
+        <a href="#" onclick="filterCat('receta-metal');return false;">Metal</a>
+        <a href="#" onclick="filterCat('receta-tr90');return false;">TR90</a>
+        <a href="#" onclick="filterCat('receta-acetato');return false;">Acetato</a>
+        <a href="#" onclick="filterCat('receta-nino');return false;">Niño</a>
+        <a href="#" onclick="filterCat('receta-economicos');return false;">Económicos</a>
+        <a href="#" class="dlbl-link" onclick="filterCat('clipon');return false;">Clipon</a>
+        <a href="#" onclick="filterCat('clipon-5placas');return false;">5 Placas</a>
+        <a href="#" onclick="filterCat('clipon-1placa');return false;">1 Placa</a>
+        <a href="#" onclick="filterCat('clipon-runflex');return false;">Runflex</a>
+        <div class="dlbl">Sol</div>
+        <a href="#" onclick="filterCat('sol-polarizados');return false;">Polarizados</a>
+        <a href="#" onclick="filterCat('sol-clipper');return false;">Clipper Polarizados</a>
+        <div class="dlbl">Accesorios</div>
+        <a href="#" onclick="filterCat('accesorios-estuches');return false;">Estuches</a>
+        <a href="#" onclick="filterCat('accesorios-limpia');return false;">Limpia Cristales</a>
+      </div>
+    </div>
+    <div class="ni"><a href="#" onclick="showPg('faq');return false;">Preguntas Frecuentes</a></div>
+    <div class="ni"><a href="#" onclick="showPg('contact');return false;">Contacto</a></div>
+  </div>
+</nav>
+
+<!-- PAGE: HOME -->
+<div class="page active" id="pg-home">
+
+  <!-- CAROUSEL -->
+  <div class="carousel" id="carousel">
+    <div class="carousel-track" id="carouselTrack">
+
+      <div class="carousel-slide" onclick="openProduct(233)">
+        <img src="imgs/banner-limpia.png" alt="Limpia Cristales"/>
+      </div>
+
+      <div class="carousel-slide" onclick="filterCat('receta-metal')">
+        <img src="imgs/banner-metal.png" alt="Metal Receta Diseño"/>
+      </div>
+
+      <div class="carousel-slide" onclick="filterCat('receta-acetato')">
+        <img src="imgs/banner-acetato.png" alt="Acetato Laminado"/>
+      </div>
+
+    </div>
+    <button class="carousel-arrow prev" onclick="carouselMove(-1)">&#8249;</button>
+    <button class="carousel-arrow next" onclick="carouselMove(1)">&#8250;</button>
+    <div class="carousel-dots" id="carouselDots"></div>
+  </div>
+
+  <div class="carousel-sep"><span>COLECCIONES</span></div>
+  <div class="prod-section" id="grid-anchor">
+    <div class="pgrid" id="pgrid"></div>
+    <div class="loading-spinner" id="spinner"><div class="spinner"></div> Cargando más productos...</div>
+    <div class="scroll-sentinel" id="sentinel"></div>
+  </div>
+</div>
+
+<!-- PAGE: PRODUCT DETAIL -->
+<div class="page" id="pg-product">
+  <div class="pd-wrap">
+    <button class="pd-back" onclick="goBack()">← Volver</button>
+    <div class="pd-grid">
+      <div>
+        <div class="pd-main">
+          <img id="pdImg" src="" alt=""/>
+          <button class="pd-arrow pd-arrow-prev" id="pdPrev" onclick="pdImgNav(-1)">&#8249;</button>
+          <button class="pd-arrow pd-arrow-next" id="pdNext" onclick="pdImgNav(1)">&#8250;</button>
+        </div>
+        <div class="pd-thumbs" id="pdThumbs"></div>
+      </div>
+      <div>
+        <div id="pdDiscTag"></div>
+        <div class="pd-name" id="pdName"></div>
+        <div class="pd-old" id="pdOld" style="display:none"></div>
+        <div class="pd-price" id="pdPrice"></div>
+        <div class="pd-lbl">Precio Contado</div>
+        <p class="pd-desc" id="pdDesc"></p>
+        <div class="qty-row">
+          <label>Cantidad:</label>
+          <div class="qty-ctrl">
+            <button onclick="pdQtyChg(-1)">−</button>
+            <span id="pdQtyN">1</span>
+            <button onclick="pdQtyChg(1)">+</button>
+          </div>
+        </div>
+        <button class="pd-add-btn" onclick="pdAddCart()">Agregar al carrito</button>
+        <a class="pd-wa-btn" id="pdWa" href="#" target="_blank">💬 &nbsp;Consultar por WhatsApp</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: FAQ -->
+<div class="page" id="pg-faq">
+  <div class="page-wrap">
+    <h1 class="pg-title">Preguntas Frecuentes</h1>
+    <div id="faqList"></div>
+  </div>
+</div>
+
+<!-- PAGE: CONTACT -->
+<div class="page" id="pg-contact">
+  <div class="page-wrap">
+    <h1 class="pg-title">Contacto</h1>
+    <div class="contact-grid">
+      <div class="cbox">
+        <h3>Información de contacto</h3>
+        <div class="crow"><span class="ci">📱</span><p><strong>WhatsApp</strong>Consultas sobre productos, packs mayoristas y personalizados.</p></div>
+        <div class="crow"><span class="ci">✉️</span><p><strong>Email</strong>ricciarditomas@gmail.com</p></div>
+        <div class="crow"><span class="ci">🏪</span><p><strong>Mayorista para ópticas</strong>Precios especiales, packs y artículos personalizados.</p></div>
+        <div class="crow"><span class="ci">📦</span><p><strong>Envíos</strong>Todo el país. Consultá costos según tu localidad.</p></div>
+        <a class="wa-cta" href="https://wa.me/5491160320008" target="_blank">💬 &nbsp;Escribirnos por WhatsApp</a>
+      </div>
+      <div class="cbox">
+        <h3>Envianos un mensaje</h3>
+        <div class="cform">
+          <input type="text" placeholder="Tu nombre *"/>
+          <input type="email" placeholder="Tu email *"/>
+          <input type="tel" placeholder="Teléfono (opcional)"/>
+          <textarea placeholder="Tu consulta..."></textarea>
+          <button class="cform-submit" onclick="showToast('✓ Mensaje enviado. Te contactaremos a la brevedad.')">Enviar mensaje</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CART DRAWER -->
+<div class="cart-ov" id="cartOv" onclick="closeCart()"></div>
+<div class="cart-drw" id="cartDrw">
+  <div class="cart-hdr">
+    <h3>Mi carrito</h3>
+    <button class="cart-cls" onclick="closeCart()">✕</button>
+  </div>
+  <div class="cart-body" id="cartBody"></div>
+  <div class="cart-ftr">
+    <div class="cart-total-row"><span>Subtotal</span><span id="cartTotal">$0,00</span></div>
+    <button class="cart-chk" onclick="doCheckout()">Finalizar por WhatsApp</button>
+  </div>
+</div>
+
+<a class="wa-float" href="https://wa.me/5491160320008" target="_blank" title="WhatsApp">💬</a>
+<div class="toast" id="toastEl"></div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-top">
+    <div class="fcol">
+      <h4>Medios de pago</h4>
+      <div class="footer-icons">💵 🔄 🏦</div>
+      <div style="margin-top:10px;font-size:12px;color:#888">Efectivo · Transferencia · Acuerdo</div>
+    </div>
+    <div class="fcol">
+      <h4>Medios de envío</h4>
+      <div class="footer-icons">🏪 🔄</div>
+      <div style="margin-top:10px;font-size:12px;color:#888">Retiro local · A coordinar</div>
+    </div>
+    <div class="fcol">
+      <h4>Contacto</h4>
+      <div style="font-size:12px;line-height:1.9">
+        <div>✉️ <a href="mailto:ricciarditomas@gmail.com">ricciarditomas@gmail.com</a></div>
+        <div style="margin-top:6px"><a href="#" onclick="showToast('Función próximamente');return false;">› Botón de arrepentimiento</a></div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-btm">Tienda creada con <strong>empretienda</strong> · © 2025 REC Eyewear</div>
+</footer>
+
+<script>
+/* ============================================================
+   PRODUCTS DATA — 187 productos (173 Excel + 14 originales)
+============================================================ */
+const PRODUCTS = [
+  // ── SOL ──────────────────────────────────────────────────
+  {id:1,name:'Lentes De Sol Halo Con 5 Placas Intercambiables',sku:'HALO',price:29900,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/e1be390b12f48bf86838ef1081dc51b9fc710750a749f389bed9b9db8e0527d5461944.png',
+         'https://d22fxaf9t8d39k.cloudfront.net/706e4e9f6c4e91c6d30e9c0c027c0eb4e8a9b88564be79dce9028cc89946cc80461944.webp'],
+   cats:['sol','sol-clipper'],
+   desc:'Incluye lente smoke grey, espejado rojo, marrón, amarillo, transparente, insert para receta, estuche grande, soporte, paño y funda de microfibra.'},
+
+  // ── SOL > POLARIZADOS ────────────────────────────────────
+  {id:10,name:'Polarizados (BL9258-34)',sku:'BL9258-34',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/74bacab6a9d6f9ca6187c8e4503926562fa4ed0cbabccf3a5e60a572077c0c57461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:11,name:'Polarizados (88689-82)',sku:'88689-82',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/e0816bbfaa179bbafcdf905efb4a00992366452f252f599ea5cc31848e6a1a7d461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:12,name:'Polarizados (19183-11)',sku:'19183-11',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/567a72b2b5f045d88edb1ed560d0ab3463ea53c93bfc6820bdd758bf35e7efd4461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:13,name:'Polarizados (2859)',sku:'2859',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/e77eda33e154eb1a70f3dcf271ac9551b0ac2b4aed3f3ffa014501847c5e1517461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:14,name:'Polarizados (2837)',sku:'2837',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/194ce09774b6349f35df8a1aa48d38448c340670eec9b0618060863ec6b032ce461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:15,name:'Polarizados (1855-33)',sku:'1855-33',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/87c787ead607bfa9b33266c051a9ba880d884af4e12ba429ee6e8cb40e61e105461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:16,name:'Polarizados (1475-12)',sku:'1475-12',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/13e219a67a50b36d7e090505d0d9bbda3893fa4008a35bb05ac0053986aab7f1461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:17,name:'Polarizados (1066)',sku:'1066',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/f8edb5be8e836417f1876ad801c67454e4e8fe7ed6b56660963655c140c740d2461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:18,name:'Polarizados (1060-12)',sku:'1060-12',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/8bc9ec65a8f0db1d7ae8e6a44fb39c614c549e8c4cc158ca429da0a65a9ae46b461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:19,name:'Polarizados (507)',sku:'507',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/55ae46e0e224ff4209d68a9482d0ad931a25ee9e4cd715883ab59dc21bf90d22461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:20,name:'Polarizados (333-148)',sku:'333-148',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/4547bdb9b37eaedd8e46e8e7db66c9d977b5f7da555a60a762ea6cb2bba08fa1461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:21,name:'Polarizados (243-148)',sku:'243-148',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/c3fbd8154e3b0c052eded3361deb537fb76190adaccd045e8a71cfff7e6ada83461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:22,name:'Polarizados (211-148)',sku:'211-148',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_1.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:23,name:'Polarizados (46381)',sku:'46381',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_2.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:24,name:'Polarizados (46375)',sku:'46375',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_3.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:25,name:'Polarizados (46369)',sku:'46369',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_4.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+  {id:26,name:'Polarizados (46358)',sku:'46358',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_5.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
+
+  // ── SOL > CLIPPER POLARIZADOS ────────────────────────────
+  {id:30,name:'Clipper Polarizados (3026)',sku:'3026',price:17000,oldPrice:20000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/edcd71f08c8ae5927391ae61604cf99649982b54e5f6476c4ea1a464b0c089f7461944.jpg'],cats:['sol','sol-clipper','ofertas'],desc:'Clipper polarizado sobre armazón de receta. Precio Contado.'},
+  {id:31,name:'Clipper Polarizados (3025)',sku:'3025',price:17000,oldPrice:20000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/46cdd01c187122977bfed6eddf366cf1ff3bb7b61b53b75a8fd95915019e604c461944.jpg'],cats:['sol','sol-clipper','ofertas'],desc:'Clipper polarizado sobre armazón de receta. Precio Contado.'},
+
+  // ── CLIPON > 5 PLACAS ────────────────────────────────────
+  {id:40,name:'CINCO PLACAS (2345T)',sku:'2345T',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2345T.jpeg'],cats:['clipon','clipon-5placas','ofertas'],desc:'Clipon con 5 placas intercambiables. Precio Contado.'},
+  {id:41,name:'CINCO PLACAS (2299A)',sku:'2299A',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2299A.jpeg'],cats:['clipon','clipon-5placas','ofertas'],desc:'Clipon con 5 placas intercambiables. Precio Contado.'},
+  {id:42,name:'CINCO PLACAS (2295A)',sku:'2295A',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2295A.jpeg'],cats:['clipon','clipon-5placas','ofertas'],desc:'Clipon con 5 placas intercambiables. Precio Contado.'},
+  {id:43,name:'CINCO PLACAS (2291A)',sku:'2291A',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2291A.jpeg'],cats:['clipon','clipon-5placas','ofertas'],desc:'Clipon con 5 placas intercambiables. Precio Contado.'},
+  {id:44,name:'CINCO PLACAS (2206A)',sku:'2206A',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2206A.jpeg'],cats:['clipon','clipon-5placas','ofertas'],desc:'Clipon con 5 placas intercambiables. Precio Contado.'},
+  {id:45,name:'CINCO PLACAS (2203A)',sku:'2203A',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2203A.jpeg'],cats:['clipon','clipon-5placas','ofertas'],desc:'Clipon con 5 placas intercambiables. Precio Contado.'},
+
+  // ── CLIPON > 1 PLACA ─────────────────────────────────────
+  {id:50,name:'UNA PLACA (c5103)',sku:'c5103',price:23400,oldPrice:27529,discount:14,imgs:['imgs/c5103.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:51,name:'UNA PLACA (95967)',sku:'95967',price:23400,oldPrice:27529,discount:14,imgs:['imgs/95967.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:52,name:'UNA PLACA (95309)',sku:'95309',price:23400,oldPrice:27529,discount:14,imgs:['imgs/95309.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:53,name:'UNA PLACA (91566)',sku:'91566',price:23400,oldPrice:27529,discount:14,imgs:['imgs/91566.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:54,name:'UNA PLACA (81612)',sku:'81612',price:23400,oldPrice:27529,discount:14,imgs:['imgs/81612.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:55,name:'UNA PLACA (81037)',sku:'81037',price:23400,oldPrice:27529,discount:14,imgs:['imgs/81037.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:56,name:'UNA PLACA (81013)',sku:'81013',price:23400,oldPrice:27529,discount:14,imgs:['imgs/81013.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:57,name:'UNA PLACA (7102)',sku:'7102',price:23400,oldPrice:27529,discount:14,imgs:['imgs/7102.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:58,name:'UNA PLACA (6817)',sku:'6817',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6817.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:59,name:'UNA PLACA (6154)',sku:'6154',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6154.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:60,name:'UNA PLACA (6142)',sku:'6142',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6142.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:61,name:'UNA PLACA (3603)',sku:'3603',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3603.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:62,name:'UNA PLACA (3108)',sku:'3108',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3108.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:63,name:'UNA PLACA (3102)',sku:'3102',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3102.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:64,name:'UNA PLACA (3056)',sku:'3056',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3056.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+  {id:65,name:'UNA PLACA (3030)',sku:'3030',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3030.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.'},
+
+  // ── RECETA > METAL DISEÑO ────────────────────────────────
+  {id:71,name:'Metal Receta Diseño (MS18)',sku:'MS18',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS18.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:75,name:'Metal Receta Diseño (MS12)',sku:'MS12',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS12.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:76,name:'Metal Receta Diseño (MS09)',sku:'MS09',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS09.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:77,name:'Metal Receta Diseño (MS07)',sku:'MS07',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS07.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:78,name:'Metal Receta Diseño (MS06)',sku:'MS06',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS06.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:79,name:'Metal Receta Diseño (MS02)',sku:'MS02',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS02.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:80,name:'Metal Receta Diseño (MS01)',sku:'MS01',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS01.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:81,name:'Metal Receta Diseño (MH044)',sku:'MH044',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MH044.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:82,name:'Metal Receta Diseño (LV6521)',sku:'LV6521',price:17000,oldPrice:20000,discount:15,imgs:['imgs/LV6521.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:83,name:'Metal Receta Diseño (LV6514)',sku:'LV6514',price:17000,oldPrice:20000,discount:15,imgs:['imgs/LV6514.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:84,name:'Metal Receta Diseño (GK1068)',sku:'GK1068',price:17000,oldPrice:20000,discount:15,imgs:['imgs/GK1068.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:234,name:'Metal Receta Diseño (YM236005)',sku:'YM236005',price:17000,oldPrice:20000,discount:15,imgs:['imgs/YM236005.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:236,name:'Metal Receta Diseño (TJ9630)',sku:'TJ9630',price:17000,oldPrice:20000,discount:15,imgs:['imgs/TJ9630.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:237,name:'Metal Receta Diseño (NT8082)',sku:'NT8082',price:17000,oldPrice:20000,discount:15,imgs:['imgs/NT8082.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:281,name:'Metal Receta Diseño (8004)',sku:'8004',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_8004.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:282,name:'Metal Receta Diseño (1004)',sku:'1004',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1004.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:283,name:'Metal Receta Diseño (K1003)',sku:'K1003',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_K1003.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:284,name:'Metal Receta Diseño (1006)',sku:'1006',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1006.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:285,name:'Metal Receta Diseño (CA0803)',sku:'CA0803',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_CA0803.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:286,name:'Metal Receta Diseño (1009)',sku:'1009',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1009.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:287,name:'Metal Receta Diseño (1015)',sku:'1015',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1015.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:288,name:'Metal Receta Diseño (AJ3006)',sku:'AJ3006',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_AJ3006.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:289,name:'Metal Receta Diseño (AJ3007)',sku:'AJ3007',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_AJ3007.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:290,name:'Metal Receta Diseño (1037)',sku:'1037',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1037.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+  {id:291,name:'Metal Receta Diseño (MS15)',sku:'MS15',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_MS15.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
+
+  // ── RECETA > METAL OFERTA ────────────────────────────────
+  {id:90,name:'Metal Oferta (5SNM1123)',sku:'5SNM1123',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1123.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:91,name:'Metal Oferta (5SNM1121)',sku:'5SNM1121',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1121.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:92,name:'Metal Oferta (5SNM1117)',sku:'5SNM1117',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1117.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:93,name:'Metal Oferta (5SNM1112)',sku:'5SNM1112',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1112.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:94,name:'Metal Oferta (5SNM1110)',sku:'5SNM1110',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1110.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:95,name:'Metal Oferta (5SNM1097)',sku:'5SNM1097',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1097.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:96,name:'Metal Oferta (5SNM1095 - 5SNM1096)',sku:'5SNM1095',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1095_-_5SNM1096.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:97,name:'Metal Oferta (5SNM1076 - 5SNM1073)',sku:'5SNM1076',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1076_-_5SNM1073.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:98,name:'Metal Oferta (5SNM1075)',sku:'5SNM1075',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1075.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:99,name:'Metal Oferta (5SNM1072)',sku:'5SNM1072',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1072.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:100,name:'Metal Oferta (5SNM1071 - 5SNM1057)',sku:'5SNM1071',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1071_-_5SNM1057.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:101,name:'Metal Oferta (5SNM1070 - 5SNM1042)',sku:'5SNM1070',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1070_-_5SNM1042.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:102,name:'Metal Oferta (5SNM1069)',sku:'5SNM1069',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1069.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:103,name:'Metal Oferta (5SNM1064)',sku:'5SNM1064',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1064.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:104,name:'Metal Oferta (5SNM1058 - 5SNM1063)',sku:'5SNM1058',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1058_-_5SNM1063.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:105,name:'Metal Oferta (5SNM1034)',sku:'5SNM1034',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1034.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:106,name:'Metal Oferta (5SNM1030)',sku:'5SNM1030',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1030.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:107,name:'Metal Oferta (5SNM1029 - 5SNM1130)',sku:'5SNM1029',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1029_-_5SNM1130.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+  {id:108,name:'Metal Oferta (5SNM106B)',sku:'5SNM106B',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM106B.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+
+  // ── RECETA > TR90 CON ALMA ──────────────────────────────
+  {id:110,name:'TR90 Con alma De Metal (MAM43)',sku:'MAM43',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM43.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:111,name:'TR90 Con alma De Metal (MAM42)',sku:'MAM42',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM42.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:112,name:'TR90 Con alma De Metal (MAM33)',sku:'MAM33',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM33.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:113,name:'TR90 Con alma De Metal (MAM30)',sku:'MAM30',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM30.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:114,name:'TR90 Con alma De Metal (MAM29)',sku:'MAM29',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM29.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:115,name:'TR90 Con alma De Metal (MAM28)',sku:'MAM28',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM28.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:116,name:'TR90 Con alma De Metal (MAM24)',sku:'MAM24',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM24.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:117,name:'TR90 Con alma De Metal (AM22)',sku:'AM22',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM22.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:118,name:'TR90 Con alma De Metal (AM19)',sku:'AM19',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM19.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:119,name:'TR90 Con alma De Metal (AM15(2))',sku:'AM152',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM15(2).jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:120,name:'TR90 Con alma De Metal (AM15(1))',sku:'AM151',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM15(1).jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:121,name:'TR90 Con alma De Metal (AM15)',sku:'AM15',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM15.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:122,name:'TR90 Con alma De Metal (AM13)',sku:'AM13',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM13.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:123,name:'TR90 Con alma De Metal (AM11)',sku:'AM11',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM11.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:124,name:'TR90 Con alma De Metal (AM03)',sku:'AM03',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM03.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+  {id:125,name:'TR90 Con alma De Metal (AM02)',sku:'AM02',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM02.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+
+  // ── RECETA > TR90 CABALLERO/DAMA ─────────────────────────
+  {id:130,name:'TR90 (NY125)',sku:'NY125',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY125.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:131,name:'TR90 (NY119)',sku:'NY119',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY119.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:132,name:'TR90 (NY117)',sku:'NY117',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY117.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:133,name:'TR90 (NY92)',sku:'NY92',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY92.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:134,name:'TR90 (NY90)',sku:'NY90',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY90.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:135,name:'TR90 (NY84)',sku:'NY84',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY84.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:136,name:'TR90 (NY83)',sku:'NY83',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY83.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:137,name:'TR90 (NT80)',sku:'NT80',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT80.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:138,name:'TR90 (NT71)',sku:'NT71',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT71.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:139,name:'TR90 (NT63)',sku:'NT63',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT63.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:140,name:'TR90 (NT61)',sku:'NT61',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT61.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:141,name:'TR90 (NT31)',sku:'NT31',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT31.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:142,name:'TR90 (NT26)',sku:'NT26',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT26.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:143,name:'TR90 (MOD.412)',sku:'MOD.412',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.412.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:144,name:'TR90 (MOD.383)',sku:'MOD.383',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.383.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:145,name:'TR90 (MOD.381)',sku:'MOD.381',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.381.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:146,name:'TR90 (MOD.380)',sku:'MOD.380',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.380.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:147,name:'TR90 (MOD.376)',sku:'MOD.376',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.376.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:148,name:'TR90 (7032N)',sku:'7032N',price:10200,oldPrice:12000,discount:15,imgs:['imgs/7032_N.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:149,name:'TR90 (5007)',sku:'5007',price:10200,oldPrice:12000,discount:15,imgs:['imgs/5007.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:150,name:'TR90 (5003-B)',sku:'5003-B',price:10200,oldPrice:12000,discount:15,imgs:['imgs/5003-B.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:151,name:'TR90 (2010)',sku:'2010',price:10200,oldPrice:12000,discount:15,imgs:['imgs/2010.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:152,name:'TR90 (2007)',sku:'2007',price:10200,oldPrice:12000,discount:15,imgs:['imgs/2007.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:153,name:'TR90 (1003)',sku:'1003',price:10200,oldPrice:12000,discount:15,imgs:['imgs/1003.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:154,name:'TR90 (3762)',sku:'3762',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.376.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:155,name:'TR90 (3761)',sku:'3761',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.381.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+  {id:156,name:'TR90 (376)',sku:'376',price:10200,oldPrice:12000,discount:15,imgs:['imgs/376.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+
+  // ── RECETA > TR90 DAMA ───────────────────────────────────
+  {id:243,name:'TR90 Dama (5732)',sku:'5732',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5732.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:244,name:'TR90 Dama (5712)',sku:'5712',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5712.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:245,name:'TR90 Dama (5720)',sku:'5720',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5720.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:246,name:'TR90 Dama (6590)',sku:'6590',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_6590.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:247,name:'TR90 Dama (6586)',sku:'6586',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_6586.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:248,name:'TR90 Dama (5751)',sku:'5751',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5751.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:249,name:'TR90 Dama (5762)',sku:'5762',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5762.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:250,name:'TR90 Dama (5729)',sku:'5729',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5729.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:251,name:'TR90 Dama (5760)',sku:'5760',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5760.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:252,name:'TR90 Dama (5717)',sku:'5717',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5717.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:253,name:'TR90 Dama (6589)',sku:'6589',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_6589.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:254,name:'TR90 Dama (6580)',sku:'6580',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_6580.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+  {id:255,name:'TR90 Dama (5746)',sku:'5746',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_5746.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Dama. Liviano y flexible.'},
+
+  // ── RECETA > TR90 CABALLERO ──────────────────────────────
+  {id:256,name:'TR90 Caballero (2209)',sku:'2209',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_2209.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:257,name:'TR90 Caballero (9825)',sku:'9825',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9825.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:258,name:'TR90 Caballero (9830)',sku:'9830',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9830.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:259,name:'TR90 Caballero (2206)',sku:'2206',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_2206.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:260,name:'TR90 Caballero (8009)',sku:'8009',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_8009.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:261,name:'TR90 Caballero (9805)',sku:'9805',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9805.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:262,name:'TR90 Caballero (9803)',sku:'9803',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9803.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:263,name:'TR90 Caballero (9802)',sku:'9802',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9802.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:264,name:'TR90 Caballero (8001)',sku:'8001',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_8001.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:265,name:'TR90 Caballero (8005)',sku:'8005',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_8005.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:266,name:'TR90 Caballero (8008)',sku:'8008',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_8008.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:267,name:'TR90 Caballero (9801)',sku:'9801',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9801.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:268,name:'TR90 Caballero (8010)',sku:'8010',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_8010.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:269,name:'TR90 Caballero (9810)',sku:'9810',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9810.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+  {id:270,name:'TR90 Caballero (9808)',sku:'9808',price:11900,oldPrice:null,discount:null,imgs:['imgs/TR90_9808.jpg'],cats:['receta','receta-tr90'],desc:'Armazón TR90 Caballero. Liviano y flexible.'},
+
+  // ── RECETA > CLIPON RUNFLEX ──────────────────────────────
+  {id:271,name:'Clipon Runflex (8835)',sku:'8835',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8835.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:272,name:'Clipon Runflex (8834)',sku:'8834',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8834.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:273,name:'Clipon Runflex (8837)',sku:'8837',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8837.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:274,name:'Clipon Runflex (8836)',sku:'8836',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8836.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:275,name:'Clipon Runflex (8832)',sku:'8832',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8832.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:276,name:'Clipon Runflex (8838)',sku:'8838',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8838.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:277,name:'Clipon Runflex (8831)',sku:'8831',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8831.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:278,name:'Clipon Runflex (8830)',sku:'8830',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8830.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:279,name:'Clipon Runflex (8829)',sku:'8829',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8829.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+  {id:280,name:'Clipon Runflex (8828B)',sku:'8828B',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8828B.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.'},
+
+  // ── RECETA > ACETATO > LAVANETT ──────────────────────────
+  {id:160,name:'Lavanett (1218)',sku:'1218',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1218.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:161,name:'Lavanett (1214)',sku:'1214',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1214.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:162,name:'Lavanett (1213)',sku:'1213',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1213.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:163,name:'Lavanett (1210)',sku:'1210',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1210.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:164,name:'Lavanett (1209)',sku:'1209',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1209.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:165,name:'Lavanett (1208)',sku:'1208',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1208.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:166,name:'Lavanett (1207)',sku:'1207',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1207.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:167,name:'Lavanett (1205)',sku:'1205',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1205.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:168,name:'Lavanett (1203)',sku:'1203',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1203.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:169,name:'Lavanett (1202)',sku:'1202',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1202.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:170,name:'Lavanett (1201)',sku:'1201',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1201.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+  {id:171,name:'Lavanett (1200)',sku:'1200',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1200.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
+
+  // ── RECETA > ACETATO LAMINADO ────────────────────────────
+  {id:191,name:'Acetato Laminado (9634)',sku:'9634',price:23400,oldPrice:27529,discount:14,imgs:['imgs/9634.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:196,name:'Acetato Laminado (2127)',sku:'2127',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2127.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:198,name:'Acetato Laminado (2057)',sku:'2057',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2057.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:238,name:'Acetato Laminado (2081)',sku:'2081',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2081.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:239,name:'Acetato Laminado (25001)',sku:'25001',price:23400,oldPrice:27529,discount:14,imgs:['imgs/25001.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:240,name:'Acetato Laminado (9110)',sku:'9110',price:23400,oldPrice:27529,discount:14,imgs:['imgs/9110.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:241,name:'Acetato Laminado (21053)',sku:'21053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/21053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:242,name:'Acetato Laminado (SC001)',sku:'SC001',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC001.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+
+  // ── RECETA > NIÑO ────────────────────────────────────────
+  {id:200,name:'Runflex Kids (Cat01)',sku:'Cat01',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_Cat01.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:201,name:'Runflex Kids (9024)',sku:'9024',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9024.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:202,name:'Runflex Kids (9023)',sku:'9023',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9023.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:203,name:'Runflex Kids (9022)',sku:'9022',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9022.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:204,name:'Runflex Kids (9021)',sku:'9021',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9021.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:205,name:'Runflex Kids (9017)',sku:'9017',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9017.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:206,name:'Runflex Kids (9013)',sku:'9013',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9013.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:207,name:'Runflex Kids (9002)',sku:'9002',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9002.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:208,name:'Runflex Kids (9001)',sku:'9001',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_9001.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:209,name:'Runflex Kids (1063)',sku:'1063',price:15300,oldPrice:18000,discount:15,imgs:['imgs/kids_1063.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
+  {id:210,name:'Rubber Kids (8310)',sku:'8310',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8310.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:211,name:'Rubber Kids (8297)',sku:'8297',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8297.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:212,name:'Rubber Kids (8294)',sku:'8294',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8294.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:213,name:'Rubber Kids (8279)',sku:'8279',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8279.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:214,name:'Rubber Kids (8251)',sku:'8251',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8251.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:215,name:'Rubber Kids (8197)',sku:'8197',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8197.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:216,name:'Rubber Kids (8142)',sku:'8142',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_8142.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:217,name:'Rubber Kids (891)',sku:'891',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_891.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:218,name:'Rubber Kids (825)',sku:'825',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_825.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+  {id:219,name:'Rubber Kids (503)',sku:'503',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_503.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
+
+  // ── RECETA > ECONÓMICOS ──────────────────────────────────
+  {id:220,name:'PASTA ECONÓMICOS',sku:'PASTA-ECO',price:3200,oldPrice:5000,discount:36,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/4e12a94b4a26e1295c23d41252b06e3b28622df3559e219cdf21ed2d90a1b6ad461944.jpg',
+         'https://d22fxaf9t8d39k.cloudfront.net/a4d50e6384048c3837082253a253fd6f0cdafcc568a9a1a69546a7f9133aac34461944.jpg',
+         'https://d22fxaf9t8d39k.cloudfront.net/fb44bce0b8f878e3f3ead9db20fd4078c7e047d69d85d31352844f473667804d461944.jpg'],
+   cats:['receta','receta-economicos','ofertas'],desc:'Modelos de pasta económicos alta calidad, últimas unidades.'},
+  {id:221,name:'PASTA RANURADO SUPER OFERTA',sku:'PASTA-RAN',price:2000,oldPrice:4000,discount:50,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/2b78a58e2201c7b98f88e9d702e83754d4eeada6cd359d3ebe30fa06dcae6115461944.jpg'],
+   cats:['receta','receta-economicos','ofertas'],desc:'PASTA SUPER ECONOMICOS, RANURADOS. Stock limitado.'},
+  {id:222,name:'METAL ECONÓMICO 3.200 PESOS',sku:'METAL-ECO',price:3200,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/a8aa0e14c8d8649d486714a22fd29904497509785d7ff22b074c6ed7fae7152b461944.jpg'],
+   cats:['receta','receta-economicos'],desc:'Armazón metálico económico para receta.'},
+  {id:223,name:'PACK X50 METALICOS SURTIDOS',sku:'PACK-MET-50',price:280000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/e93377a382c45bd88c88238d5e6ac138852c510620cf1572256e3694764838b2461944.jpg','imgs/pack_met_1.jpg','imgs/pack_met_2.jpg','imgs/pack_met_3.jpg','imgs/pack_met_4.jpg','imgs/pack_met_5.jpg','imgs/pack_met_6.jpg'],
+   cats:['receta','receta-economicos'],desc:'Pack surtido de 50 armazones metálicos. Precio por unidad: $5.075.'},
+  {id:224,name:'PACK X100 METALICOS SURTIDOS',sku:'PACK-MET-100',price:495000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/a05581223d97b3a406ac9327d5e8d03df9f89dfcd511d640e837fb43755c16c6461944.jpg','imgs/pack_met_1.jpg','imgs/pack_met_2.jpg','imgs/pack_met_3.jpg','imgs/pack_met_4.jpg','imgs/pack_met_5.jpg','imgs/pack_met_6.jpg'],
+   cats:['receta','receta-economicos'],desc:'Pack surtido de 100 armazones metálicos. Precio por unidad: $4.505.'},
+  {id:225,name:'PACK X500 METALICOS SURTIDOS',sku:'PACK-MET-500',price:2010000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/e52ec5cf85017f7f104135fada97bbf99600c4d577951fa15a51a9a218dc3baf461944.jpg','imgs/pack_met_1.jpg','imgs/pack_met_2.jpg','imgs/pack_met_3.jpg','imgs/pack_met_4.jpg','imgs/pack_met_5.jpg','imgs/pack_met_6.jpg'],
+   cats:['receta','receta-economicos'],desc:'Pack surtido de 500 armazones metálicos. Precio por unidad: $3.650.'},
+  {id:226,name:'PACK X500 PLÁSTICOS SURTIDOS',sku:'PACK-PLA-500',price:2010000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/406ef29d8619b9c1b121d1d2e69fcb5ed6634c2ea86899d09ff5411186fadc6f461944.jpg','imgs/pack_pasta_1.jpg','imgs/pack_pasta_2.jpg','imgs/pack_pasta_3.jpg','imgs/pack_pasta_4.jpg','imgs/pack_pasta_5.jpg','imgs/pack_pasta_6.jpg','imgs/pack_pasta_7.jpg','imgs/pack_pasta_8.jpg','imgs/pack_pasta_9.jpg','imgs/pack_pasta_10.jpg','imgs/pack_pasta_11.jpg','imgs/pack_pasta_12.jpg','imgs/pack_pasta_13.jpg','imgs/pack_pasta_14.jpg','imgs/pack_pasta_15.jpg','imgs/pack_pasta_16.jpg','imgs/pack_pasta_17.jpg','imgs/pack_pasta_18.jpg','imgs/pack_pasta_19.jpg','imgs/pack_pasta_20.jpg','imgs/pack_pasta_21.jpg','imgs/pack_pasta_22.jpg','imgs/pack_pasta_23.jpg','imgs/pack_pasta_24.jpg','imgs/pack_pasta_25.jpg','imgs/pack_pasta_26.jpg','imgs/pack_pasta_27.jpg','imgs/pack_pasta_28.jpg','imgs/pack_pasta_29.jpg','imgs/pack_pasta_30.jpg'],
+   cats:['receta','receta-economicos'],desc:'Pack surtido de 500 armazones plásticos. Precio por unidad: $3.650.'},
+  {id:227,name:'PACK X100 PLÁSTICOS SURTIDOS',sku:'PACK-PLA-100',price:495000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/8659a5d02ecb78d6bdeb8aa8d3522021b617a61bc448b6a7de108b275b70b3a8461944.jpg','imgs/pack_pasta_1.jpg','imgs/pack_pasta_2.jpg','imgs/pack_pasta_3.jpg','imgs/pack_pasta_4.jpg','imgs/pack_pasta_5.jpg','imgs/pack_pasta_6.jpg','imgs/pack_pasta_7.jpg','imgs/pack_pasta_8.jpg','imgs/pack_pasta_9.jpg','imgs/pack_pasta_10.jpg','imgs/pack_pasta_11.jpg','imgs/pack_pasta_12.jpg','imgs/pack_pasta_13.jpg','imgs/pack_pasta_14.jpg','imgs/pack_pasta_15.jpg','imgs/pack_pasta_16.jpg','imgs/pack_pasta_17.jpg','imgs/pack_pasta_18.jpg','imgs/pack_pasta_19.jpg','imgs/pack_pasta_20.jpg','imgs/pack_pasta_21.jpg','imgs/pack_pasta_22.jpg','imgs/pack_pasta_23.jpg','imgs/pack_pasta_24.jpg','imgs/pack_pasta_25.jpg','imgs/pack_pasta_26.jpg','imgs/pack_pasta_27.jpg','imgs/pack_pasta_28.jpg','imgs/pack_pasta_29.jpg','imgs/pack_pasta_30.jpg'],
+   cats:['receta','receta-economicos'],desc:'Pack surtido de 100 armazones plásticos. Precio por unidad: $4.505.'},
+  {id:228,name:'PACK X50 PLÁSTICOS SURTIDOS',sku:'PACK-PLA-50',price:280000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/874466856d184c2e075952e4454b82a38ff36d3e600ed2bcf2b2b4668e9f3136461944.jpg','imgs/pack_pasta_1.jpg','imgs/pack_pasta_2.jpg','imgs/pack_pasta_3.jpg','imgs/pack_pasta_4.jpg','imgs/pack_pasta_5.jpg','imgs/pack_pasta_6.jpg','imgs/pack_pasta_7.jpg','imgs/pack_pasta_8.jpg','imgs/pack_pasta_9.jpg','imgs/pack_pasta_10.jpg','imgs/pack_pasta_11.jpg','imgs/pack_pasta_12.jpg','imgs/pack_pasta_13.jpg','imgs/pack_pasta_14.jpg','imgs/pack_pasta_15.jpg','imgs/pack_pasta_16.jpg','imgs/pack_pasta_17.jpg','imgs/pack_pasta_18.jpg','imgs/pack_pasta_19.jpg','imgs/pack_pasta_20.jpg','imgs/pack_pasta_21.jpg','imgs/pack_pasta_22.jpg','imgs/pack_pasta_23.jpg','imgs/pack_pasta_24.jpg','imgs/pack_pasta_25.jpg','imgs/pack_pasta_26.jpg','imgs/pack_pasta_27.jpg','imgs/pack_pasta_28.jpg','imgs/pack_pasta_29.jpg','imgs/pack_pasta_30.jpg'],
+   cats:['receta','receta-economicos'],desc:'Pack surtido de 50 armazones plásticos. Precio por unidad: $5.075.'},
+
+  // ── ACCESORIOS ───────────────────────────────────────────
+  {id:230,name:'ESTUCHE PLÁSTICO PERSONALIZADO PACK X100 (Mod. 8)',sku:'EST-MOD8',price:88000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/74c0b66741b87c970ebdc870e1ab43d238c4969800daf8bbc4e8c7fa6ad458e2461944.jpg'],
+   cats:['accesorios','accesorios-estuches'],desc:'Pack de 100 estuches plásticos personalizados con grabado láser del logo de la óptica, con frizelina interna.'},
+  {id:231,name:'ESTUCHE PLASTICO PERSONALIZADO PACK X100 (Mod. 3)',sku:'EST-MOD3',price:99999,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/a18c463c91ee4a691e3d9e3b69213c4210c51ee21e47995dd649e83e97eeeafd461944.jpg'],
+   cats:['accesorios','accesorios-estuches'],desc:'Pack de 100 estuches personalizados con grabado láser, con el logo de la óptica.'},
+  {id:232,name:'ESTUCHE PLÁSTICO PERSONALIZADO PACK X100 (Mod. 4)',sku:'EST-MOD4',price:99999,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/2dacb07a8391737525d0a9495bfdbdc8497e842bb4ac82c6594c59ebaaa2fa18461944.jpg'],
+   cats:['accesorios','accesorios-estuches'],desc:'Pack de 100 estuches plásticos con foam en ambos interiores, personalizados con el logo de la óptica.'},
+  {id:233,name:'LIMPIA CRISTALES PERSONALIZADOS PACK X100',sku:'LIMPIA-100',price:115000,oldPrice:null,discount:null,
+   imgs:['https://d22fxaf9t8d39k.cloudfront.net/9dfa3498b5a6b90915411419819be29baa142dfafc35c4d526be1979507e82b6461944.jpg'],
+   cats:['accesorios','accesorios-limpia'],desc:'Pack de 100 limpia cristales personalizados con los datos de la óptica: nombre, logo, dirección, mail y teléfono.'}
+];
+
+/* ============================================================
+   FAQS
+============================================================ */
+const FAQS = [
+  {q:'¿Cuál es el mínimo de compra?',a:'No hay mínimo de compra establecido. Podés comprar desde una unidad. Para los packs mayoristas los precios ya incluyen el descuento por volumen.'},
+  {q:'¿Realizan envíos a todo el país?',a:'Sí, realizamos envíos a todo el territorio argentino. El costo se calcula según destino y peso del pedido.'},
+  {q:'¿Qué medios de pago aceptan?',a:'Aceptamos transferencia bancaria, efectivo y pago a acordar. Para pedidos mayoristas coordinamos por WhatsApp.'},
+  {q:'¿Hacen productos personalizados?',a:'Sí, fabricamos estuches y limpia cristales personalizados con el logo de tu óptica. Consultá por WhatsApp para costos y tiempos.'},
+  {q:'¿Cuánto demoran los envíos?',a:'Entre 3 y 7 días hábiles desde la confirmación del pago, según destino.'},
+  {q:'¿Puedo retirar en persona?',a:'Sí, coordinamos el retiro. Contactanos por WhatsApp para acordar lugar y horario.'},
+  {q:'¿Los precios son con IVA?',a:'Los precios mostrados son finales. Para facturación especial contactanos por WhatsApp o email.'},
+  {q:'¿Qué diferencia hay entre los packs?',a:'A mayor cantidad, menor precio por unidad. Pack x50: $5.075/u — Pack x100: $4.505/u — Pack x500: $3.650/u.'}
+];
+
+/* ============================================================
+   STATE
+============================================================ */
+const PER_PAGE = 16;
+let cart = JSON.parse(localStorage.getItem('rec4_cart') || '[]');
+let activeCat = 'all';
+let activeQ = '';
+let loadedCount = 0;
+let filteredList = [];
+let isLoading = false;
+let pdId = null;
+let pdQtyN = 1;
+let observer = null;
+
+/* ============================================================
+   INIT
+============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  resetGrid();
+  setupObserver();
+  renderFaq();
+  updateCartUI();
+  handleHash();
+});
+
+window.addEventListener('hashchange', handleHash);
+
+function handleHash() {
+  const hash = location.hash;
+  const mProd  = hash.match(/^#producto\/(\d+)$/);
+  const mCat   = hash.match(/^#categoria\/(.+)$/);
+  const mBusc  = hash.match(/^#buscar\/(.+)$/);
+  if (mProd) {
+    openProduct(parseInt(mProd[1]), true);
+  } else if (mCat) {
+    filterCat(mCat[1], true);
+  } else if (mBusc) {
+    activeQ = decodeURIComponent(mBusc[1]).toLowerCase();
+    const srch = document.getElementById('srch');
+    if (srch) { srch.value = activeQ; }
+    showPg('home');
+    resetGrid();
+  } else {
+    filterCat('all', true);
+    if (document.getElementById('pg-product').classList.contains('active')) {
+      _showHome();
+    }
+  }
+}
+
+/* ============================================================
+   FORMAT
+============================================================ */
+function fmt(n) {
+  return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+/* ============================================================
+   PAGES
+============================================================ */
+function showPg(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('pg-' + id).classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function _showHome() {
+  showPg('home');
+  window.scrollTo({top: _scrollBeforeProduct || 0, behavior:'instant'});
+}
+function goHome() {
+  history.pushState(null, '', ' ');
+  _showHome();
+}
+function goBack() {
+  history.back();
+}
+
+/* ============================================================
+   CAROUSEL
+============================================================ */
+(function(){
+  let cur = 0, total = 3, timer;
+  const track = document.getElementById('carouselTrack');
+  const dotsEl = document.getElementById('carouselDots');
+
+  // Build dots
+  for(let i=0;i<total;i++){
+    const d = document.createElement('button');
+    d.className = 'cdot' + (i===0?' active':'');
+    d.onclick = ()=>{ goTo(i); resetTimer(); };
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n){
+    cur = (n+total)%total;
+    track.style.transform = `translateX(-${cur*100}%)`;
+    dotsEl.querySelectorAll('.cdot').forEach((d,i)=>d.classList.toggle('active',i===cur));
+  }
+
+  function resetTimer(){
+    clearInterval(timer);
+    timer = setInterval(()=>goTo(cur+1), 4500);
+  }
+
+  window.carouselMove = function(dir){ goTo(cur+dir); resetTimer(); };
+  resetTimer();
+})();
+
+/* ============================================================
+   SEARCH
+============================================================ */
+function toggleSearch() {
+  const bar = document.getElementById('searchBar');
+  bar.classList.toggle('open');
+  if (bar.classList.contains('open')) document.getElementById('srch').focus();
+}
+
+/* ============================================================
+   FILTER & INFINITE SCROLL
+============================================================ */
+function filterCat(cat, fromHash) {
+  activeCat = cat;
+  if (!fromHash) history.pushState(null, '', cat === 'all' ? ' ' : '#categoria/' + cat);
+  showPg('home');
+  resetGrid();
+  setTimeout(() => document.getElementById('grid-anchor').scrollIntoView({behavior:'smooth', block:'start'}), 80);
+}
+
+function doSearch() {
+  activeQ = document.getElementById('srch').value.trim().toLowerCase();
+  if (activeQ) history.pushState(null, '', '#buscar/' + encodeURIComponent(activeQ));
+  else history.pushState(null, '', ' ');
+  resetGrid();
+}
+
+function getFiltered() {
+  let list = PRODUCTS;
+  if (activeCat === 'ofertas') list = list.filter(p => p.discount);
+  else if (activeCat !== 'all') list = list.filter(p => p.cats.some(c => c === activeCat || c.startsWith(activeCat)));
+  if (activeQ) list = list.filter(p => p.name.toLowerCase().includes(activeQ) || (p.sku && String(p.sku).toLowerCase().includes(activeQ)) || p.cats.some(c => c.toLowerCase().includes(activeQ)) || (p.desc && p.desc.toLowerCase().includes(activeQ)));
+  const isPack = p => p.sku && String(p.sku).startsWith('PACK');
+  // Orden de categorías cuando se muestra todo
+  if (activeCat === 'all' && !activeQ) {
+    const priority = p => {
+      if (p.name.includes('Metal Receta Diseño'))  return 0;
+      if (isPack(p))                               return 1;
+      if (p.cats.includes('receta-acetato'))       return 2;
+      if (p.cats.includes('receta-tr90'))          return 3;
+      if (p.cats.includes('receta-economicos'))    return 4;
+      return 5;
+    };
+    list = list.slice().sort((a,b) => priority(a) - priority(b));
+  }
+  // Packs primero dentro de económicos
+  if (activeCat === 'receta-economicos' && !activeQ) {
+    list = list.slice().sort((a,b) => (isPack(b)?1:0) - (isPack(a)?1:0));
+  }
+  return list;
+}
+
+function cardHTML(p) {
+  return `
+  <div class="pcard" onclick="cardClick(event,${p.id})">
+    <div class="pcard-img">
+      ${p.discount ? `<span class="disc-tag">${p.discount}% OFF</span>` : ''}
+      <img src="${p.imgs[0]}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'"/>
+      <div class="pcard-hover">VER DETALLE</div>
+    </div>
+    <div class="pcard-info">
+      <div class="pcard-name">${p.name}</div>
+      <div class="pcard-prices">
+        ${p.oldPrice ? `<span class="pcard-old">${fmt(p.oldPrice)}</span>` : ''}
+        <span class="pcard-price">${fmt(p.price)}</span>
+      </div>
+      <div class="pcard-lbl">Precio Contado</div>
+      <button class="pcard-add" onclick="event.stopPropagation();cardAddCart(${p.id})">+ Agregar</button>
+    </div>
+  </div>`;
+}
+
+function cardClick(e, id) {
+  if (e.ctrlKey || e.metaKey) {
+    window.open(location.origin + location.pathname + '#producto/' + id, '_blank');
+    return;
+  }
+  openProduct(id);
+}
+
+function cardAddCart(id) {
+  addToCart(id, 1);
+  showToast('✓ Agregado al carrito');
+}
+
+function resetGrid() {
+  loadedCount = 0;
+  filteredList = getFiltered();
+  isLoading = false;
+  document.getElementById('pgrid').innerHTML = '';
+  document.getElementById('spinner').classList.remove('show');
+  if (!filteredList.length) {
+    document.getElementById('pgrid').innerHTML =
+      '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#aaa">No se encontraron productos.</div>';
+    return;
+  }
+  loadMore();
+  setupObserver();
+}
+
+function loadMore() {
+  if (isLoading || loadedCount >= filteredList.length) return;
+  isLoading = true;
+  const spinner = document.getElementById('spinner');
+  spinner.classList.add('show');
+
+  // Small delay for smooth feel
+  setTimeout(() => {
+    const batch = filteredList.slice(loadedCount, loadedCount + PER_PAGE);
+    const grid = document.getElementById('pgrid');
+    batch.forEach(p => {
+      const div = document.createElement('div');
+      div.innerHTML = cardHTML(p).trim();
+      grid.appendChild(div.firstChild);
+    });
+    loadedCount += batch.length;
+    isLoading = false;
+    spinner.classList.remove('show');
+  }, 250);
+}
+
+function setupObserver() {
+  if (observer) observer.disconnect();
+  const sentinel = document.getElementById('sentinel');
+  observer = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting && !isLoading && loadedCount < filteredList.length) {
+      loadMore();
+    }
+  }, { rootMargin: '200px' });
+  observer.observe(sentinel);
+}
+
+/* ============================================================
+   PRODUCT DETAIL
+============================================================ */
+function openProduct(id, fromHash) {
+  const p = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  _scrollBeforeProduct = window.scrollY;
+  pdId = id; pdQtyN = 1;
+  if (!fromHash) history.pushState(null, '', '#producto/' + id);
+
+  _pdImgs = p.imgs;
+  _pdImgIdx = 0;
+  document.getElementById('pdImg').alt = p.name;
+  document.getElementById('pdDiscTag').innerHTML = p.discount ? `<span class="pd-disc-tag">${p.discount}% OFF</span>` : '';
+  document.getElementById('pdName').textContent = p.name;
+  const oldEl = document.getElementById('pdOld');
+  if (p.oldPrice) { oldEl.textContent = 'Antes: ' + fmt(p.oldPrice); oldEl.style.display = 'block'; }
+  else { oldEl.style.display = 'none'; }
+  document.getElementById('pdPrice').textContent = fmt(p.price);
+  document.getElementById('pdDesc').textContent = p.desc || '';
+  document.getElementById('pdQtyN').textContent = 1;
+
+  const thumbs = document.getElementById('pdThumbs');
+  thumbs.innerHTML = p.imgs.length > 1 ? p.imgs.map((img, i) =>
+    `<div class="pd-thumb ${i===0?'on':''}" onclick="setPdImg('${img}',this)">
+       <img src="${img}" alt="" loading="lazy"/>
+     </div>`).join('') : '';
+
+  _pdSetIdx(0);
+
+  const waMsg = encodeURIComponent(`Hola! Me interesa: ${p.name} - ${fmt(p.price)}. ¿Tienen disponible?`);
+  document.getElementById('pdWa').href = `https://wa.me/5491160320008?text=${waMsg}`;
+
+  showPg('product');
+}
+let _pdImgs = [], _pdImgIdx = 0;
+
+function _pdSetIdx(idx) {
+  _pdImgIdx = idx;
+  document.getElementById('pdImg').src = _pdImgs[idx];
+  document.querySelectorAll('.pd-thumb').forEach((t,i) => t.classList.toggle('on', i===idx));
+  document.getElementById('pdPrev').classList.toggle('hidden', idx === 0);
+  document.getElementById('pdNext').classList.toggle('hidden', idx === _pdImgs.length - 1);
+}
+function setPdImg(src, el) {
+  const idx = _pdImgs.indexOf(src);
+  if (idx !== -1) _pdSetIdx(idx);
+}
+function pdImgNav(dir) {
+  const next = _pdImgIdx + dir;
+  if (next >= 0 && next < _pdImgs.length) _pdSetIdx(next);
+}
+function pdQtyChg(d) { pdQtyN = Math.max(1, pdQtyN + d); document.getElementById('pdQtyN').textContent = pdQtyN; }
+function pdAddCart() { if (pdId) { addToCart(pdId, pdQtyN); showToast('✓ Agregado al carrito'); } }
+
+/* ============================================================
+   CART
+============================================================ */
+function addToCart(id, qty = 1) {
+  const p = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  const line = cart.find(x => x.id === id);
+  if (line) line.qty += qty; else cart.push({id, qty});
+  saveCart(); updateCartUI();
+}
+function removeFromCart(id) { cart = cart.filter(x => x.id !== id); saveCart(); updateCartUI(); }
+function changeQty(id, d) {
+  const l = cart.find(x => x.id === id);
+  if (!l) return;
+  l.qty = Math.max(1, l.qty + d);
+  saveCart(); updateCartUI();
+}
+function saveCart() { localStorage.setItem('rec4_cart', JSON.stringify(cart)); }
+
+window.addEventListener('storage', e => {
+  if (e.key === 'rec4_cart') {
+    cart = JSON.parse(e.newValue || '[]');
+    updateCartUI();
+  }
+});
+
+function updateCartUI() {
+  const totalQty = cart.reduce((s, l) => s + l.qty, 0);
+  const totalAmt = cart.reduce((s, l) => {
+    const p = PRODUCTS.find(x => x.id === l.id);
+    return s + (p ? p.price * l.qty : 0);
+  }, 0);
+  document.getElementById('cartLbl').textContent = totalQty + ' - ' + fmt(totalAmt);
+  document.getElementById('cartTotal').textContent = fmt(totalAmt);
+
+  const body = document.getElementById('cartBody');
+  if (!cart.length) {
+    body.innerHTML = '<div class="cempty">🛒<br><br>Tu carrito está vacío</div>';
+    return;
+  }
+  body.innerHTML = cart.map(l => {
+    const p = PRODUCTS.find(x => x.id === l.id);
+    if (!p) return '';
+    return `<div class="cline">
+      <img src="${p.imgs[0]}" alt="${p.name}" onerror="this.style.display='none'"/>
+      <div class="cline-info">
+        <div class="cline-name">${p.name}</div>
+        <div class="cline-price">${fmt(p.price)}</div>
+        <div class="cline-qty">
+          <button class="cqb" onclick="changeQty(${l.id},-1)">−</button>
+          <span class="cqn">${l.qty}</span>
+          <button class="cqb" onclick="changeQty(${l.id},+1)">+</button>
+        </div>
+      </div>
+      <button class="cdel" onclick="removeFromCart(${l.id})">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function openCart() {
+  document.getElementById('cartDrw').classList.add('open');
+  document.getElementById('cartOv').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeCart() {
+  document.getElementById('cartDrw').classList.remove('open');
+  document.getElementById('cartOv').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function doCheckout() {
+  if (!cart.length) { showToast('Tu carrito está vacío'); return; }
+  const lines = cart.map(l => {
+    const p = PRODUCTS.find(x => x.id === l.id);
+    return `• ${p.name} x${l.qty} = ${fmt(p.price * l.qty)}`;
+  });
+  const total = cart.reduce((s, l) => {
+    const p = PRODUCTS.find(x => x.id === l.id); return s + (p ? p.price * l.qty : 0);
+  }, 0);
+  const msg = encodeURIComponent(`Hola! Quiero hacer el siguiente pedido:\n\n${lines.join('\n')}\n\nTotal: ${fmt(total)}\n\nQuedo a la espera. ¡Gracias!`);
+  window.open(`https://wa.me/5491160320008?text=${msg}`, '_blank');
+}
+
+/* ============================================================
+   FAQ
+============================================================ */
+function renderFaq() {
+  document.getElementById('faqList').innerHTML = FAQS.map((f, i) => `
+    <div class="faqitem" id="faq${i}">
+      <button class="faqq" onclick="toggleFaq(${i})"><span>${f.q}</span><span class="faqarrow">▼</span></button>
+      <div class="faqa">${f.a}</div>
+    </div>`).join('');
+}
+function toggleFaq(i) {
+  const el = document.getElementById('faq' + i);
+  const was = el.classList.contains('open');
+  document.querySelectorAll('.faqitem').forEach(e => e.classList.remove('open'));
+  if (!was) el.classList.add('open');
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+let toastT;
+function showToast(msg) {
+  const el = document.getElementById('toastEl');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>

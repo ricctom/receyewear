@@ -1,0 +1,9 @@
+# Dependencias (se regeneran con npm install, NO se suben)
+node_modules/
+
+# Config interna de Claude Code
+.claude/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
