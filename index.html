@@ -32,7 +32,10 @@ button{font-family:inherit;cursor:pointer}
 .logo-area img{height:60px;width:auto}
 
 /* ─── NAV ─── */
-.sitenav{border-top:1px solid #eee;border-bottom:1px solid #eee}
+.sitenav{border-top:1px solid #eee;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;z-index:1000;transition:box-shadow .2s}
+.sitenav.stuck{box-shadow:0 3px 14px rgba(0,0,0,.1)}
+.nav-cart{position:absolute;right:24px;top:50%;transform:translateY(-50%);background:none;border:1px solid #e5e5e5;cursor:pointer;font-size:12px;font-weight:600;color:#333;display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:7px;transition:background .15s,border-color .15s}
+.nav-cart:hover{background:#f3f3f3;border-color:#ccc}
 .nav-in{display:flex;justify-content:center;align-items:center;gap:0}
 .ni{position:relative}
 .ni>a{display:flex;align-items:center;gap:5px;padding:14px 22px;font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#333;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
@@ -55,10 +58,10 @@ button{font-family:inherit;cursor:pointer}
 
 /* ─── PRODUCT SECTION ─── */
 /* ─── CAROUSEL ─── */
-.carousel{position:relative;width:100%;overflow:hidden;background:#000;user-select:none}
+.carousel{position:relative;width:100%;overflow:hidden;background:#f5f5f5;user-select:none}
 .carousel-track{display:flex;transition:transform .5s ease}
-.carousel-slide{min-width:100%;height:340px;position:relative;cursor:pointer;overflow:hidden}
-.carousel-slide img{width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .4s ease}
+.carousel-slide{min-width:100%;position:relative;cursor:pointer;overflow:hidden}
+.carousel-slide img{width:100%;height:auto;display:block;transition:transform .4s ease}
 .carousel-slide:hover img{transform:scale(1.03)}
 .carousel-dots{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
 .cdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45);border:none;cursor:pointer;padding:0;transition:background .2s,transform .2s}
@@ -68,7 +71,6 @@ button{font-family:inherit;cursor:pointer}
 .carousel-arrow.prev{left:12px}
 .carousel-arrow.next{right:12px}
 @media(max-width:700px){
-  .carousel-slide{height:220px}
   .carousel-body{padding:0 24px}
   .carousel-title{font-size:20px}
   .carousel-tag{font-size:10px}
@@ -214,7 +216,7 @@ button{font-family:inherit;cursor:pointer}
 .wa-float:hover{transform:scale(1.08)}
 
 /* ─── TOAST ─── */
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);background:#222;color:#fff;padding:11px 22px;font-size:13px;font-weight:600;z-index:3000;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(12px);background:#1a1a1a;color:#fff;padding:14px 26px;font-size:14px;font-weight:600;border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.3);z-index:3000;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ─── PAGES ─── */
@@ -223,6 +225,8 @@ button{font-family:inherit;cursor:pointer}
 
 @media(max-width:768px){
   .top-util{padding:8px 16px}
+  .nav-cart{right:10px;padding:6px 8px;border:none}
+  .nav-cart span{display:none}
   .logo-area{padding:16px}
   .logo-area img{height:44px}
   .ni>a{padding:12px 10px;font-size:11px}
@@ -296,6 +300,7 @@ button{font-family:inherit;cursor:pointer}
     <div class="ni"><a href="#" onclick="showPg('faq');return false;">Preguntas Frecuentes</a></div>
     <div class="ni"><a href="#" onclick="showPg('contact');return false;">Contacto</a></div>
   </div>
+  <button class="nav-cart" onclick="openCart()" title="Mi carrito">🛒 <span id="navCartLbl">0 - $0,00</span></button>
 </nav>
 
 <!-- PAGE: HOME -->
@@ -1075,7 +1080,9 @@ function updateCartUI() {
     const p = PRODUCTS.find(x => x.id === l.id);
     return s + (p ? p.price * l.qty : 0);
   }, 0);
-  document.getElementById('cartLbl').textContent = totalQty + ' - ' + fmt(totalAmt);
+  const lblTxt = totalQty + ' - ' + fmt(totalAmt);
+  document.getElementById('cartLbl').textContent = lblTxt;
+  const navLbl = document.getElementById('navCartLbl'); if (navLbl) navLbl.textContent = lblTxt;
   document.getElementById('cartTotal').textContent = fmt(totalAmt);
 
   const body = document.getElementById('cartBody');
@@ -1153,6 +1160,15 @@ function showToast(msg) {
   clearTimeout(toastT);
   toastT = setTimeout(() => el.classList.remove('show'), 2600);
 }
+
+/* Sombra de la barra de navegación al hacer scroll */
+(function(){
+  const nav = document.querySelector('.sitenav');
+  if(!nav) return;
+  const onScroll = () => nav.classList.toggle('stuck', nav.getBoundingClientRect().top <= 0);
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
 </script>
 </body>
 </html>
