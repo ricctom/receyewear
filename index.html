@@ -82,6 +82,12 @@ button{font-family:inherit;cursor:pointer}
 .prod-section{max-width:1280px;margin:0 auto;padding:24px 24px 60px}
 
 /* ─── PRODUCT GRID ─── */
+.sort-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 18px}
+.sort-bar label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.sort-bar select{font-size:13px;padding:8px 12px;border:1px solid #ddd;border-radius:7px;background:#fff;cursor:pointer;color:#333;transition:border-color .15s}
+.sort-bar select:hover{border-color:#bbb}
+.sort-bar select:focus{outline:none;border-color:#333}
+@media(max-width:700px){.sort-bar{justify-content:space-between}.sort-bar select{flex:1;margin-left:8px}}
 .pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
 @media(max-width:1024px){.pgrid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.pgrid{grid-template-columns:repeat(2,1fr);gap:12px}}
@@ -330,6 +336,16 @@ button{font-family:inherit;cursor:pointer}
 
   <div class="carousel-sep"><span>COLECCIONES</span></div>
   <div class="prod-section" id="grid-anchor">
+    <div class="sort-bar">
+      <label for="sortSel">Ordenar por:</label>
+      <select id="sortSel" onchange="setSort(this.value)">
+        <option value="">Relevancia</option>
+        <option value="price-asc">Precio: menor a mayor</option>
+        <option value="price-desc">Precio: mayor a menor</option>
+        <option value="new">Más nuevos primero</option>
+        <option value="old">Más antiguos primero</option>
+      </select>
+    </div>
     <div class="pgrid" id="pgrid"></div>
     <div class="loading-spinner" id="spinner"><div class="spinner"></div> Cargando más productos...</div>
     <div class="scroll-sentinel" id="sentinel"></div>
@@ -472,10 +488,6 @@ const PRODUCTS = [
   {id:19,name:'Polarizados (507)',sku:'507',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/55ae46e0e224ff4209d68a9482d0ad931a25ee9e4cd715883ab59dc21bf90d22461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
   {id:20,name:'Polarizados (333-148)',sku:'333-148',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/4547bdb9b37eaedd8e46e8e7db66c9d977b5f7da555a60a762ea6cb2bba08fa1461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
   {id:21,name:'Polarizados (243-148)',sku:'243-148',price:15300,oldPrice:18000,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/c3fbd8154e3b0c052eded3361deb537fb76190adaccd045e8a71cfff7e6ada83461944.jpg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
-  {id:22,name:'Polarizados (1066)',sku:'1066',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_1.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
-  {id:23,name:'Polarizados (1475-12)',sku:'1475-12',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_2.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
-  {id:24,name:'Polarizados (19183-11)',sku:'19183-11',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_3.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
-  {id:25,name:'Polarizados (88689-82)',sku:'88689-82',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_4.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
   {id:26,name:'Polarizados (13-12)',sku:'13-12',price:15300,oldPrice:18000,discount:15,imgs:['imgs/pol_5.jpeg'],cats:['sol','sol-polarizados','ofertas'],desc:'Anteojos de sol polarizados. Precio Contado.'},
 
   // ── SOL > CLIPPER POLARIZADOS ────────────────────────────
@@ -649,8 +661,6 @@ const PRODUCTS = [
 
   // ── RECETA > ACETATO > LAVANETT ──────────────────────────
   {id:160,name:'Lavanett (1207)',sku:'1207',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1218.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
-  {id:161,name:'Lavanett (1203)',sku:'1203',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1214.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
-  {id:162,name:'Lavanett (1202)',sku:'1202',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1213.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
   {id:163,name:'Lavanett (1203)',sku:'1203',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1210.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
   {id:164,name:'Lavanett (1209)',sku:'1209',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1209.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
   {id:165,name:'Lavanett (1208)',sku:'1208',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1208.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
@@ -760,6 +770,7 @@ const PER_PAGE = 16;
 let cart = JSON.parse(localStorage.getItem('rec4_cart') || '[]');
 let activeCat = 'all';
 let activeQ = '';
+let activeSort = '';
 let loadedCount = 0;
 let filteredList = [];
 let isLoading = false;
@@ -888,6 +899,11 @@ function doSearch() {
   resetGrid();
 }
 
+function setSort(v) {
+  activeSort = v;
+  resetGrid();
+}
+
 function getFiltered() {
   let list = PRODUCTS;
   if (activeCat === 'ofertas') list = list.filter(p => p.discount);
@@ -909,6 +925,14 @@ function getFiltered() {
   // Packs primero dentro de económicos
   if (activeCat === 'receta-economicos' && !activeQ) {
     list = list.slice().sort((a,b) => (isPack(b)?1:0) - (isPack(a)?1:0));
+  }
+  // Orden elegido por el usuario (tiene prioridad sobre el orden por defecto)
+  if (activeSort) {
+    const np = p => Number(p.price) || 0;
+    if (activeSort === 'price-asc')       list = list.slice().sort((a,b) => np(a) - np(b));
+    else if (activeSort === 'price-desc') list = list.slice().sort((a,b) => np(b) - np(a));
+    else if (activeSort === 'new')        list = list.slice().sort((a,b) => b.id - a.id);
+    else if (activeSort === 'old')        list = list.slice().sort((a,b) => a.id - b.id);
   }
   return list;
 }
