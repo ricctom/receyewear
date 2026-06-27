@@ -7,3 +7,10 @@ node_modules/
 # Archivos de sistema
 .DS_Store
 Thumbs.db
+
+# Archivos de trabajo de la auditoría (no van a producción)
+_audit.py
+_fix.py
+apply_fix.py
+_worklist.txt
+_uniq.txt
