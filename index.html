@@ -1178,6 +1178,13 @@ function closeCart() {
 }
 function doCheckout() {
   if (!cart.length) { showToast('Tu carrito está vacío'); return; }
+  const staleCount = cart.filter(l => !PRODUCTS.find(x => x.id === l.id)).length;
+  if (staleCount) {
+    cart = cart.filter(l => PRODUCTS.find(x => x.id === l.id));
+    saveCart(); updateCartUI();
+    showToast('Algunos productos ya no están disponibles y se quitaron del carrito');
+    if (!cart.length) return;
+  }
   const lines = cart.map(l => {
     const p = PRODUCTS.find(x => x.id === l.id);
     return `• ${p.name} x${l.qty} = ${fmt(p.price * l.qty)}`;
