@@ -37,6 +37,8 @@
   .st.entregado{background:#e6f5ec;color:#0f7a3d}
   .st.cancelado{background:#eee;color:#888}
   select.status{margin-top:8px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;cursor:pointer}
+  .pdfbtn{margin-top:8px;margin-left:6px;padding:6px 11px;border:1px solid #222;background:#fff;color:#222;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+  .pdfbtn:hover{background:#222;color:#fff}
   .empty{text-align:center;color:#999;padding:50px 0}
   a.back{color:#888;font-size:12px;text-decoration:none}
 </style>
@@ -70,6 +72,7 @@
 const fmt = n => '$' + (n||0).toLocaleString('es-AR');
 const STATES = ['nuevo','preparando','enviado','entregado','cancelado'];
 let session = JSON.parse(localStorage.getItem('rec4_session') || 'null');
+let ORDERS = [];
 
 function saveSession(s){ session = s; localStorage.setItem('rec4_session', JSON.stringify(s)); }
 function logout(){ localStorage.removeItem('rec4_session'); location.reload(); }
@@ -119,6 +122,7 @@ async function loadOrders(){
   list.innerHTML = '<div class="empty">Cargando…</div>';
   try{
     const { orders } = await api('/api/admin');
+    ORDERS = orders;
     document.getElementById('stats').textContent = orders.length + ' pedido(s)';
     if(!orders.length){ list.innerHTML = '<div class="empty">Todavía no hay pedidos.</div>'; return; }
     list.innerHTML = orders.map(renderOrder).join('');
@@ -143,6 +147,7 @@ function renderOrder(o){
       <div style="text-align:right">
         <div class="order-total">${fmt(o.total)}</div>
         <select class="status" onchange="setStatus(${o.id}, this.value)">${opts}</select>
+        <button class="pdfbtn" onclick="exportOrderPDF(${o.id})" title="Exportar PDF de unidades por línea">📄 PDF</button>
       </div>
     </div>
     <div class="items">${items}</div>
@@ -155,6 +160,94 @@ async function setStatus(id, status){
 }
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// Separa "Metal Receta Diseño (MS18)" -> { linea:'Metal Receta Diseño', modelo:'MS18' }
+function splitNombre(name){
+  const s = String(name || '').trim();
+  const m = s.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  if(m) return { linea: m[1].trim() || 'Sin línea', modelo: m[2].trim() };
+  return { linea: s || 'Sin línea', modelo: '' };
+}
+
+// Exporta un PDF (vía impresión del navegador) con las unidades del pedido
+// agrupadas por línea: Modelo · Color · Cantidad, subtotal por línea y total general.
+function exportOrderPDF(id){
+  const o = ORDERS.find(x => x.id === id);
+  if(!o){ alert('No se encontró el pedido.'); return; }
+
+  // Agrupar por línea, y dentro por (modelo + color)
+  const lineas = new Map(); // linea -> Map(clave -> {modelo,color,qty})
+  (o.items || []).forEach(it => {
+    const { linea, modelo } = splitNombre(it.name);
+    const mod = it.sku ? String(it.sku) : modelo;
+    const color = it.color ? String(it.color) : '';
+    const qty = Math.max(1, parseInt(it.qty, 10) || 1);
+    if(!lineas.has(linea)) lineas.set(linea, new Map());
+    const g = lineas.get(linea);
+    const key = mod + '¬' + color;
+    if(g.has(key)) g.get(key).qty += qty;
+    else g.set(key, { modelo: mod, color, qty });
+  });
+
+  let totalGeneral = 0;
+  const bloques = [...lineas.entries()].map(([linea, g]) => {
+    const filas = [...g.values()].sort((a,b) =>
+      a.modelo.localeCompare(b.modelo) || a.color.localeCompare(b.color));
+    const subtotal = filas.reduce((s,f) => s + f.qty, 0);
+    totalGeneral += subtotal;
+    const trs = filas.map(f => `<tr>
+      <td>${esc(f.modelo || '—')}</td>
+      <td>${esc(f.color || '—')}</td>
+      <td class="q">${f.qty}</td></tr>`).join('');
+    return `<section class="linea">
+      <h2>${esc(linea)} <span class="ln-total">${subtotal} u.</span></h2>
+      <table>
+        <thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th></tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </section>`;
+  }).join('');
+
+  const d = new Date(o.created_at);
+  const fecha = d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Pedido #${o.id} · REC Eyewear</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px;font-size:13px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:22px}
+  .head h1{font-size:19px;margin:0;letter-spacing:1px;text-transform:uppercase}
+  .head .meta{font-size:12px;color:#555;text-align:right;line-height:1.5}
+  .linea{margin:0 0 20px;break-inside:avoid}
+  .linea h2{font-size:14px;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #bbb;display:flex;justify-content:space-between;align-items:baseline}
+  .ln-total{font-size:12px;font-weight:700;background:#111;color:#fff;padding:2px 9px;border-radius:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #eee}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666;border-bottom:1px solid #ccc}
+  td.q,th.q{text-align:right;width:70px;white-space:nowrap}
+  .grand{margin-top:26px;border-top:2px solid #111;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700}
+  .grand .n{font-size:20px}
+  @media print{ body{margin:12mm} .noprint{display:none} }
+  .noprint{margin-bottom:18px}
+  .noprint button{font-size:13px;padding:8px 16px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer}
+</style></head><body>
+  <div class="noprint"><button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>
+  <div class="head">
+    <h1>Pedido #${o.id}</h1>
+    <div class="meta">REC Eyewear<br>${esc(o.name || o.email || '')}<br>${fecha}</div>
+  </div>
+  ${bloques || '<p>El pedido no tiene ítems.</p>'}
+  <div class="grand"><span>Total de unidades</span><span class="n">${totalGeneral}</span></div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if(!w){ alert('Permití las ventanas emergentes para exportar el PDF.'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
 
 // arranque
 if(session && session.user && session.user.admin) showPanel();
