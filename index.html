@@ -362,6 +362,15 @@ body{color:var(--ink);-webkit-font-smoothing:antialiased}
 .cart-chk{background:var(--ink);border-radius:var(--radius-sm)} .cart-chk:hover{background:var(--accent)}
 .acct-link:hover{color:var(--accent)}
 
+/* Fixes mobile: carrito a la altura VISIBLE del cel (dvh) para que el botón
+   "Finalizar" no quede tapado por las barras del navegador */
+.cart-drw{height:100vh;height:100dvh}
+.cart-hdr,.cart-ftr{flex-shrink:0}
+/* El modal de login debe quedar POR ENCIMA del carrito (que es z-index 1801) */
+.modal-ov{z-index:2000} .modal{z-index:2001}
+/* Cierra el desplegable de "Productos" tras elegir (evita que quede flotando) */
+.sitenav.menu-closed .ddrop{display:none!important}
+
 /* Contacto */
 .cform input,.cform textarea{border-radius:var(--radius-sm);border-color:var(--line)}
 .cform input:focus,.cform textarea:focus{border-color:var(--accent)}
@@ -516,7 +525,6 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
           </div>
         </div>
         <button class="pd-add-btn" onclick="pdAddCart()">Agregar al carrito</button>
-        <a class="pd-wa-btn" id="pdWa" href="#" target="_blank">💬 &nbsp;Consultar por WhatsApp</a>
       </div>
     </div>
   </div>
@@ -1023,9 +1031,26 @@ function toggleSearch() {
 /* ============================================================
    FILTER & INFINITE SCROLL
 ============================================================ */
+// Cierra el menú desplegable de "Productos" (en el cel el :hover queda pegado
+// y el menú sigue flotando aunque ya hayas elegido una categoría).
+function closeDropdowns() {
+  const nav = document.querySelector('.sitenav');
+  if (!nav) return;
+  nav.classList.add('menu-closed');
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  clearTimeout(window._ddT);
+  window._ddT = setTimeout(() => nav.classList.remove('menu-closed'), 700);
+}
+// En desktop, apenas el mouse sale del nav volvemos a habilitar el hover.
+(function () {
+  const nav = document.querySelector('.sitenav');
+  if (nav) nav.addEventListener('mouseleave', () => nav.classList.remove('menu-closed'));
+})();
+
 function filterCat(cat, fromHash) {
   activeCat = cat;
   if (!fromHash) history.pushState(null, '', cat === 'all' ? ' ' : '#categoria/' + cat);
+  closeDropdowns();
   showPg('home');
   resetGrid();
   setTimeout(() => document.getElementById('grid-anchor').scrollIntoView({behavior:'smooth', block:'start'}), 80);
@@ -1234,9 +1259,6 @@ function openProduct(id, fromHash) {
     qtyRow.style.display = 'flex';
   }
 
-  const waMsg = encodeURIComponent(`Hola! Me interesa: ${p.name} - ${fmt(p.price)}. ¿Tienen disponible?`);
-  document.getElementById('pdWa').href = `https://wa.me/5491160320008?text=${waMsg}`;
-
   showPg('product');
 }
 let pdColorQtys = [];
@@ -1385,7 +1407,7 @@ function doCheckout() {
   // Si el backend todavía no está configurado, sigue funcionando como siempre (WhatsApp directo).
   if (!authEnabled) { legacyCheckout(); return; }
   // El login se pide RECIÉN acá, al confirmar.
-  if (!session) { pendingCheckout = true; openLogin(true); return; }
+  if (!session) { pendingCheckout = true; closeCart(); openLogin(true); return; }
   placeOrder();
 }
 
@@ -1413,7 +1435,7 @@ async function placeOrder() {
     order = r.order;
   } catch (e) {
     if (String(e.message).includes('sesión')) { // sesión vencida
-      logout(); pendingCheckout = true; openLogin(true); return;
+      logout(); pendingCheckout = true; closeCart(); openLogin(true); return;
     }
     showToast('No se pudo registrar el pedido: ' + e.message + '. Probá de nuevo.');
     return;
