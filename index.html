@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Tienda online de RecEyewear</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -192,6 +193,30 @@ button{font-family:inherit;cursor:pointer}
 .cart-total-row{display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-bottom:14px}
 .cart-chk{width:100%;background:#000;color:#fff;border:none;padding:13px;font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;transition:background .15s}
 .cart-chk:hover{background:#333}
+/* Cuenta / login / pedidos */
+.acct-name{font-size:12px;color:#333;font-weight:600}
+.acct-link{font-size:12px;color:#555;cursor:pointer;background:none;border:none;padding:0}
+.acct-link:hover{color:#000}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .2s;z-index:1000}
+.modal-ov.open{opacity:1;pointer-events:auto}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-46%);background:#fff;border-radius:14px;width:92%;max-width:420px;padding:28px 26px;z-index:1001;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.modal-cls{position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;color:#999;cursor:pointer}
+.modal h3{margin:0 0 6px;font-size:17px}
+.modal p{margin:0 0 20px;color:#777;font-size:13px;line-height:1.5}
+.gbtn-wrap{display:flex;justify-content:center;min-height:44px}
+.modal-msg{color:#c0392b;font-size:12px;min-height:16px;margin-top:14px;text-align:center}
+.modal-lg{max-width:560px;max-height:80vh;overflow-y:auto}
+.ord{border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.ord-top{display:flex;justify-content:space-between;align-items:center}
+.ord-id{font-weight:700;font-size:13px}
+.ord-date{font-size:11px;color:#999}
+.ord-st{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase}
+.ord-st.nuevo{background:#fdecea;color:#c0392b}.ord-st.preparando{background:#fff4e0;color:#b9770e}
+.ord-st.enviado{background:#e7f0fd;color:#1c5fb0}.ord-st.entregado{background:#e6f5ec;color:#0f7a3d}.ord-st.cancelado{background:#eee;color:#888}
+.ord-items{margin-top:8px;font-size:12px;color:#555;border-top:1px dashed #eee;padding-top:8px}
+.ord-items .c{color:#0f7a3d;font-weight:600}
+.ord-total{text-align:right;font-weight:700;margin-top:6px;font-size:13px}
 
 /* ─── FAQ ─── */
 .page-wrap{max-width:860px;margin:0 auto;padding:40px 24px 60px}
@@ -265,10 +290,8 @@ button{font-family:inherit;cursor:pointer}
 
 <!-- TOP UTILITY -->
 <div class="top-util">
-  <div>
-    <a href="#" onclick="showToast('Función próximamente');return false;">Crear cuenta</a>
-    <span class="sep">|</span>
-    <a href="#" onclick="showToast('Función próximamente');return false;">Iniciar sesión</a>
+  <div id="acctArea">
+    <a href="#" onclick="openLogin();return false;">Iniciar sesión</a>
   </div>
   <div class="top-right">
     <button class="top-search-btn" onclick="toggleSearch()" title="Buscar">🔍</button>
@@ -450,6 +473,24 @@ button{font-family:inherit;cursor:pointer}
     <div class="cart-total-row"><span>Subtotal</span><span id="cartTotal">$0,00</span></div>
     <button class="cart-chk" onclick="doCheckout()">Finalizar por WhatsApp</button>
   </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-ov" id="loginOv" onclick="closeLogin()"></div>
+<div class="modal" id="loginModal">
+  <button class="modal-cls" onclick="closeLogin()">✕</button>
+  <h3 id="loginTitle">Iniciá sesión</h3>
+  <p id="loginSub">Con tu cuenta de Google. Es solo para guardar y seguir tu pedido.</p>
+  <div class="gbtn-wrap" id="gbtnHome"></div>
+  <div class="modal-msg" id="loginMsg"></div>
+</div>
+
+<!-- MIS PEDIDOS MODAL -->
+<div class="modal-ov" id="ordersOv" onclick="closeOrders()"></div>
+<div class="modal modal-lg" id="ordersModal">
+  <button class="modal-cls" onclick="closeOrders()">✕</button>
+  <h3>Mis pedidos</h3>
+  <div id="ordersList"><p style="color:#999">Cargando…</p></div>
 </div>
 
 <a class="wa-float" href="https://wa.me/5491160320008" target="_blank" title="WhatsApp">💬</a>
@@ -1234,17 +1275,173 @@ function doCheckout() {
     showToast('Algunos productos ya no están disponibles y se quitaron del carrito');
     if (!cart.length) return;
   }
+  // Si el backend todavía no está configurado, sigue funcionando como siempre (WhatsApp directo).
+  if (!authEnabled) { legacyCheckout(); return; }
+  // El login se pide RECIÉN acá, al confirmar.
+  if (!session) { pendingCheckout = true; openLogin(true); return; }
+  placeOrder();
+}
+
+function legacyCheckout() {
   const lines = cart.map(l => {
     const p = PRODUCTS.find(x => x.id === l.id);
     const col = l.color ? ` — ${l.color}` : '';
     return `• ${p.name}${col} x${l.qty} = ${fmt(p.price * l.qty)}`;
   });
-  const total = cart.reduce((s, l) => {
-    const p = PRODUCTS.find(x => x.id === l.id); return s + (p ? p.price * l.qty : 0);
-  }, 0);
+  const total = cart.reduce((s, l) => { const p = PRODUCTS.find(x => x.id === l.id); return s + (p ? p.price * l.qty : 0); }, 0);
   const msg = encodeURIComponent(`Hola! Quiero hacer el siguiente pedido:\n\n${lines.join('\n')}\n\nTotal: ${fmt(total)}\n\nQuedo a la espera. ¡Gracias!`);
   window.open(`https://wa.me/5491160320008?text=${msg}`, '_blank');
 }
+
+async function placeOrder() {
+  const items = cart.map(l => {
+    const p = PRODUCTS.find(x => x.id === l.id);
+    return { sku: p.sku, name: p.name, color: l.color || null, qty: l.qty, price: p.price };
+  });
+  const total = items.reduce((s, it) => s + it.price * it.qty, 0);
+
+  let saved = false;
+  try {
+    await api('/api/orders', { method: 'POST', body: JSON.stringify({ items, total }) });
+    saved = true;
+  } catch (e) {
+    if (String(e.message).includes('sesión')) { // sesión vencida
+      logout(); pendingCheckout = true; openLogin(true); return;
+    }
+    showToast('No se pudo guardar el pedido: ' + e.message);
+  }
+
+  // Aviso instantáneo por WhatsApp (además del registro en la base).
+  const lines = cart.map(l => {
+    const p = PRODUCTS.find(x => x.id === l.id);
+    const col = l.color ? ` — ${l.color}` : '';
+    return `• ${p.name}${col} x${l.qty} = ${fmt(p.price * l.qty)}`;
+  });
+  const nombre = (session && session.user && session.user.name) ? session.user.name : '';
+  const msg = encodeURIComponent(`Hola! Soy ${nombre}. Quiero hacer el siguiente pedido:\n\n${lines.join('\n')}\n\nTotal: ${fmt(total)}\n\nQuedo a la espera. ¡Gracias!`);
+  window.open(`https://wa.me/5491160320008?text=${msg}`, '_blank');
+
+  if (saved) {
+    showToast('✓ Pedido confirmado');
+    cart = []; saveCart(); updateCartUI(); closeCart();
+  }
+}
+
+/* ============================================================
+   CUENTA / LOGIN CON GOOGLE / MIS PEDIDOS
+============================================================ */
+let session = JSON.parse(localStorage.getItem('rec4_session') || 'null');
+let pendingCheckout = false;
+let googleReady = false;
+let authEnabled = false; // se activa solo si el backend (Neon + Google) está configurado
+
+async function bootAuth() {
+  try { const cfg = await api('/api/config'); authEnabled = !!cfg.googleClientId; }
+  catch { authEnabled = false; }
+  renderAcct();
+}
+
+function saveSession(s) {
+  session = s;
+  if (s) localStorage.setItem('rec4_session', JSON.stringify(s));
+  else localStorage.removeItem('rec4_session');
+}
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (session && session.token) headers['Authorization'] = 'Bearer ' + session.token;
+  const r = await fetch(path, Object.assign({}, opts, { headers }));
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+  return data;
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function renderAcct() {
+  const el = document.getElementById('acctArea');
+  if (!el) return;
+  if (!authEnabled) { el.innerHTML = ''; return; } // login aún no configurado: no mostrar nada
+  if (session && session.user) {
+    el.innerHTML = `<span class="acct-name">${escHtml(session.user.name || session.user.email)}</span>`
+      + ` <span class="sep">|</span> <button class="acct-link" onclick="openOrders()">Mis pedidos</button>`
+      + ` <span class="sep">|</span> <button class="acct-link" onclick="logout()">Salir</button>`;
+  } else {
+    el.innerHTML = `<a href="#" onclick="openLogin();return false;">Iniciar sesión</a>`;
+  }
+}
+
+async function onCredential(resp) {
+  document.getElementById('loginMsg').textContent = '';
+  try {
+    const data = await api('/api/auth', { method: 'POST', body: JSON.stringify({ credential: resp.credential }) });
+    saveSession(data); renderAcct(); closeLogin();
+    showToast('✓ Sesión iniciada');
+    if (pendingCheckout) { pendingCheckout = false; placeOrder(); }
+  } catch (e) { document.getElementById('loginMsg').textContent = e.message; }
+}
+
+async function initGoogle() {
+  if (googleReady) return true;
+  try {
+    const cfg = await api('/api/config');
+    if (!cfg.googleClientId) { document.getElementById('loginMsg').textContent = 'El login todavía no está configurado.'; return false; }
+    const start = () => { google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onCredential }); googleReady = true; };
+    if (window.google && google.accounts) start();
+    else await new Promise(res => {
+      const t = setInterval(() => { if (window.google && google.accounts) { clearInterval(t); start(); res(); } }, 150);
+      setTimeout(() => { clearInterval(t); res(); }, 6000);
+    });
+    return googleReady;
+  } catch (e) { document.getElementById('loginMsg').textContent = e.message; return false; }
+}
+
+async function openLogin(forCheckout) {
+  document.getElementById('loginTitle').textContent = forCheckout === true ? 'Un paso más' : 'Iniciá sesión';
+  document.getElementById('loginSub').textContent = forCheckout === true
+    ? 'Iniciá sesión con Google para confirmar tu pedido y poder seguirlo. Es solo este paso.'
+    : 'Con tu cuenta de Google. Es solo para guardar y seguir tus pedidos.';
+  document.getElementById('loginMsg').textContent = '';
+  document.getElementById('loginOv').classList.add('open');
+  document.getElementById('loginModal').classList.add('open');
+  const ok = await initGoogle();
+  const wrap = document.getElementById('gbtnHome'); wrap.innerHTML = '';
+  if (ok) google.accounts.id.renderButton(wrap, { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280 });
+}
+function closeLogin() {
+  document.getElementById('loginOv').classList.remove('open');
+  document.getElementById('loginModal').classList.remove('open');
+  pendingCheckout = false;
+}
+function logout() { saveSession(null); renderAcct(); showToast('Sesión cerrada'); }
+
+async function openOrders() {
+  document.getElementById('ordersOv').classList.add('open');
+  document.getElementById('ordersModal').classList.add('open');
+  const box = document.getElementById('ordersList');
+  box.innerHTML = '<p style="color:#999">Cargando…</p>';
+  try {
+    const { orders } = await api('/api/orders');
+    if (!orders.length) { box.innerHTML = '<p style="color:#999">Todavía no tenés pedidos.</p>'; return; }
+    box.innerHTML = orders.map(o => {
+      const d = new Date(o.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const items = (o.items || []).map(it => `<div>• ${escHtml(it.name)}${it.color ? ` <span class="c">— ${escHtml(it.color)}</span>` : ''} × ${it.qty}</div>`).join('');
+      return `<div class="ord"><div class="ord-top"><span class="ord-id">Pedido #${o.id}</span><span class="ord-st ${o.status}">${escHtml(o.status)}</span></div>`
+        + `<div class="ord-date">${d}</div><div class="ord-items">${items}</div><div class="ord-total">Total: ${fmt(o.total)}</div></div>`;
+    }).join('');
+  } catch (e) {
+    if (String(e.message).includes('sesión')) { logout(); closeOrders(); openLogin(); return; }
+    box.innerHTML = '<p style="color:#c0392b">' + escHtml(e.message) + '</p>';
+  }
+}
+function closeOrders() {
+  document.getElementById('ordersOv').classList.remove('open');
+  document.getElementById('ordersModal').classList.remove('open');
+}
+
+bootAuth();
 
 /* ============================================================
    FAQ
