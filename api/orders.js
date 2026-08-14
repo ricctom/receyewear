@@ -3,6 +3,7 @@
 //   GET                                                   -> lista los pedidos del usuario
 const { sql, ensureTables } = require('./_db');
 const { getSession } = require('./_auth');
+const { notifyOrder } = require('./_notify');
 
 module.exports = async (req, res) => {
   const s = getSession(req);
@@ -34,7 +35,9 @@ module.exports = async (req, res) => {
         INSERT INTO orders (user_id, items, total)
         VALUES (${s.uid}, ${JSON.stringify(clean)}::jsonb, ${total})
         RETURNING id, total, status, created_at`;
-      return res.status(200).json({ order: rows[0] });
+      const order = rows[0];
+      await notifyOrder(order, { name: s.name, email: s.email }, clean);
+      return res.status(200).json({ order });
     }
 
     if (req.method === 'GET') {
