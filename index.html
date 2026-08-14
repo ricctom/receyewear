@@ -217,6 +217,7 @@ button{font-family:inherit;cursor:pointer}
 .ord-items{margin-top:8px;font-size:12px;color:#555;border-top:1px dashed #eee;padding-top:8px}
 .ord-items .c{color:#0f7a3d;font-weight:600}
 .ord-total{text-align:right;font-weight:700;margin-top:6px;font-size:13px}
+.confirm-check{width:64px;height:64px;border-radius:50%;background:#0f7a3d;color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
 
 /* ─── FAQ ─── */
 .page-wrap{max-width:860px;margin:0 auto;padding:40px 24px 60px}
@@ -491,6 +492,17 @@ button{font-family:inherit;cursor:pointer}
   <button class="modal-cls" onclick="closeOrders()">✕</button>
   <h3>Mis pedidos</h3>
   <div id="ordersList"><p style="color:#999">Cargando…</p></div>
+</div>
+
+<!-- CONFIRMACIÓN DE PEDIDO -->
+<div class="modal-ov" id="confirmOv" onclick="closeConfirm()"></div>
+<div class="modal" id="confirmModal">
+  <button class="modal-cls" onclick="closeConfirm()">✕</button>
+  <div class="confirm-check">✓</div>
+  <h3 style="text-align:center">¡Pedido confirmado!</h3>
+  <p id="confirmText" style="text-align:center">Tu pedido quedó registrado.</p>
+  <button class="pd-add-btn" onclick="closeConfirm();openOrders()">Ver mis pedidos</button>
+  <button class="acct-link" style="display:block;margin:14px auto 0;font-size:13px" onclick="closeConfirm()">Seguir comprando</button>
 </div>
 
 <a class="wa-float" href="https://wa.me/5491160320008" target="_blank" title="WhatsApp">💬</a>
@@ -1300,31 +1312,33 @@ async function placeOrder() {
   });
   const total = items.reduce((s, it) => s + it.price * it.qty, 0);
 
-  let saved = false;
+  let order = null;
   try {
-    await api('/api/orders', { method: 'POST', body: JSON.stringify({ items, total }) });
-    saved = true;
+    const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ items, total }) });
+    order = r.order;
   } catch (e) {
     if (String(e.message).includes('sesión')) { // sesión vencida
       logout(); pendingCheckout = true; openLogin(true); return;
     }
-    showToast('No se pudo guardar el pedido: ' + e.message);
+    showToast('No se pudo registrar el pedido: ' + e.message + '. Probá de nuevo.');
+    return;
   }
 
-  // Aviso instantáneo por WhatsApp (además del registro en la base).
-  const lines = cart.map(l => {
-    const p = PRODUCTS.find(x => x.id === l.id);
-    const col = l.color ? ` — ${l.color}` : '';
-    return `• ${p.name}${col} x${l.qty} = ${fmt(p.price * l.qty)}`;
-  });
-  const nombre = (session && session.user && session.user.name) ? session.user.name : '';
-  const msg = encodeURIComponent(`Hola! Soy ${nombre}. Quiero hacer el siguiente pedido:\n\n${lines.join('\n')}\n\nTotal: ${fmt(total)}\n\nQuedo a la espera. ¡Gracias!`);
-  window.open(`https://wa.me/5491160320008?text=${msg}`, '_blank');
+  // Pedido registrado en la base: vaciamos carrito y mostramos confirmación.
+  cart = []; saveCart(); updateCartUI(); closeCart();
+  showOrderConfirm(order);
+}
 
-  if (saved) {
-    showToast('✓ Pedido confirmado');
-    cart = []; saveCart(); updateCartUI(); closeCart();
-  }
+function showOrderConfirm(order) {
+  const num = order && order.id ? ' #' + order.id : '';
+  document.getElementById('confirmText').textContent =
+    'Tu pedido' + num + ' quedó registrado. Nos vamos a contactar para coordinar la entrega. Lo podés seguir cuando quieras desde "Mis pedidos".';
+  document.getElementById('confirmOv').classList.add('open');
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirmOv').classList.remove('open');
+  document.getElementById('confirmModal').classList.remove('open');
 }
 
 /* ============================================================
