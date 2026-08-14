@@ -149,6 +149,17 @@ button{font-family:inherit;cursor:pointer}
 .qty-ctrl button{width:32px;height:32px;background:#f5f5f5;border:none;font-size:16px;font-weight:700;transition:background .1s}
 .qty-ctrl button:hover{background:#eee}
 .qty-ctrl span{width:40px;text-align:center;font-size:14px;font-weight:600;border-left:1px solid #ddd;border-right:1px solid #ddd;line-height:32px}
+.pd-colors{margin-bottom:16px}
+.pd-colors-lbl{font-size:13px;font-weight:600;margin-bottom:10px}
+.pd-color-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0f0f0}
+.pd-color-row:last-child{border-bottom:none}
+.pd-color-txt{flex:1;font-size:13px;line-height:1.35}
+.pd-color-txt b{font-weight:700}
+.pd-color-op{color:#888;font-weight:600;margin-right:5px}
+.pd-color-row.on .pd-color-txt{color:#0f7a3d}
+.pcard-add.pick{background:#333}
+.pcard-add.pick:hover{background:#000}
+.cline-color{font-size:11px;color:#0f7a3d;font-weight:600;margin:2px 0 3px}
 .pd-add-btn{width:100%;background:#000;color:#fff;border:none;padding:13px;font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;transition:background .15s;margin-bottom:10px}
 .pd-add-btn:hover{background:#333}
 .pd-wa-btn{width:100%;background:#25d366;color:#fff;border:none;padding:11px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s}
@@ -376,7 +387,8 @@ button{font-family:inherit;cursor:pointer}
         <div class="pd-price" id="pdPrice"></div>
         <div class="pd-lbl">Precio Contado</div>
         <p class="pd-desc" id="pdDesc"></p>
-        <div class="qty-row">
+        <div class="pd-colors" id="pdColorBox" style="display:none"></div>
+        <div class="qty-row" id="pdQtyRow">
           <label>Cantidad:</label>
           <div class="qty-ctrl">
             <button onclick="pdQtyChg(-1)">−</button>
@@ -639,24 +651,24 @@ const PRODUCTS = [
 
   // ── RECETA > ACETATO LAMINADO ────────────────────────────
 
-  {id:292,name:'Acetato Laminado (1978)',sku:'1978',price:23400,oldPrice:27529,discount:14,imgs:['imgs/1978.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:293,name:'Acetato Laminado (2052)',sku:'2052',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2052.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:294,name:'Acetato Laminado (2053)',sku:'2053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:295,name:'Acetato Laminado (2078)',sku:'2078',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2078.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:296,name:'Acetato Laminado (2129)',sku:'2129',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2129.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:297,name:'Acetato Laminado (2181)',sku:'2181',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2181.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:298,name:'Acetato Laminado (2258)',sku:'2258',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2258.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:299,name:'Acetato Laminado (2260)',sku:'2260',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2260.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:300,name:'Acetato Laminado (2270)',sku:'2270',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2270.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:301,name:'Acetato Laminado (2273)',sku:'2273',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2273.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:292,name:'Acetato Laminado (1978)',sku:'1978',price:23400,oldPrice:27529,discount:14,imgs:['imgs/1978.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro/rojizo','Gris humo','Carey rosado','Azul degradé','Rosa/beige carey']},
+  {id:293,name:'Acetato Laminado (2052)',sku:'2052',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2052.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Transparente floral','Violeta','Rosa durazno/floral','Negro/turquesa']},
+  {id:294,name:'Acetato Laminado (2053)',sku:'2053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Violeta/carey','Transparente/rosa floral','Verde agua/floral','Rosa/floral']},
+  {id:295,name:'Acetato Laminado (2078)',sku:'2078',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2078.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Violeta/floral','Carey/azul','Rosa/floral']},
+  {id:296,name:'Acetato Laminado (2129)',sku:'2129',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2129.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey gris/negro','Carey rosado/transparente','Bordó/carey']},
+  {id:297,name:'Acetato Laminado (2181)',sku:'2181',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2181.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey oscuro','Carey claro','Negro/blanco','Carey/fucsia','Verde oliva']},
+  {id:298,name:'Acetato Laminado (2258)',sku:'2258',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2258.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Crema/transparente','Marrón-rosa degradé (varilla dorada)','Gris/carey azulado']},
+  {id:299,name:'Acetato Laminado (2260)',sku:'2260',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2260.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro/blanco','Rosa-violeta nacarado','Gris/carey verdoso']},
+  {id:300,name:'Acetato Laminado (2270)',sku:'2270',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2270.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Transparente/carey','Azul','Rosa/carey','Rosa claro/carey']},
+  {id:301,name:'Acetato Laminado (2273)',sku:'2273',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2273.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey nude','Negro/verde','Gris/nude carey','Transparente/carey']},
   
-  {id:303,name:'Acetato Laminado (6075)',sku:'6075',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6075.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:304,name:'Acetato Laminado (SC002)',sku:'SC002',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC002.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:305,name:'Acetato Laminado (SC003)',sku:'SC003',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC003.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:306,name:'Acetato Laminado (SC004)',sku:'SC004',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC004.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:239,name:'Acetato Laminado (25001)',sku:'25001',price:23400,oldPrice:27529,discount:14,imgs:['imgs/25001.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:240,name:'Acetato Laminado (9110)',sku:'9110',price:23400,oldPrice:27529,discount:14,imgs:['imgs/9110.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:241,name:'Acetato Laminado (21053)',sku:'21053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/21053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:303,name:'Acetato Laminado (6075)',sku:'6075',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6075.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey blanco','Negro','Bordó/vino','Carey blanco y negro']},
+  {id:304,name:'Acetato Laminado (SC002)',sku:'SC002',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC002.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro/azul (varilla dorada)','Negro/transparente (varilla dorada)']},
+  {id:305,name:'Acetato Laminado (SC003)',sku:'SC003',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC003.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Transparente','Durazno','Negro','Carey','Azul carey']},
+  {id:306,name:'Acetato Laminado (SC004)',sku:'SC004',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC004.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey rosado','Gris/verde glitter','Negro/carey']},
+  {id:239,name:'Acetato Laminado (25001)',sku:'25001',price:23400,oldPrice:27529,discount:14,imgs:['imgs/25001.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro','Verde petróleo','Rojo veteado','Azul veteado']},
+  {id:240,name:'Acetato Laminado (9110)',sku:'9110',price:23400,oldPrice:27529,discount:14,imgs:['imgs/9110.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Multicolor/fucsia','Multicolor/rosa','Negro/blanco floral','Violeta/durazno','Verde/floral']},
+  {id:241,name:'Acetato Laminado (21053)',sku:'21053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/21053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Azul petróleo','Verde inglés/carey','Nude/verde']},
 
   // ── RECETA > NIÑO ────────────────────────────────────────
   {id:200,name:'Rubbers Kids (825)',sku:'825',price:11800,oldPrice:13882,discount:14,imgs:['imgs/kids_Cat01.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil flexible Runflex Kids. Precio Contado.'},
@@ -717,14 +729,14 @@ const PRODUCTS = [
    cats:['accesorios','accesorios-limpia'],desc:'Pack de 100 limpia cristales personalizados con los datos de la óptica: nombre, logo, dirección, mail y teléfono.'},
 
   // -- NUEVOS (14-8-26): acetato SC/G8214 + Clipon TR90 --
-  {id:315,name:'Acetato Laminado (SC005)',sku:'SC005',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC005.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:316,name:'Acetato Laminado (SC006)',sku:'SC006',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC006.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:317,name:'Acetato Laminado (SC007)',sku:'SC007',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC007.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:318,name:'Acetato Laminado (G8214)',sku:'G8214',price:23400,oldPrice:27529,discount:14,imgs:['imgs/G8214.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:319,name:'Clipón TR90 (2512)',sku:'2512',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2512.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
-  {id:320,name:'Clipón TR90 (2513)',sku:'2513',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2513.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
-  {id:321,name:'Clipón TR90 (2516)',sku:'2516',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2516.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
-  {id:322,name:'Clipón TR90 (2517)',sku:'2517',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2517.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
+  {id:315,name:'Acetato Laminado (SC005)',sku:'SC005',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC005.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Bordó/transparente','Naranja/transparente','Violeta degradé','Celeste/carey azulado']},
+  {id:316,name:'Acetato Laminado (SC006)',sku:'SC006',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC006.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Durazno nacarado','Transparente/verde nacarado','Violeta nacarado','Gris/nacarado']},
+  {id:317,name:'Acetato Laminado (SC007)',sku:'SC007',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC007.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Gris/carey','Verde agua','Beige/gris']},
+  {id:318,name:'Acetato Laminado (G8214)',sku:'G8214',price:23400,oldPrice:27529,discount:14,imgs:['imgs/G8214.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Nude/transparente','Carey','Negro','Transparente cristal']},
+  {id:319,name:'Clipón TR90 (2512)',sku:'2512',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2512.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Negro','Azul','Gris','Marrón']},
+  {id:320,name:'Clipón TR90 (2513)',sku:'2513',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2513.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Marrón','Negro','Gris/carey','Azul']},
+  {id:321,name:'Clipón TR90 (2516)',sku:'2516',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2516.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Gris','Azul','Marrón','Negro']},
+  {id:322,name:'Clipón TR90 (2517)',sku:'2517',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2517.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Marrón','Azul','Gris/carey','Negro']},
 
 ];
 
@@ -952,9 +964,12 @@ function cardAddCart(id) {
 function isInCart(id) { return cart.some(l => l.id === id); }
 
 function addBtnHTML(id) {
-  return isInCart(id)
-    ? `<button class="pcard-add in-cart" onclick="event.stopPropagation();openCart()">✓ Ya está en el carrito</button>`
-    : `<button class="pcard-add" onclick="event.stopPropagation();cardAddCart(${id})">+ Agregar</button>`;
+  if (isInCart(id))
+    return `<button class="pcard-add in-cart" onclick="event.stopPropagation();openCart()">✓ Ya está en el carrito</button>`;
+  const p = PRODUCTS.find(x => x.id === id);
+  if (p && p.colors && p.colors.length)
+    return `<button class="pcard-add pick" onclick="event.stopPropagation();openProduct(${id})">Elegir color</button>`;
+  return `<button class="pcard-add" onclick="event.stopPropagation();cardAddCart(${id})">+ Agregar</button>`;
 }
 
 function refreshCardButtons() {
@@ -1046,10 +1061,41 @@ function openProduct(id, fromHash) {
 
   _pdSetIdx(0);
 
+  // Selector de color (solo productos de 1 imagen con colores definidos)
+  const colorBox = document.getElementById('pdColorBox');
+  const qtyRow = document.getElementById('pdQtyRow');
+  pdColorQtys = [];
+  if (p.colors && p.colors.length) {
+    pdColorQtys = p.colors.map(() => 0);
+    colorBox.style.display = 'block';
+    qtyRow.style.display = 'none';
+    colorBox.innerHTML =
+      `<div class="pd-colors-lbl">Elegí color y cantidad:</div>` +
+      p.colors.map((c, i) => `
+        <div class="pd-color-row" id="pdcr${i}">
+          <div class="pd-color-txt"><span class="pd-color-op">Opción ${i + 1} ▸</span><b>${c}</b></div>
+          <div class="qty-ctrl">
+            <button onclick="pdColorQtyChg(${i},-1)">−</button>
+            <span id="pdcq${i}">0</span>
+            <button onclick="pdColorQtyChg(${i},1)">+</button>
+          </div>
+        </div>`).join('');
+  } else {
+    colorBox.style.display = 'none';
+    colorBox.innerHTML = '';
+    qtyRow.style.display = 'flex';
+  }
+
   const waMsg = encodeURIComponent(`Hola! Me interesa: ${p.name} - ${fmt(p.price)}. ¿Tienen disponible?`);
   document.getElementById('pdWa').href = `https://wa.me/5491160320008?text=${waMsg}`;
 
   showPg('product');
+}
+let pdColorQtys = [];
+function pdColorQtyChg(i, d) {
+  pdColorQtys[i] = Math.max(0, (pdColorQtys[i] || 0) + d);
+  document.getElementById('pdcq' + i).textContent = pdColorQtys[i];
+  document.getElementById('pdcr' + i).classList.toggle('on', pdColorQtys[i] > 0);
 }
 let _pdImgs = [], _pdImgIdx = 0;
 
@@ -1069,23 +1115,57 @@ function pdImgNav(dir) {
   if (next >= 0 && next < _pdImgs.length) _pdSetIdx(next);
 }
 function pdQtyChg(d) { pdQtyN = Math.max(1, pdQtyN + d); document.getElementById('pdQtyN').textContent = pdQtyN; }
-function pdAddCart() { if (pdId) { addToCart(pdId, pdQtyN); showToast('✓ Agregado al carrito'); } }
+function pdAddCart() {
+  if (!pdId) return;
+  const p = PRODUCTS.find(x => x.id === pdId);
+  if (p && p.colors && p.colors.length) {
+    let added = 0;
+    p.colors.forEach((c, i) => {
+      const q = pdColorQtys[i] || 0;
+      if (q > 0) { addToCart(pdId, q, c); added += q; }
+    });
+    if (!added) { showToast('Elegí al menos un color'); return; }
+    pdColorQtys = p.colors.map(() => 0);
+    p.colors.forEach((c, i) => {
+      document.getElementById('pdcq' + i).textContent = 0;
+      document.getElementById('pdcr' + i).classList.remove('on');
+    });
+    showToast('✓ Agregado al carrito');
+  } else {
+    addToCart(pdId, pdQtyN);
+    showToast('✓ Agregado al carrito');
+  }
+}
 
 /* ============================================================
    CART
 ============================================================ */
-function addToCart(id, qty = 1) {
+function _norm(c) { return c == null ? null : c; }
+function addToCart(id, qty = 1, color = null) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
-  const line = cart.find(x => x.id === id);
-  if (line) line.qty += qty; else cart.push({id, qty});
+  const line = cart.find(x => x.id === id && _norm(x.color) === _norm(color));
+  if (line) line.qty += qty; else cart.push({id, qty, color: _norm(color)});
   saveCart(); updateCartUI();
 }
-function removeFromCart(id) { cart = cart.filter(x => x.id !== id); saveCart(); updateCartUI(); }
-function changeQty(id, d) {
-  const l = cart.find(x => x.id === id);
+function removeFromCart(id, color = null) {
+  cart = cart.filter(x => !(x.id === id && _norm(x.color) === _norm(color)));
+  saveCart(); updateCartUI();
+}
+function changeQty(id, d, color = null) {
+  const l = cart.find(x => x.id === id && _norm(x.color) === _norm(color));
   if (!l) return;
   l.qty = Math.max(1, l.qty + d);
+  saveCart(); updateCartUI();
+}
+function changeQtyAt(i, d) {
+  const l = cart[i]; if (!l) return;
+  l.qty = Math.max(1, l.qty + d);
+  saveCart(); updateCartUI();
+}
+function removeFromCartAt(i) {
+  if (i < 0 || i >= cart.length) return;
+  cart.splice(i, 1);
   saveCart(); updateCartUI();
 }
 function saveCart() { localStorage.setItem('rec4_cart', JSON.stringify(cart)); }
@@ -1114,21 +1194,23 @@ function updateCartUI() {
     body.innerHTML = '<div class="cempty">🛒<br><br>Tu carrito está vacío</div>';
     return;
   }
-  body.innerHTML = cart.map(l => {
+  body.innerHTML = cart.map((l, i) => {
     const p = PRODUCTS.find(x => x.id === l.id);
     if (!p) return '';
+    const colorHtml = l.color ? `<div class="cline-color">${l.color}</div>` : '';
     return `<div class="cline">
       <img src="${p.imgs[0]}" alt="${p.name}" onerror="this.style.display='none'"/>
       <div class="cline-info">
         <div class="cline-name" onclick="goToProduct(${l.id})" title="Ver producto">${p.name}</div>
+        ${colorHtml}
         <div class="cline-price">${fmt(p.price)}</div>
         <div class="cline-qty">
-          <button class="cqb" onclick="changeQty(${l.id},-1)">−</button>
+          <button class="cqb" onclick="changeQtyAt(${i},-1)">−</button>
           <span class="cqn">${l.qty}</span>
-          <button class="cqb" onclick="changeQty(${l.id},+1)">+</button>
+          <button class="cqb" onclick="changeQtyAt(${i},+1)">+</button>
         </div>
       </div>
-      <button class="cdel" onclick="removeFromCart(${l.id})">🗑</button>
+      <button class="cdel" onclick="removeFromCartAt(${i})">🗑</button>
     </div>`;
   }).join('');
 }
@@ -1154,7 +1236,8 @@ function doCheckout() {
   }
   const lines = cart.map(l => {
     const p = PRODUCTS.find(x => x.id === l.id);
-    return `• ${p.name} x${l.qty} = ${fmt(p.price * l.qty)}`;
+    const col = l.color ? ` — ${l.color}` : '';
+    return `• ${p.name}${col} x${l.qty} = ${fmt(p.price * l.qty)}`;
   });
   const total = cart.reduce((s, l) => {
     const p = PRODUCTS.find(x => x.id === l.id); return s + (p ? p.price * l.qty : 0);
