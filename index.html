@@ -298,6 +298,7 @@ button{font-family:inherit;cursor:pointer}
         <a href="#" onclick="filterCat('clipon-5placas');return false;">5 Placas</a>
         <a href="#" onclick="filterCat('clipon-1placa');return false;">1 Placa</a>
         <a href="#" onclick="filterCat('clipon-runflex');return false;">Runflex</a>
+        <a href="#" onclick="filterCat('clipon-tr90');return false;">TR90</a>
         <div class="dlbl">Sol</div>
         <a href="#" onclick="filterCat('sol-polarizados');return false;">Polarizados</a>
         <a href="#" onclick="filterCat('sol-clipper');return false;">Clipper Polarizados</a>
@@ -548,72 +549,50 @@ const PRODUCTS = [
   {id:291,name:'Metal Receta Diseño (MS15)',sku:'MS15',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_MS15.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.'},
 
   // ── RECETA > METAL OFERTA ────────────────────────────────
-  {id:90,name:'Metal Oferta (5SNM1123)',sku:'5SNM1123',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1123.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:91,name:'Metal Oferta (5SNM1121)',sku:'5SNM1121',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1121.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:92,name:'Metal Oferta (5SNM1117)',sku:'5SNM1117',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1117.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:93,name:'Metal Oferta (5SNM1112)',sku:'5SNM1112',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1112.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:94,name:'Metal Oferta (5SNM1110)',sku:'5SNM1110',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1110.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:95,name:'Metal Oferta (5SNM1097)',sku:'5SNM1097',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1097.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:96,name:'Metal Oferta (5SNM1095 - 5SNM1096)',sku:'5SNM1095',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1095_-_5SNM1096.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:97,name:'Metal Oferta (5SNM1076 - 5SNM1073)',sku:'5SNM1076',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1076_-_5SNM1073.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:98,name:'Metal Oferta (5SNM1075)',sku:'5SNM1075',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1075.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:99,name:'Metal Oferta (5SNM1072)',sku:'5SNM1072',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1072.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:100,name:'Metal Oferta (5SNM1071 - 5SNM1057)',sku:'5SNM1071',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1071_-_5SNM1057.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:101,name:'Metal Oferta (5SNM1070 - 5SNM1042)',sku:'5SNM1070',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1070_-_5SNM1042.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:102,name:'Metal Oferta (5SNM1069)',sku:'5SNM1069',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1069.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:103,name:'Metal Oferta (5SNM1064)',sku:'5SNM1064',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1064.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:104,name:'Metal Oferta (5SNM1058 - 5SNM1063)',sku:'5SNM1058',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1058_-_5SNM1063.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:105,name:'Metal Oferta (5SNM1034)',sku:'5SNM1034',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1034.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:106,name:'Metal Oferta (5SNM1030)',sku:'5SNM1030',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1030.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:107,name:'Metal Oferta (5SNM1029 - 5SNM1130)',sku:'5SNM1029',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM1029_-_5SNM1130.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
-  {id:108,name:'Metal Oferta (5SNM106B)',sku:'5SNM106B',price:10850,oldPrice:12764,discount:14,imgs:['imgs/5SNM106B.jpg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metálico oferta. Precio Contado.'},
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
 
   // ── RECETA > TR90 CON ALMA ──────────────────────────────
-  {id:110,name:'TR90 Con alma De Metal (MAM43)',sku:'MAM43',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM43.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:111,name:'TR90 Con alma De Metal (MAM42)',sku:'MAM42',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM42.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:112,name:'TR90 Con alma De Metal (MAM33)',sku:'MAM33',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM33.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:113,name:'TR90 Con alma De Metal (MAM30)',sku:'MAM30',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM30.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:114,name:'TR90 Con alma De Metal (MAM29)',sku:'MAM29',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM29.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:115,name:'TR90 Con alma De Metal (MAM28)',sku:'MAM28',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM28.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:116,name:'TR90 Con alma De Metal (MAM24)',sku:'MAM24',price:12700,oldPrice:14941,discount:14,imgs:['imgs/MAM24.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:117,name:'TR90 Con alma De Metal (AM22)',sku:'AM22',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM22.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:118,name:'TR90 Con alma De Metal (AM19)',sku:'AM19',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM19.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:119,name:'TR90 Con alma De Metal (AM15(2))',sku:'AM152',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM15(2).jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:120,name:'TR90 Con alma De Metal (AM15(1))',sku:'AM151',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM15(1).jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:121,name:'TR90 Con alma De Metal (AM15)',sku:'AM15',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM15.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:122,name:'TR90 Con alma De Metal (AM13)',sku:'AM13',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM13.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:123,name:'TR90 Con alma De Metal (AM11)',sku:'AM11',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM11.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:124,name:'TR90 Con alma De Metal (AM03)',sku:'AM03',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM03.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
-  {id:125,name:'TR90 Con alma De Metal (AM02)',sku:'AM02',price:12700,oldPrice:14941,discount:14,imgs:['imgs/AM02.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 con alma de metal. Precio Contado.'},
+
+  
+
+  
+
+  
+
+  
+
+  
 
   // ── RECETA > TR90 CABALLERO/DAMA ─────────────────────────
-  {id:130,name:'TR90 (NY125)',sku:'NY125',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY125.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:131,name:'TR90 (NY119)',sku:'NY119',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY119.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:132,name:'TR90 (NY117)',sku:'NY117',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY117.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:133,name:'TR90 (NY92)',sku:'NY92',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY92.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:134,name:'TR90 (NY90)',sku:'NY90',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY90.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:135,name:'TR90 (NY84)',sku:'NY84',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY84.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:136,name:'TR90 (NY83)',sku:'NY83',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NY83.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:137,name:'TR90 (NT80)',sku:'NT80',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT80.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:138,name:'TR90 (NT71)',sku:'NT71',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT71.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:139,name:'TR90 (NT63)',sku:'NT63',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT63.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:140,name:'TR90 (NT61)',sku:'NT61',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT61.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:141,name:'TR90 (NT31)',sku:'NT31',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT31.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:142,name:'TR90 (NT26)',sku:'NT26',price:10200,oldPrice:12000,discount:15,imgs:['imgs/NT26.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:143,name:'TR90 (MOD.412)',sku:'MOD.412',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.412.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:144,name:'TR90 (MOD.383)',sku:'MOD.383',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.383.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:145,name:'TR90 (MOD.381)',sku:'MOD.381',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.381.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:146,name:'TR90 (MOD.380)',sku:'MOD.380',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.380.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:147,name:'TR90 (MOD.376)',sku:'MOD.376',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.376.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:148,name:'TR90 (7032N)',sku:'7032N',price:10200,oldPrice:12000,discount:15,imgs:['imgs/7032_N.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:149,name:'TR90 (5007)',sku:'5007',price:10200,oldPrice:12000,discount:15,imgs:['imgs/5007.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:150,name:'TR90 (5003-B)',sku:'5003-B',price:10200,oldPrice:12000,discount:15,imgs:['imgs/5003-B.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:151,name:'TR90 (2010)',sku:'2010',price:10200,oldPrice:12000,discount:15,imgs:['imgs/2010.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:152,name:'TR90 (2007)',sku:'2007',price:10200,oldPrice:12000,discount:15,imgs:['imgs/2007.jpg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:153,name:'TR90 (1003)',sku:'1003',price:10200,oldPrice:12000,discount:15,imgs:['imgs/1003.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:154,name:'TR90 (3762)',sku:'3762',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.376.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:155,name:'TR90 (3761)',sku:'3761',price:10200,oldPrice:12000,discount:15,imgs:['imgs/MOD.381.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
-  {id:156,name:'TR90 (376)',sku:'376',price:10200,oldPrice:12000,discount:15,imgs:['imgs/376.jpeg'],cats:['receta','receta-tr90','ofertas'],desc:'Armazón TR90 liviano y flexible. Precio Contado.'},
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
 
   // ── RECETA > TR90 DAMA ───────────────────────────────────
 
@@ -659,8 +638,7 @@ const PRODUCTS = [
   {id:171,name:'Lavanett (1210)',sku:'1210',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1200.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.'},
 
   // ── RECETA > ACETATO LAMINADO ────────────────────────────
-  {id:191,name:'Acetato Laminado (9634)',sku:'9634',price:23400,oldPrice:27529,discount:14,imgs:['imgs/9634.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:198,name:'Acetato Laminado (2057)',sku:'2057',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2057.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+
   {id:292,name:'Acetato Laminado (1978)',sku:'1978',price:23400,oldPrice:27529,discount:14,imgs:['imgs/1978.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
   {id:293,name:'Acetato Laminado (2052)',sku:'2052',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2052.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
   {id:294,name:'Acetato Laminado (2053)',sku:'2053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
@@ -671,7 +649,7 @@ const PRODUCTS = [
   {id:299,name:'Acetato Laminado (2260)',sku:'2260',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2260.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
   {id:300,name:'Acetato Laminado (2270)',sku:'2270',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2270.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
   {id:301,name:'Acetato Laminado (2273)',sku:'2273',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2273.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
-  {id:302,name:'Acetato Laminado (2850)',sku:'2850',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2850.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  
   {id:303,name:'Acetato Laminado (6075)',sku:'6075',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6075.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
   {id:304,name:'Acetato Laminado (SC002)',sku:'SC002',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC002.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
   {id:305,name:'Acetato Laminado (SC003)',sku:'SC003',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC003.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
@@ -703,17 +681,8 @@ const PRODUCTS = [
   {id:219,name:'Rubbers Kids (8310)',sku:'8310',price:11800,oldPrice:13882,discount:14,imgs:['imgs/rubber_503.jpeg'],cats:['receta','receta-nino','ofertas'],desc:'Armazón infantil de goma Rubber Kids. Precio Contado.'},
 
   // ── RECETA > ECONÓMICOS ──────────────────────────────────
-  {id:220,name:'PASTA ECONÓMICOS',sku:'PASTA-ECO',price:3200,oldPrice:5000,discount:36,
-   imgs:['https://d22fxaf9t8d39k.cloudfront.net/4e12a94b4a26e1295c23d41252b06e3b28622df3559e219cdf21ed2d90a1b6ad461944.jpg',
-         'https://d22fxaf9t8d39k.cloudfront.net/a4d50e6384048c3837082253a253fd6f0cdafcc568a9a1a69546a7f9133aac34461944.jpg',
-         'https://d22fxaf9t8d39k.cloudfront.net/fb44bce0b8f878e3f3ead9db20fd4078c7e047d69d85d31352844f473667804d461944.jpg'],
-   cats:['receta','receta-economicos','ofertas'],desc:'Modelos de pasta económicos alta calidad, últimas unidades.'},
-  {id:221,name:'PASTA RANURADO SUPER OFERTA',sku:'PASTA-RAN',price:2000,oldPrice:4000,discount:50,
-   imgs:['https://d22fxaf9t8d39k.cloudfront.net/2b78a58e2201c7b98f88e9d702e83754d4eeada6cd359d3ebe30fa06dcae6115461944.jpg'],
-   cats:['receta','receta-economicos','ofertas'],desc:'PASTA SUPER ECONOMICOS, RANURADOS. Stock limitado.'},
-  {id:222,name:'METAL ECONÓMICO 3.200 PESOS',sku:'METAL-ECO',price:3200,oldPrice:null,discount:null,
-   imgs:['https://d22fxaf9t8d39k.cloudfront.net/a8aa0e14c8d8649d486714a22fd29904497509785d7ff22b074c6ed7fae7152b461944.jpg'],
-   cats:['receta','receta-economicos'],desc:'Armazón metálico económico para receta.'},
+
+  
   {id:223,name:'PACK X50 METALICOS SURTIDOS',sku:'PACK-MET-50',price:280000,oldPrice:null,discount:null,
    imgs:['https://d22fxaf9t8d39k.cloudfront.net/e93377a382c45bd88c88238d5e6ac138852c510620cf1572256e3694764838b2461944.jpg','imgs/pack_met_1.jpg','imgs/pack_met_2.jpg','imgs/pack_met_3.jpg','imgs/pack_met_4.jpg','imgs/pack_met_5.jpg','imgs/pack_met_6.jpg'],
    cats:['receta','receta-economicos'],desc:'Pack surtido de 50 armazones metálicos. Precio por unidad: $5.075.'},
@@ -745,7 +714,18 @@ const PRODUCTS = [
    cats:['accesorios','accesorios-estuches'],desc:'Pack de 100 estuches plásticos con foam en ambos interiores, personalizados con el logo de la óptica.'},
   {id:233,name:'LIMPIA CRISTALES PERSONALIZADOS PACK X100',sku:'LIMPIA-100',price:115000,oldPrice:null,discount:null,
    imgs:['https://d22fxaf9t8d39k.cloudfront.net/9dfa3498b5a6b90915411419819be29baa142dfafc35c4d526be1979507e82b6461944.jpg'],
-   cats:['accesorios','accesorios-limpia'],desc:'Pack de 100 limpia cristales personalizados con los datos de la óptica: nombre, logo, dirección, mail y teléfono.'}
+   cats:['accesorios','accesorios-limpia'],desc:'Pack de 100 limpia cristales personalizados con los datos de la óptica: nombre, logo, dirección, mail y teléfono.'},
+
+  // -- NUEVOS (14-8-26): acetato SC/G8214 + Clipon TR90 --
+  {id:315,name:'Acetato Laminado (SC005)',sku:'SC005',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC005.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:316,name:'Acetato Laminado (SC006)',sku:'SC006',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC006.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:317,name:'Acetato Laminado (SC007)',sku:'SC007',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC007.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:318,name:'Acetato Laminado (G8214)',sku:'G8214',price:23400,oldPrice:27529,discount:14,imgs:['imgs/G8214.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.'},
+  {id:319,name:'Clipón TR90 (2512)',sku:'2512',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2512.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
+  {id:320,name:'Clipón TR90 (2513)',sku:'2513',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2513.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
+  {id:321,name:'Clipón TR90 (2516)',sku:'2516',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2516.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
+  {id:322,name:'Clipón TR90 (2517)',sku:'2517',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2517.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.'},
+
 ];
 
 /* ============================================================
