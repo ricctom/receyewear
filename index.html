@@ -427,21 +427,21 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
       <a href="#">Productos <span class="nav-arrow">▾</span></a>
       <div class="ddrop">
         <a href="#" onclick="filterCat('all');return false;">Ver todos</a>
-        <div class="dlbl">Receta</div>
+        <a href="#" onclick="filterCat('ofertas');return false;">Ofertas</a>
+        <a href="#" class="dlbl-link" onclick="filterCat('receta');return false;">Receta</a>
         <a href="#" onclick="filterCat('receta-metal');return false;">Metal</a>
         <a href="#" onclick="filterCat('receta-tr90');return false;">TR90</a>
         <a href="#" onclick="filterCat('receta-acetato');return false;">Acetato</a>
         <a href="#" onclick="filterCat('receta-nino');return false;">Niño</a>
         <a href="#" onclick="filterCat('receta-economicos');return false;">Económicos</a>
         <a href="#" class="dlbl-link" onclick="filterCat('clipon');return false;">Clipon</a>
-        <a href="#" onclick="filterCat('clipon-5placas');return false;">5 Placas</a>
         <a href="#" onclick="filterCat('clipon-1placa');return false;">1 Placa</a>
         <a href="#" onclick="filterCat('clipon-runflex');return false;">Runflex</a>
         <a href="#" onclick="filterCat('clipon-tr90');return false;">TR90</a>
-        <div class="dlbl">Sol</div>
+        <a href="#" class="dlbl-link" onclick="filterCat('sol');return false;">Sol</a>
         <a href="#" onclick="filterCat('sol-polarizados');return false;">Polarizados</a>
         <a href="#" onclick="filterCat('sol-clipper');return false;">Clipper Polarizados</a>
-        <div class="dlbl">Accesorios</div>
+        <a href="#" class="dlbl-link" onclick="filterCat('accesorios');return false;">Accesorios</a>
         <a href="#" onclick="filterCat('accesorios-estuches');return false;">Estuches</a>
         <a href="#" onclick="filterCat('accesorios-limpia');return false;">Limpia Cristales</a>
       </div>
@@ -676,18 +676,27 @@ const PRODUCTS = [
 
   // ── CLIPON > 1 PLACA ─────────────────────────────────────
   {id:51,name:'UNA PLACA (95967)',sku:'95967',price:23400,oldPrice:27529,discount:14,imgs:['imgs/95967.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Blanco','Negro/carey','Rosa/nude']},
-  {id:52,name:'UNA PLACA (95309)',sku:'95309',price:23400,oldPrice:27529,discount:14,imgs:['imgs/95309.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Carey','Negro']},
-  {id:53,name:'UNA PLACA (91566)',sku:'91566',price:23400,oldPrice:27529,discount:14,imgs:['imgs/91566.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Nude/marrón','Negro/cristal','Carey gris','Negro']},
   {id:54,name:'UNA PLACA (81612)',sku:'81612',price:23400,oldPrice:27529,discount:14,imgs:['imgs/81612.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Marrón topo','Beige','Negro','Leopardo/cristal']},
   {id:56,name:'UNA PLACA (81013)',sku:'81013',price:23400,oldPrice:27529,discount:14,imgs:['imgs/81013.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Rosa/leopardo','Gris/rosa','Marrón/rosa']},
-  {id:57,name:'UNA PLACA (7102)',sku:'7102',price:23400,oldPrice:27529,discount:14,imgs:['imgs/7102.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Dorado/negro','Dorado/carey','Dorado/bordó','Dorado/beige']},
   {id:58,name:'UNA PLACA (6817)',sku:'6817',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6817.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Marrón caramelo','Carey rosado','Celeste','Rosa/nude']},
   {id:59,name:'UNA PLACA (6154)',sku:'6154',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6154.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Bordó/cristal','Negro','Negro/cristal degradé','Carey blanco y negro']},
   {id:60,name:'UNA PLACA (6142)',sku:'6142',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6142.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Gris cristal','Rosa cristal','Transparente']},
-  {id:61,name:'UNA PLACA (3603)',sku:'3603',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3603.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Dorado/negro','Dorado/uva','Dorado/rosa','Dorado/marrón']},
   {id:63,name:'UNA PLACA (3102)',sku:'3102',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3102.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Azul','Negro','Gris']},
-  {id:64,name:'UNA PLACA (3056)',sku:'3056',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3056.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Transparente','Carey','Negro']},
   {id:65,name:'UNA PLACA (3030)',sku:'3030',price:23400,oldPrice:27529,discount:14,imgs:['imgs/3030.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/cristal','Rosa/cristal','Carey/cristal']},
+  {id:323,name:'UNA PLACA (8072)',sku:'8072',price:23400,oldPrice:27529,discount:14,imgs:['imgs/8072.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Coral (C3)','Lila (C2)','Rosa (C5)','Nude (C4)']},
+  {id:324,name:'UNA PLACA (8038)',sku:'8038',price:23400,oldPrice:27529,discount:14,imgs:['imgs/8038.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Coral (C3)','Rosa/violeta (C2)','Nude (C4)']},
+  {id:325,name:'UNA PLACA (8050)',sku:'8050',price:23400,oldPrice:27529,discount:14,imgs:['imgs/8050.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Bordó/nude (C4)','Blanco/rojo (C3)','Blanco/rosa (C2)']},
+  {id:326,name:'UNA PLACA (MH037)',sku:'MH037',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH037.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Gris/celeste','Rosa','Crema']},
+  {id:327,name:'UNA PLACA (MH038)',sku:'MH038',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH038.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Gris/celeste','Crema']},
+  {id:328,name:'UNA PLACA (MH039)',sku:'MH039',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH039.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Rosa','Gris/celeste','Crema']},
+  {id:329,name:'UNA PLACA (MH040)',sku:'MH040',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH040.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Rosa','Gris/celeste','Crema']},
+  {id:330,name:'UNA PLACA (MH041)',sku:'MH041',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH041.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Crema','Rosa','Gris/celeste']},
+  {id:331,name:'UNA PLACA (MH042)',sku:'MH042',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH042.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Crema','Rosa','Gris/celeste']},
+  {id:332,name:'UNA PLACA (MH043)',sku:'MH043',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH043.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Crema','Rosa','Gris/celeste']},
+  {id:333,name:'UNA PLACA (MH045)',sku:'MH045',price:23400,oldPrice:27529,discount:14,imgs:['imgs/MH045.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/carey','Bordó/carey','Crema','Rosa','Gris/celeste']},
+  {id:334,name:'UNA PLACA (C5103)',sku:'C5103',price:23400,oldPrice:27529,discount:14,imgs:['imgs/C5103.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Marrón','Negro','Azul']},
+  {id:335,name:'UNA PLACA (2223)',sku:'2223',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2223.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Gris degradé transparente','Transparente','Azul transparente','Carey gris']},
+  {id:336,name:'UNA PLACA (SC008)',sku:'SC008',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC008.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Negro mate','Dorado','Dorado/marrón']},
 
   // ── RECETA > METAL DISEÑO ────────────────────────────────
   {id:71,name:'Metal Receta Diseño (MS18)',sku:'MS18',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS18.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Azul mate','Marrón/dorado','Negro/plata','Gris/plata']},
@@ -794,16 +803,16 @@ const PRODUCTS = [
   {id:280,name:'Clipon Runflex (8828B)',sku:'8828B',price:29250,oldPrice:null,discount:null,imgs:['imgs/clipon_8828B.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Transparente','Negro/gris','Azul/naranja','Negro']},
 
   // ── RECETA > ACETATO > LAVANETT ──────────────────────────
-  {id:160,name:'Lavanett (1207)',sku:'1207',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1218.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/verde','Negro/azul','Negro/gris','Negro/carey','Negro']},
-  {id:163,name:'Lavanett (1203)',sku:'1203',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1210.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/violeta','Negro/verde','Negro/azul','Negro/carey','Negro']},
-  {id:164,name:'Lavanett (1209)',sku:'1209',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1209.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/carey','Negro/verde','Negro/azul','Negro']},
-  {id:165,name:'Lavanett (1208)',sku:'1208',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1208.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/carey','Negro/verde','Negro/azul','Negro']},
-  {id:166,name:'Lavanett (1202)',sku:'1202',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1207.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/verde','Negro/azul','Negro/gris','Negro/carey','Negro']},
-  {id:167,name:'Lavanett (1205)',sku:'1205',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1205.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/verde','Negro/carey','Negro/gris','Negro/azul']},
-  {id:168,name:'Lavanett (1213)',sku:'1213',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1203.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/carey','Negro/verde','Negro/azul','Negro/gris','Azul']},
-  {id:169,name:'Lavanett (1200)',sku:'1200',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1202.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/verde','Negro/oliva','Negro/azul','Negro/gris','Negro']},
-  {id:170,name:'Lavanett (1218)',sku:'1218',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1201.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/carey','Negro/verde','Negro/azul','Negro/gris','Azul']},
-  {id:171,name:'Lavanett (1210)',sku:'1210',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1200.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/verde','Negro/oliva','Negro/azul','Negro/gris','Azul']},
+  {id:160,name:'Lavanett (1207)',sku:'1207',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1218.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
+  {id:163,name:'Lavanett (1203)',sku:'1203',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1210.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
+  {id:164,name:'Lavanett (1209)',sku:'1209',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1209.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/gris (C4)','Negro/azul (C3)','Negro/blanco (C2)','Negro/bordó (C1)']},
+  {id:165,name:'Lavanett (1208)',sku:'1208',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1208.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/gris (C4)','Negro/azul (C3)','Negro/blanco (C2)','Negro/bordó (C1)']},
+  {id:166,name:'Lavanett (1202)',sku:'1202',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1207.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
+  {id:167,name:'Lavanett (1205)',sku:'1205',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1205.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/gris claro (C4)','Negro/azul (C3)']},
+  {id:168,name:'Lavanett (1213)',sku:'1213',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1203.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Azul marino (C5)']},
+  {id:169,name:'Lavanett (1200)',sku:'1200',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1202.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
+  {id:170,name:'Lavanett (1218)',sku:'1218',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1201.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Azul marino (C5)']},
+  {id:171,name:'Lavanett (1210)',sku:'1210',price:17000,oldPrice:20000,discount:15,imgs:['imgs/lav_1200.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/gris claro (C4)','Negro/azul (C3)','Azul marino (C5)']},
 
   // ── RECETA > ACETATO LAMINADO ────────────────────────────
 
