@@ -1,6 +1,7 @@
 // /api/admin  (solo el email admin)
 //   GET                      -> todos los pedidos con datos del cliente
 //   POST  { id, status }     -> cambia el estado de un pedido
+//   POST  { id, items }      -> reemplaza los items del pedido y recalcula el total
 const { sql, ensureTables } = require('./_db');
 const { getSession } = require('./_auth');
 
@@ -21,8 +22,26 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { id, status } = req.body || {};
-      if (!id || !ALLOWED.includes(status)) return res.status(400).json({ error: 'Datos inválidos' });
+      const { id, status, items } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'Datos inválidos' });
+
+      // Edición de los items del pedido (el total se recalcula acá, no se confía en el front).
+      if (Array.isArray(items)) {
+        if (!items.length) return res.status(400).json({ error: 'El pedido no puede quedar vacío' });
+        const clean = items.map((it) => ({
+          sku: String(it.sku || ''),
+          name: String(it.name || ''),
+          color: it.color ? String(it.color) : null,
+          qty: Math.max(1, parseInt(it.qty, 10) || 1),
+          price: Number(it.price) || 0,
+        }));
+        if (clean.some((it) => !it.name)) return res.status(400).json({ error: 'Hay un item sin nombre' });
+        const total = clean.reduce((acc, it) => acc + it.price * it.qty, 0);
+        await sql`UPDATE orders SET items = ${JSON.stringify(clean)}::jsonb, total = ${total} WHERE id = ${id}`;
+        return res.status(200).json({ ok: true, total });
+      }
+
+      if (!ALLOWED.includes(status)) return res.status(400).json({ error: 'Datos inválidos' });
       await sql`UPDATE orders SET status = ${status} WHERE id = ${id}`;
       return res.status(200).json({ ok: true });
     }

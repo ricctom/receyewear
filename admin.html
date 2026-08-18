@@ -39,6 +39,19 @@
   select.status{margin-top:8px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;cursor:pointer}
   .pdfbtn{margin-top:8px;margin-left:6px;padding:6px 11px;border:1px solid #222;background:#fff;color:#222;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
   .pdfbtn:hover{background:#222;color:#fff}
+  .actions{display:flex;flex-wrap:wrap;gap:0;justify-content:flex-end}
+  /* Editor de items */
+  .editor{margin-top:12px;padding-top:12px;border-top:1px dashed #eee}
+  .editor .hint{font-size:12px;color:#777;margin:0 0 8px;line-height:1.5}
+  .editor .hint code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:11px}
+  .editor textarea{width:100%;min-height:220px;font-family:Consolas,'Courier New',monospace;font-size:12px;line-height:1.55;border:1px solid #ddd;border-radius:8px;padding:10px;resize:vertical}
+  .editor .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .editor .calc{font-size:12px;color:#444}
+  .editor .calc b{font-size:13px}
+  .editor .err{color:#c0392b}
+  .editor .btns{display:flex;gap:8px}
+  .editor .btns button{padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ccc;background:#fff;color:#444}
+  .editor .btns button.save{background:#000;color:#fff;border-color:#000}
   .empty{text-align:center;color:#999;padding:50px 0}
   a.back{color:#888;font-size:12px;text-decoration:none}
 </style>
@@ -147,10 +160,26 @@ function renderOrder(o){
       <div style="text-align:right">
         <div class="order-total">${fmt(o.total)}</div>
         <select class="status" onchange="setStatus(${o.id}, this.value)">${opts}</select>
-        <button class="pdfbtn" onclick="exportOrderPDF(${o.id})" title="Exportar PDF de unidades por línea">📄 PDF</button>
+        <div class="actions">
+          <button class="pdfbtn" onclick="exportProveedorPDF(${o.id})" title="Unidades por línea, sin precios ni datos del cliente">📦 PDF proveedor</button>
+          <button class="pdfbtn" onclick="exportClientePDF(${o.id})" title="Con los datos del cliente y los precios">🧾 PDF cliente</button>
+          <button class="pdfbtn" onclick="toggleEditor(${o.id})" title="Agregar, sacar o corregir items del pedido">✏️ Editar</button>
+        </div>
       </div>
     </div>
     <div class="items">${items}</div>
+    <div class="editor" id="ed-${o.id}" style="display:none">
+      <p class="hint">Un item por renglón: <code>Línea (MODELO) | Color | Cantidad | Precio</code><br>
+        Borrá renglones para sacar items, agregá renglones para sumarlos. El total se recalcula solo al guardar.</p>
+      <textarea id="tx-${o.id}" spellcheck="false" oninput="recalcEditor(${o.id})">${esc(itemsToText(o.items||[]))}</textarea>
+      <div class="foot">
+        <div class="calc" id="calc-${o.id}"></div>
+        <div class="btns">
+          <button onclick="toggleEditor(${o.id})">Cancelar</button>
+          <button class="save" onclick="saveItems(${o.id})">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -161,6 +190,70 @@ async function setStatus(id, status){
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+/* ---------- Editor de items ----------------------------------------------
+   El pedido se edita como texto plano, un item por renglón:
+       Línea (MODELO) | Color | Cantidad | Precio
+   Así se pueden sacar items (borrando el renglón) o agregar modelos que
+   todavía no están en el catálogo. El total lo recalcula el server. */
+
+const NL = '\n';
+
+function itemsToText(items){
+  return (items||[]).map(it =>
+    `${it.name} | ${it.color || ''} | ${it.qty} | ${it.price}`).join(NL);
+}
+
+function textToItems(txt){
+  const items = [], errores = [];
+  String(txt||'').split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if(!line || line.startsWith('#')) return;
+    const p = line.split('|').map(x => x.trim());
+    if(p.length < 4){ errores.push(`Renglón ${i+1}: faltan campos (van 4 separados por |)`); return; }
+    const name = p[0];
+    const color = p[1];
+    const qty = parseInt(p[2], 10);
+    const price = Number(String(p[3]).replace(/[^\d.-]/g, ''));
+    if(!name){ errores.push(`Renglón ${i+1}: falta el nombre`); return; }
+    if(!(qty > 0)){ errores.push(`Renglón ${i+1}: cantidad inválida`); return; }
+    if(!isFinite(price) || price < 0){ errores.push(`Renglón ${i+1}: precio inválido`); return; }
+    const m = name.match(/\(([^)]+)\)\s*$/);
+    items.push({ sku: m ? m[1].trim() : '', name, color: color || null, qty, price });
+  });
+  if(!items.length && !errores.length) errores.push('El pedido no puede quedar vacío');
+  return { items, errores };
+}
+
+function recalcEditor(id){
+  const box = document.getElementById('calc-' + id);
+  const { items, errores } = textToItems(document.getElementById('tx-' + id).value);
+  if(errores.length){ box.innerHTML = '<span class="err">' + esc(errores[0]) + '</span>'; return; }
+  const u = items.reduce((a,it) => a + it.qty, 0);
+  const t = items.reduce((a,it) => a + it.qty * it.price, 0);
+  box.innerHTML = `${items.length} renglón(es) · ${u} unidades · total <b>${fmt(t)}</b>`;
+}
+
+function toggleEditor(id){
+  const ed = document.getElementById('ed-' + id);
+  const abierto = ed.style.display !== 'none';
+  if(abierto){ ed.style.display = 'none'; return; }
+  document.getElementById('tx-' + id).value = itemsToText((ORDERS.find(o => o.id === id) || {}).items);
+  ed.style.display = 'block';
+  recalcEditor(id);
+}
+
+async function saveItems(id){
+  const { items, errores } = textToItems(document.getElementById('tx-' + id).value);
+  if(errores.length){ alert('Revisá el pedido:' + NL + NL + errores.join(NL)); return; }
+  const u = items.reduce((a,it) => a + it.qty, 0);
+  const t = items.reduce((a,it) => a + it.qty * it.price, 0);
+  if(!confirm(`Guardar el pedido #${id} con ${items.length} renglón(es), ${u} unidades y un total de ${fmt(t)}?`)) return;
+  try{
+    await api('/api/admin', { method:'POST', body: JSON.stringify({ id, items }) });
+    loadOrders();
+  }catch(e){ alert(e.message); }
+}
+
 // Separa "Metal Receta Diseño (MS18)" -> { linea:'Metal Receta Diseño', modelo:'MS18' }
 function splitNombre(name){
   const s = String(name || '').trim();
@@ -169,9 +262,9 @@ function splitNombre(name){
   return { linea: s || 'Sin línea', modelo: '' };
 }
 
-// Exporta un PDF (vía impresión del navegador) con las unidades del pedido
-// agrupadas por línea: Modelo · Color · Cantidad, subtotal por línea y total general.
-function exportOrderPDF(id){
+// PDF para el PROVEEDOR: solo unidades por línea (Modelo · Color · Cantidad),
+// sin precios ni datos del cliente. Hoja angosta tipo ticket, cómoda para el celu.
+function exportProveedorPDF(id){
   const o = ORDERS.find(x => x.id === id);
   if(!o){ alert('No se encontró el pedido.'); return; }
 
@@ -244,11 +337,116 @@ function exportOrderPDF(id){
   <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
 </body></html>`;
 
+  abrirParaImprimir(html);
+}
+
+function abrirParaImprimir(html){
   const w = window.open('', '_blank');
   if(!w){ alert('Permití las ventanas emergentes para exportar el PDF.'); return; }
   w.document.open();
   w.document.write(html);
   w.document.close();
+}
+
+// PDF para el CLIENTE: datos del cliente + items con precio unitario, subtotal
+// por renglón, subtotal por línea y total del pedido. Hoja A4.
+function exportClientePDF(id){
+  const o = ORDERS.find(x => x.id === id);
+  if(!o){ alert('No se encontró el pedido.'); return; }
+
+  // Agrupar por línea, y dentro por (modelo + color + precio)
+  const lineas = new Map();
+  (o.items || []).forEach(it => {
+    const { linea, modelo } = splitNombre(it.name);
+    const mod = it.sku ? String(it.sku) : modelo;
+    const color = it.color ? String(it.color) : '';
+    const qty = Math.max(1, parseInt(it.qty, 10) || 1);
+    const price = Number(it.price) || 0;
+    if(!lineas.has(linea)) lineas.set(linea, new Map());
+    const g = lineas.get(linea);
+    const key = mod + '¬' + color + '¬' + price;
+    if(g.has(key)) g.get(key).qty += qty;
+    else g.set(key, { modelo: mod, color, qty, price });
+  });
+
+  let totalUnidades = 0, totalPesos = 0;
+  const bloques = [...lineas.entries()].map(([linea, g]) => {
+    const filas = [...g.values()].sort((a,b) =>
+      a.modelo.localeCompare(b.modelo) || a.color.localeCompare(b.color));
+    const subU = filas.reduce((s,f) => s + f.qty, 0);
+    const subP = filas.reduce((s,f) => s + f.qty * f.price, 0);
+    totalUnidades += subU; totalPesos += subP;
+    const trs = filas.map(f => `<tr>
+      <td>${esc(f.modelo || '—')}</td>
+      <td>${esc(f.color || '—')}</td>
+      <td class="q">${f.qty}</td>
+      <td class="m">${fmt(f.price)}</td>
+      <td class="m">${fmt(f.qty * f.price)}</td></tr>`).join('');
+    return `<section class="linea">
+      <h2>${esc(linea)}</h2>
+      <table>
+        <thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th><th class="m">P. unit.</th><th class="m">Subtotal</th></tr></thead>
+        <tbody>${trs}</tbody>
+        <tfoot><tr><td colspan="2">Subtotal ${esc(linea)}</td><td class="q">${subU}</td><td class="m"></td><td class="m">${fmt(subP)}</td></tr></tfoot>
+      </table>
+    </section>`;
+  }).join('');
+
+  const d = new Date(o.created_at);
+  const fecha = d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Pedido #${o.id} · ${esc(o.name || o.email || 'Cliente')}</title>
+<style>
+  *{box-sizing:border-box}
+  @page{size:A4;margin:14mm 12mm}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0 auto;padding:20px;font-size:12px;max-width:190mm}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
+  .head h1{font-size:20px;margin:0;letter-spacing:.5px;text-transform:uppercase}
+  .head .marca{font-size:12px;color:#555;margin-top:3px;letter-spacing:1px;text-transform:uppercase}
+  .head .der{text-align:right;font-size:11px;color:#555;line-height:1.6}
+  .cliente{background:#f5f5f5;border:1px solid #e2e2e2;border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:12px;line-height:1.7}
+  .cliente .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#777;display:block}
+  .cliente .nom{font-size:14px;font-weight:700;text-transform:uppercase}
+  .linea{margin:0 0 16px;break-inside:avoid}
+  .linea h2{font-size:13px;margin:0 0 5px;text-transform:uppercase;letter-spacing:.4px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #eee;vertical-align:top}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#666;border-bottom:1px solid #999}
+  td.q,th.q{text-align:right;width:50px;white-space:nowrap}
+  td.m,th.m{text-align:right;width:95px;white-space:nowrap}
+  tfoot td{font-weight:700;border-top:1px solid #999;border-bottom:none;background:#fafafa}
+  .grand{margin-top:20px;border-top:2px solid #111;padding-top:12px;display:flex;justify-content:space-between;align-items:baseline;font-size:15px;font-weight:700}
+  .grand .u{font-size:12px;font-weight:400;color:#555}
+  .grand .n{font-size:22px}
+  .pie{margin-top:26px;font-size:10px;color:#888;text-align:center;line-height:1.6}
+  @media print{ body{padding:0} .noprint{display:none} }
+  .noprint{margin-bottom:14px}
+  .noprint button{font-size:13px;padding:9px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer}
+</style></head><body>
+  <div class="noprint"><button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>
+  <div class="head">
+    <div>
+      <h1>Pedido #${o.id}</h1>
+      <div class="marca">REC Eyewear</div>
+    </div>
+    <div class="der">${fecha}<br>Estado: ${esc(o.status || '')}</div>
+  </div>
+  <div class="cliente">
+    <span class="lbl">Cliente</span>
+    <span class="nom">${esc(o.name || '—')}</span><br>
+    ${esc(o.email || '')}
+  </div>
+  ${bloques || '<p>El pedido no tiene items.</p>'}
+  <div class="grand">
+    <span>Total <span class="u">(${totalUnidades} unidades)</span></span>
+    <span class="n">${fmt(totalPesos)}</span>
+  </div>
+  <div class="pie">Precios en pesos. Este comprobante no es factura.</div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+</body></html>`;
+
+  abrirParaImprimir(html);
 }
 
 // arranque
