@@ -15,7 +15,7 @@
   <nav class="tabs">
     <a href="admin.html" class="on">Pedidos</a>
     <a href="crm.html">Clientes</a>
-    <a href="proveedor.html">Martín</a>
+    <a href="proveedor.html">Proveedores</a>
   </nav>
   <div class="who" id="who"></div>
 </header>
@@ -75,7 +75,7 @@ const VISTAS = [
   ['saldado',    'Saldados'],
 ];
 
-let ORDERS = [], USD = { valor:0 }, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [];
+let ORDERS = [], USD = { valor:0 }, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [], PROVS = [];
 let vista = 'pendientes';
 const abiertos = new Set();
 
@@ -85,7 +85,8 @@ async function cargar(){
   try{
     const d = await api('/api/admin');
     ORDERS = d.orders; USD = d.usd || { valor:0 };
-    ARTICULOS = d.articulos || []; SIN_MAPEAR = d.sin_mapear || []; COSTMAP = d.cost_map || [];
+    ARTICULOS = d.articulos || []; SIN_MAPEAR = d.sin_mapear || [];
+    COSTMAP = d.cost_map || []; PROVS = d.proveedores || [];
     pintar();
   }catch(e){
     if(esSesion(e)) return logout();
@@ -97,7 +98,9 @@ async function cargar(){
 const cobrado = o => Number(o.cobrado) || 0;
 const debe    = o => Math.max(0, o.total - cobrado(o));
 const dolar   = o => Number(o.usd_rate) || Number(USD.valor) || 0;
-const costo   = o => Math.round((Number(o.costo_usd) || 0) * dolar(o) + (Number(o.costo_ars) || 0));
+// El costo viene repartido por proveedor, cada uno en su moneda.
+const costo   = o => Math.round((o.costo || []).reduce((a,d) =>
+  a + (d.moneda === 'USD' ? d.monto * dolar(o) : d.monto), 0));
 const ganancia= o => o.total - costo(o);
 
 // El paso "visible": un pedido despachado y cobrado ya no molesta.
@@ -152,9 +155,10 @@ function pintar(){
 
   const av = document.getElementById('avisoCostos');
   av.innerHTML = SIN_MAPEAR.length
-    ? `<div class="aviso">No sé cuánto te cuestan estas líneas: <b>${SIN_MAPEAR.map(esc).join(', ')}</b>.
-        Sin eso no puedo calcular la deuda con Martín.
-        <button class="b sm" style="margin-left:6px" onclick="editarCostos()">Asignarlas</button></div>` : '';
+    ? `<div class="aviso">Me falta el costo de:
+        <b>${SIN_MAPEAR.map(x => esc(x.linea) + (x.proveedor ? ' (' + esc(x.proveedor) + ')' : '')).join(', ')}</b>.
+        Sin eso el margen de esos pedidos queda incompleto.
+        <button class="b sm" style="margin-left:6px" onclick="editarCostos()">Cargarlo</button></div>` : '';
 
   const filtrados = ORDERS.filter(o => enVista(o, vista));
   document.getElementById('lista').innerHTML = filtrados.length
@@ -282,8 +286,8 @@ function detalle(o){
   const guita = `<div class="det"><h4>Números</h4>
     <div class="dato"><span>Te van a pagar</span><span class="num">${fmt(o.total)}</span></div>
     <div class="dato"><span>Te cuesta</span><span class="num">${costo(o) ? fmt(costo(o)) : '—'}</span></div>
-    ${o.costo_usd ? `<div class="dato"><span style="padding-left:12px">de Martín</span><span class="num">US$ ${Number(o.costo_usd).toFixed(2)}</span></div>` : ''}
-    ${Number(o.costo_ars) ? `<div class="dato"><span style="padding-left:12px">de otros proveedores</span><span class="num">${fmt(o.costo_ars)}</span></div>` : ''}
+    ${(o.costo||[]).map(d => `<div class="dato"><span style="padding-left:12px">${esc(d.nombre)}</span>
+      <span class="num">${d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) + ' · ' + fmt(d.monto * dolar(o)) : fmt(d.monto)}</span></div>`).join('')}
     <div class="dato"><span>Te queda</span><span class="num"><b>${costo(o) ? fmt(ganancia(o)) + ' · ' + Math.round(ganancia(o)/o.total*100) + '%' : '—'}</b></span></div>
     ${cobrado(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobrado(o))}</span></div>` : ''}
     ${debe(o) && (p==='despachado'||p==='saldado') ? `<div class="dato"><span>Te debe</span><span class="num debe"><b>${fmt(debe(o))}</b></span></div>` : ''}
@@ -327,8 +331,9 @@ async function llegoTalCual(id){
   try{
     const r = await post({ id, recibir:{} });
     await cargar();
-    showToast(r.monto_usd ? 'Sumado a Martín: US$ ' + r.monto_usd.toFixed(2) : 'Recibido');
-    if(r.sin_costo && r.sin_costo.length) alert('Ojo: no tengo el costo de ' + r.sin_costo.join(', ') + ', así que no entró en la deuda.');
+    showToast(textoCargado(r));
+    if(r.sin_costo && r.sin_costo.length)
+      alert('Ojo: no tengo el costo de ' + r.sin_costo.map(x => x.linea).join(', ') + ', así que no entró en ninguna deuda.');
   }catch(e){ alert(e.message); }
 }
 
@@ -375,12 +380,20 @@ async function guardarRecibido(id){
   try{
     const r = await post({ id, recibir:{ lineas } });
     cerrarModal(); await cargar();
-    showToast(r.monto_usd ? 'Sumado a Martín: US$ ' + r.monto_usd.toFixed(2) : 'Recibido');
+    showToast(textoCargado(r));
     // Si venía de la carga en tanda, sigue con el que falte.
     const pend = ORDERS.filter(o => !o.supplier_move_id && ['recibido','despachado','saldado'].includes(paso(o)));
     if(window._enTanda && pend.length) return modalRecibir(pend[0].id, pend.length);
     window._enTanda = false;
   }catch(e){ alert(e.message); }
+}
+
+// "Sumado a Martín US$ 148 y a Fernando $39.800"
+function textoCargado(r){
+  const c = (r && r.cargado) || [];
+  if(!c.length) return 'Recibido';
+  return 'Sumado a ' + c.map(d =>
+    d.nombre + ' ' + (d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) : fmt(d.monto))).join(' y a ');
 }
 
 async function cobrarTodo(id){
@@ -460,40 +473,68 @@ async function dolarAuto(){
   try{ await post({ usd:{ auto:true } }); cerrarModal(); await cargar(); }catch(e){ alert(e.message); }
 }
 
+// Para cada línea del catálogo: de qué proveedor es y qué artículo suyo.
 function editarCostos(){
-  const lineas = [...new Set([...SIN_MAPEAR, ...COSTMAP.map(c => c.patron)])].sort();
+  const lineas = [...new Set([...SIN_MAPEAR.map(x => x.linea), ...COSTMAP.map(c => c.patron)])].sort();
+  LINEAS_EDIT = lineas;
   abrirModal(`<h3>Costo de cada línea</h3>
-    <p class="sub">Qué artículo de la lista de Martín es cada línea del catálogo. Si es de otro proveedor (franelas, líquidos), poné <b>"No es de Martín"</b> y deja de avisarte.
-      El número son las unidades que trae el ítem: los packs de económicos vienen de a 50, 100 o 500.</p>
-    ${lineas.map((l,i) => {
-      const m = COSTMAP.find(c => c.patron === l) || {};
-      return `<div class="qrow" style="grid-template-columns:1fr 1fr 66px">
-        <span class="qn">${esc(l)}</span>
-        <select id="ca${i}" onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
-          <option value="">— sin asignar —</option>
-          <option value="otro"${m.ignorar?' selected':''}>No es de Martín</option>
-          ${ARTICULOS.map(a => `<option value="${esc(a)}"${(!m.ignorar && m.articulo===a)?' selected':''}>${esc(a)}</option>`).join('')}
-        </select>
-        <input type="number" id="cf${i}" value="${m.factor||1}" min="1" title="unidades que trae el ítem"
-               onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
-        <div class="otrocosto" id="oc${i}" style="display:${m.ignorar?'grid':'none'}">
-          <span>Te cuesta por unidad</span>
-          <input type="number" id="cp${i}" value="${Number(m.costo_ars)||''}" placeholder="$ por unidad"
-                 onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
-        </div>
-      </div>`;
-    }).join('')}
+    <p class="sub">De quién comprás cada línea del catálogo y a qué precio. El número del medio son
+      las unidades que trae el ítem: los packs vienen de a 50, 100 o 500.</p>
+    <div id="filasCosto"></div>
     <div class="mfoot"><button class="b p" style="flex:none" onclick="cerrarModal();cargar()">Listo</button></div>`);
+  pintarCostos();
 }
-async function guardarCosto(i, patron){
-  const articulo = document.getElementById('ca'+i).value;
-  // El campo del costo en pesos solo aparece si no es de Martín.
-  const otro = document.getElementById('oc'+i);
-  if(otro) otro.style.display = articulo === 'otro' ? 'grid' : 'none';
+
+let LINEAS_EDIT = [];
+function pintarCostos(){
+  document.getElementById('filasCosto').innerHTML = LINEAS_EDIT.map((l,i) => {
+    const m = COSTMAP.find(c => c.patron === l) || {};
+    const arts = ARTICULOS.filter(a => a.supplier_id === m.supplier_id);
+    const precio = (ARTICULOS.find(a => a.supplier_id === m.supplier_id && a.articulo === m.articulo) || {}).precio;
+    const prov = PROVS.find(p => p.id === m.supplier_id);
+    return `<div class="qrow" style="grid-template-columns:1fr 118px 62px">
+      <span class="qn">${esc(l)}</span>
+      <select id="cs${i}" onchange="cambiarProv(${i})">
+        <option value="">— quién —</option>
+        ${PROVS.map(p => `<option value="${p.id}"${m.supplier_id===p.id?' selected':''}>${esc(p.nombre)}</option>`).join('')}
+      </select>
+      <input type="number" id="cf${i}" value="${m.factor||1}" min="1" title="unidades que trae el ítem"
+             onchange="guardarCosto(${i})">
+      ${m.supplier_id ? `<div class="otrocosto" id="oc${i}">
+        <select id="ca${i}" onchange="guardarCosto(${i})" style="width:auto">
+          <option value="">— artículo —</option>
+          ${arts.map(a => `<option value="${esc(a.articulo)}"${m.articulo===a.articulo?' selected':''}>${esc(a.articulo)}</option>`).join('')}
+          ${m.articulo && !arts.some(a => a.articulo === m.articulo)
+            ? `<option value="${esc(m.articulo)}" selected>${esc(m.articulo)}</option>` : ''}
+        </select>
+        <input type="number" id="cp${i}" value="${precio || ''}" step="0.01"
+               placeholder="${prov && prov.moneda === 'USD' ? 'US$ por unidad' : '$ por unidad'}"
+               onchange="guardarCosto(${i})">
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function cambiarProv(i){
+  const m = COSTMAP.find(c => c.patron === LINEAS_EDIT[i]);
+  const id = parseInt(document.getElementById('cs'+i).value, 10) || null;
+  if(m) m.supplier_id = id; else COSTMAP.push({ patron: LINEAS_EDIT[i], supplier_id: id, factor: 1, articulo: '' });
+  pintarCostos();
+}
+
+async function guardarCosto(i){
+  const patron = LINEAS_EDIT[i];
+  const supplier_id = parseInt(document.getElementById('cs'+i).value, 10) || null;
+  const art = document.getElementById('ca'+i);
+  const pre = document.getElementById('cp'+i);
   try{
-    await post({ costmap:{ patron, articulo,
+    await post({ costmap:{ patron, supplier_id,
+      articulo: art ? art.value : '',
       factor: document.getElementById('cf'+i).value,
-      costo_ars: document.getElementById('cp'+i) ? document.getElementById('cp'+i).value : 0 } });
+      precio: pre ? pre.value : 0 } });
+    const d = await api('/api/admin');
+    ARTICULOS = d.articulos || []; COSTMAP = d.cost_map || []; PROVS = d.proveedores || [];
+    pintarCostos();
     showToast('Guardado');
   }catch(e){ alert(e.message); }
 }

@@ -6,7 +6,8 @@
 //   POST { id, pago:{...} }            -> registra un cobro
 //   POST { id, resetPagos|borrar|nota|items }
 //   POST { usd:{...} } / { costmap:{...} }
-const { sql, ensureTables, splitNombre, norm, setSetting, usdRate, costTables, costoDe } = require('./_db');
+const { sql, ensureTables, splitNombre, norm, setSetting, usdRate,
+        costTables, costoDe, costoLineasDe } = require('./_db');
 const { getSession } = require('./_auth');
 
 const ETAPAS = ['nuevo', 'pedido', 'recibido', 'despachado', 'cancelado'];
@@ -28,26 +29,7 @@ function porLinea(items) {
   return [...m.values()];
 }
 
-// Costo en dólares de una lista de líneas con sus cantidades.
-function costoLineas(lineas, t) {
-  let total = 0, ars = 0;
-  const items = [];
-  const sinCosto = [];
-  lineas.forEach((l) => {
-    const m = t.mapa.get(norm(l.linea));
-    // De otro proveedor: no entra en la entrega de Martín.
-    if (m && m.ignorar) { ars += Number(m.costo_ars || 0) * (m.factor || 1) * l.qty; return; }
-    const precio = m ? t.precios.get(String(m.articulo).toUpperCase()) : undefined;
-    if (!m || precio == null) { if (l.qty) sinCosto.push(l.linea); return; }
-    const cantidad = l.qty * (m.factor || 1);
-    if (!cantidad) return;
-    total += precio * cantidad;
-    const ya = items.find((x) => x.articulo === m.articulo);
-    if (ya) ya.cantidad += cantidad;
-    else items.push({ articulo: m.articulo, cantidad, precio_usd: precio });
-  });
-  return { usd: Math.round(total * 100) / 100, ars: Math.round(ars), items, sinCosto };
-}
+
 
 module.exports = async (req, res) => {
   const s = getSession(req);
@@ -69,22 +51,24 @@ module.exports = async (req, res) => {
         costTables(),
       ]);
 
-      const sinMapear = new Set();
+      const sinMapear = new Map();
       const orders = rows.map((o) => {
-        const c = costoDe(o.items, tablas);
-        c.sinCosto.forEach((l) => sinMapear.add(l));
-        const real = o.recibido ? costoLineas(o.recibido, tablas) : null;
-        return { ...o, costo_usd: real ? real.usd : c.usd,
-                 costo_ars: real ? real.ars : c.ars, sin_costo: c.sinCosto };
+        // Si ya confirmó lo que llegó, el costo real es el de lo recibido.
+        const c = o.recibido ? costoLineasDe(o.recibido, tablas) : costoDe(o.items, tablas);
+        costoDe(o.items, tablas).sinCosto.forEach((x) => sinMapear.set(x.linea, x));
+        return { ...o, costo: c.detalle, sin_costo: c.sinCosto };
       });
 
-      const precios = await sql`SELECT articulo FROM supplier_prices WHERE activo ORDER BY articulo`;
-      const mapa = await sql`SELECT patron, articulo, factor, ignorar, costo_ars FROM cost_map ORDER BY patron`;
+      const [precios, mapa, provs] = await Promise.all([
+        sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo ORDER BY articulo`,
+        sql`SELECT patron, articulo, factor, supplier_id FROM cost_map ORDER BY patron`,
+        sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
+      ]);
       return res.status(200).json({
-        orders, usd,
-        articulos: precios.map((p) => p.articulo),
+        orders, usd, proveedores: provs,
+        articulos: precios,
         cost_map: mapa,
-        sin_mapear: [...sinMapear],
+        sin_mapear: [...sinMapear.values()],
       });
     }
 
@@ -102,26 +86,30 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, usd: await usdRate() });
     }
 
-    /* ----- Qué artículo del proveedor es cada línea ----- */
+    /* ----- De qué proveedor y qué artículo es cada línea ----- */
     if (b.costmap) {
       const patron = norm(b.costmap.patron);
       const articulo = String(b.costmap.articulo || '').trim();
+      const proveedor = parseInt(b.costmap.supplier_id, 10) || null;
       const factor = Math.max(1, parseInt(b.costmap.factor, 10) || 1);
       if (!patron) return res.status(400).json({ error: 'Falta la línea' });
-      // "otro" = no es de Martín (franelas, líquidos): no suma ni vuelve a avisar.
-      if (articulo === 'otro') {
-        const costo = Math.max(0, Number(b.costmap.costo_ars) || 0);
-        await sql`INSERT INTO cost_map (patron, articulo, factor, ignorar, costo_ars)
-          VALUES (${patron}, '', ${factor}, true, ${costo})
-          ON CONFLICT (patron) DO UPDATE SET articulo = '', factor = ${factor}, ignorar = true, costo_ars = ${costo}`;
-        return res.status(200).json({ ok: true });
-      }
-      if (!articulo) {
+      if (!articulo || !proveedor) {
         await sql`DELETE FROM cost_map WHERE patron = ${patron}`;
         return res.status(200).json({ ok: true });
       }
-      await sql`INSERT INTO cost_map (patron, articulo, factor, ignorar) VALUES (${patron}, ${articulo}, ${factor}, false)
-        ON CONFLICT (patron) DO UPDATE SET articulo = EXCLUDED.articulo, factor = EXCLUDED.factor, ignorar = false`;
+      // Si el artículo todavía no está en la lista de ese proveedor, se crea
+      // con el precio que vino (o en cero, para cargarlo después).
+      const precio = Number(b.costmap.precio);
+      if (isFinite(precio) && precio > 0) {
+        await sql`INSERT INTO supplier_prices (supplier_id, articulo, precio_usd, precio)
+          VALUES (${proveedor}, ${articulo}, ${precio}, ${precio})
+          ON CONFLICT (supplier_id, upper(articulo))
+          DO UPDATE SET precio = ${precio}, precio_usd = ${precio}, activo = true`;
+      }
+      await sql`INSERT INTO cost_map (patron, articulo, factor, supplier_id, ignorar)
+        VALUES (${patron}, ${articulo}, ${factor}, ${proveedor}, false)
+        ON CONFLICT (patron) DO UPDATE SET articulo = EXCLUDED.articulo,
+          factor = EXCLUDED.factor, supplier_id = EXCLUDED.supplier_id, ignorar = false`;
       return res.status(200).json({ ok: true });
     }
 
@@ -144,19 +132,23 @@ module.exports = async (req, res) => {
         : pedidas;
 
       const tablas = await costTables();
-      const { usd, items, sinCosto } = costoLineas(lineas, tablas);
+      const { detalle, sinCosto } = costoLineasDe(lineas, tablas);
 
-      const [prov] = await sql`SELECT id FROM suppliers ORDER BY id LIMIT 1`;
+      // Un movimiento por proveedor: lo de Martín va a su cuenta en dólares,
+      // lo de Fernando y Juan a la de ellos en pesos.
+      const sh = ped.ship || {};
+      const glosa = 'Pedido #' + id + (sh.razon_social ? ' · ' + sh.razon_social : '');
       let moveId = null;
-      if (prov && usd > 0) {
-        const sh = ped.ship || {};
+      const cargado = [];
+      for (const d of detalle) {
+        if (!(d.monto > 0)) continue;
         const [mov] = await sql`
-          INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, detalle, items, order_id)
-          VALUES (${prov.id}, CURRENT_DATE, 'PEDIDO', ${usd},
-                  ${'Pedido #' + id + (sh.razon_social ? ' · ' + sh.razon_social : '')},
-                  ${JSON.stringify(items)}::jsonb, ${id})
+          INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, monto, detalle, items, order_id)
+          VALUES (${d.supplier_id}, CURRENT_DATE, 'PEDIDO', ${d.monto}, ${d.monto}, ${glosa},
+                  ${JSON.stringify(d.items)}::jsonb, ${id})
           RETURNING id`;
-        moveId = mov.id;
+        if (!moveId) moveId = mov.id;
+        cargado.push({ nombre: d.nombre, moneda: d.moneda, monto: d.monto });
       }
 
       // Si el pedido ya estaba despachado (por ejemplo los viejos, que se
@@ -165,7 +157,7 @@ module.exports = async (req, res) => {
       await sql`UPDATE orders SET etapa = ${nuevaEtapa}, status = ${STATUS[nuevaEtapa]},
           recibido = ${JSON.stringify(lineas)}::jsonb, supplier_move_id = ${moveId}
         WHERE id = ${id}`;
-      return res.status(200).json({ ok: true, monto_usd: usd, sin_costo: sinCosto });
+      return res.status(200).json({ ok: true, cargado, sin_costo: sinCosto });
     }
 
     /* ----- Mover de paso ----- */
@@ -175,7 +167,7 @@ module.exports = async (req, res) => {
       if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
       // Volver atrás de "recibido" deshace la deuda que se le había cargado a Martín.
       if (ped.supplier_move_id && (b.etapa === 'nuevo' || b.etapa === 'pedido')) {
-        await sql`DELETE FROM supplier_moves WHERE id = ${ped.supplier_move_id}`;
+        await sql`DELETE FROM supplier_moves WHERE order_id = ${id}`;
         await sql`UPDATE orders SET supplier_move_id = NULL, recibido = NULL WHERE id = ${id}`;
       }
       await sql`UPDATE orders SET etapa = ${b.etapa}, status = ${STATUS[b.etapa]} WHERE id = ${id}`;
@@ -184,8 +176,7 @@ module.exports = async (req, res) => {
 
     /* ----- Borrar ----- */
     if (b.borrar) {
-      const [ped] = await sql`SELECT supplier_move_id FROM orders WHERE id = ${id}`;
-      if (ped && ped.supplier_move_id) await sql`DELETE FROM supplier_moves WHERE id = ${ped.supplier_move_id}`;
+      await sql`DELETE FROM supplier_moves WHERE order_id = ${id}`;
       await sql`DELETE FROM order_payments WHERE order_id = ${id}`;
       await sql`DELETE FROM orders WHERE id = ${id}`;
       return res.status(200).json({ ok: true });
@@ -242,4 +233,3 @@ module.exports = async (req, res) => {
 };
 
 module.exports.porLinea = porLinea;
-module.exports.costoLineas = costoLineas;

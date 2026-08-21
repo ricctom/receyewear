@@ -103,6 +103,14 @@ function ensureTables() {
       email TEXT,
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
+    // Link de invitación: el primero que entre con Google por ese link queda
+    // registrado como el proveedor y el token se quema.
+    await sql`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS invite_token TEXT`;
+    await sql`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ`;
+    // Cada proveedor lleva su cuenta en su moneda: Martín en dólares,
+    // los locales en pesos. Por eso los montos dejan de llamarse "usd".
+    await sql`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'USD'`;
+    await sql`UPDATE suppliers SET moneda = 'USD' WHERE moneda IS NULL`;
     await sql`CREATE TABLE IF NOT EXISTS supplier_prices (
       id SERIAL PRIMARY KEY,
       supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
@@ -112,6 +120,8 @@ function ensureTables() {
     )`;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS supplier_prices_uk
       ON supplier_prices (supplier_id, upper(articulo))`;
+    await sql`ALTER TABLE supplier_prices ADD COLUMN IF NOT EXISTS precio NUMERIC`;
+    await sql`UPDATE supplier_prices SET precio = precio_usd WHERE precio IS NULL`;
     await sql`CREATE TABLE IF NOT EXISTS supplier_moves (
       id SERIAL PRIMARY KEY,
       supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
@@ -124,6 +134,8 @@ function ensureTables() {
     )`;
     // Qué pedido de la web generó este movimiento (si vino de uno).
     await sql`ALTER TABLE supplier_moves ADD COLUMN IF NOT EXISTS order_id INTEGER`;
+    await sql`ALTER TABLE supplier_moves ADD COLUMN IF NOT EXISTS monto NUMERIC`;
+    await sql`UPDATE supplier_moves SET monto = monto_usd WHERE monto IS NULL`;
     await sql`CREATE TABLE IF NOT EXISTS supplier_consign (
       id SERIAL PRIMARY KEY,
       supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
@@ -134,6 +146,8 @@ function ensureTables() {
       nota TEXT,
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
+    await sql`ALTER TABLE supplier_consign ADD COLUMN IF NOT EXISTS precio NUMERIC`;
+    await sql`UPDATE supplier_consign SET precio = precio_usd WHERE precio IS NULL`;
     // Qué artículo del proveedor corresponde a cada línea de la web.
     await sql`CREATE TABLE IF NOT EXISTS cost_map (
       id SERIAL PRIMARY KEY,
@@ -141,18 +155,12 @@ function ensureTables() {
       articulo TEXT NOT NULL,
       factor INTEGER NOT NULL DEFAULT 1
     )`;
-    // Líneas que no compra a Martín (franelas, líquidos): no suman ni avisan.
     await sql`ALTER TABLE cost_map ADD COLUMN IF NOT EXISTS ignorar BOOLEAN DEFAULT false`;
-    // Costo en pesos por unidad para lo que compra a otros proveedores
-    // (las franelas de Fernando, los líquidos de Juan): cuenta en el margen
-    // pero no entra en la cuenta corriente de Martín.
     await sql`ALTER TABLE cost_map ADD COLUMN IF NOT EXISTS costo_ars NUMERIC DEFAULT 0`;
+    // Cada línea del catálogo pertenece a un proveedor.
+    await sql`ALTER TABLE cost_map ADD COLUMN IF NOT EXISTS supplier_id INTEGER`;
 
-    // Las franelas son de Fernando, no de Martín: $199 la unidad, pack de 100.
-    // Se deja cargado para no tener que asignarlo a mano.
-    await sql`INSERT INTO cost_map (patron, articulo, factor, ignorar, costo_ars)
-      VALUES ('franelas personalizadas pack x100', '', 100, true, 199)
-      ON CONFLICT (patron) DO NOTHING`;
+    await seedProveedores();
 
     // La carga inicial de datos no es crítica: si algo falla, las tablas ya
     // están creadas y la tienda sigue andando. Se reintenta en el próximo
@@ -166,18 +174,69 @@ function ensureTables() {
   return ready;
 }
 
+// Deja creados los tres proveedores con su moneda y le pone dueño a cada
+// línea del catálogo. Es idempotente: se puede correr todas las veces.
+async function seedProveedores() {
+  const nombres = await sql`SELECT id, nombre FROM suppliers`;
+  if (!nombres.length) return;                     // todavía no corrió el seed inicial
+  const buscar = (n) => nombres.find((x) => x.nombre.toLowerCase().startsWith(n));
+
+  const martin = buscar('mart');
+  if (martin) await sql`UPDATE suppliers SET moneda = 'USD' WHERE id = ${martin.id}`;
+
+  // Fernando (franelas y estuches) y Juan (líquidos), los dos en pesos.
+  for (const nombre of ['Fernando', 'Juan']) {
+    if (!buscar(nombre.toLowerCase())) {
+      await sql`INSERT INTO suppliers (nombre, moneda) VALUES (${nombre}, 'ARS')`;
+    }
+  }
+  const todos = await sql`SELECT id, nombre FROM suppliers`;
+  const idDe = (n) => {
+    const p = todos.find((x) => x.nombre.toLowerCase().startsWith(n));
+    return p ? p.id : null;
+  };
+  const idMartin = idDe('mart'), idFer = idDe('fernando'), idJuan = idDe('juan');
+
+  // Lo que ya estaba mapeado sin dueño era todo de Martín.
+  if (idMartin) {
+    await sql`UPDATE cost_map SET supplier_id = ${idMartin}
+      WHERE supplier_id IS NULL AND NOT COALESCE(ignorar, false)`;
+  }
+
+  // Franelas: el único costo que sabemos de Fernando.
+  if (idFer) {
+    await sql`INSERT INTO supplier_prices (supplier_id, articulo, precio_usd, precio)
+      VALUES (${idFer}, 'FRANELAS PERSONALIZADAS', 199, 199)
+      ON CONFLICT (supplier_id, upper(articulo)) DO NOTHING`;
+    await sql`INSERT INTO cost_map (patron, articulo, factor, supplier_id)
+      VALUES ('franelas personalizadas pack x100', 'FRANELAS PERSONALIZADAS', 100, ${idFer})
+      ON CONFLICT (patron) DO UPDATE SET articulo = 'FRANELAS PERSONALIZADAS',
+        factor = 100, supplier_id = ${idFer}, ignorar = false`;
+    // Los estuches también son de él; el costo lo carga Tomás.
+    await sql`INSERT INTO cost_map (patron, articulo, factor, supplier_id)
+      VALUES ('estuche plastico personalizado pack x100', 'ESTUCHE PERSONALIZADO', 100, ${idFer})
+      ON CONFLICT (patron) DO NOTHING`;
+  }
+  // El limpia cristales son los líquidos de Juan.
+  if (idJuan) {
+    await sql`INSERT INTO cost_map (patron, articulo, factor, supplier_id)
+      VALUES ('limpia cristales personalizados pack x100', 'LIMPIA CRISTALES', 100, ${idJuan})
+      ON CONFLICT (patron) DO NOTHING`;
+  }
+}
+
 // Carga inicial: solo corre si las tablas están vacías. Se hace de a bloques
 // (una sola consulta por tabla) para que el primer arranque no se demore.
 async function seedOnce() {
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM suppliers`;
   if (!n) {
-    const [prov] = await sql`INSERT INTO suppliers (nombre, email) VALUES ('Martín', NULL) RETURNING id`;
+    const [prov] = await sql`INSERT INTO suppliers (nombre, email, moneda) VALUES ('Martín', NULL, 'USD') RETURNING id`;
     const sid = prov.id;
 
     const precios = SEED.PRECIOS.map(([articulo, precio_usd]) => ({ articulo, precio_usd }));
     await sql`
-      INSERT INTO supplier_prices (supplier_id, articulo, precio_usd)
-      SELECT ${sid}, articulo, precio_usd
+      INSERT INTO supplier_prices (supplier_id, articulo, precio_usd, precio)
+      SELECT ${sid}, articulo, precio_usd, precio_usd
       FROM jsonb_to_recordset(${JSON.stringify(precios)}::jsonb) AS x(articulo text, precio_usd numeric)
       ON CONFLICT DO NOTHING`;
 
@@ -187,16 +246,16 @@ async function seedOnce() {
       items: (m.items || []).map(([articulo, cantidad, precio_usd]) => ({ articulo, cantidad, precio_usd })),
     }));
     await sql`
-      INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, detalle, items)
-      SELECT ${sid}, fecha, tipo, monto_usd, detalle, items
+      INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, monto, detalle, items)
+      SELECT ${sid}, fecha, tipo, monto_usd, monto_usd, detalle, items
       FROM jsonb_to_recordset(${JSON.stringify(movs)}::jsonb)
         AS x(fecha date, tipo text, monto_usd numeric, detalle text, items jsonb)`;
 
     const cons = SEED.CONSIGNACION.map(([fecha, articulo, cantidad, precio_usd, nota]) =>
       ({ fecha, articulo, cantidad, precio_usd, nota: nota || null }));
     await sql`
-      INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, nota)
-      SELECT ${sid}, fecha, articulo, cantidad, precio_usd, nota
+      INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, precio, nota)
+      SELECT ${sid}, fecha, articulo, cantidad, precio_usd, precio_usd, nota
       FROM jsonb_to_recordset(${JSON.stringify(cons)}::jsonb)
         AS x(fecha date, articulo text, cantidad int, precio_usd numeric, nota text)`;
   }
@@ -292,38 +351,72 @@ async function usdRate() {
 // Tablas de costo (mapa de líneas + lista de precios del proveedor). Se leen
 // una sola vez y después se reusan para todos los pedidos.
 async function costTables() {
-  const mapRows = await sql`SELECT patron, articulo, factor, ignorar, costo_ars FROM cost_map`;
-  const priceRows = await sql`SELECT articulo, precio_usd FROM supplier_prices WHERE activo`;
+  const [mapRows, priceRows, provs] = await Promise.all([
+    sql`SELECT patron, articulo, factor, supplier_id FROM cost_map`,
+    sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo`,
+    sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
+  ]);
   return {
-    precios: new Map(priceRows.map((r) => [String(r.articulo).toUpperCase(), Number(r.precio_usd)])),
     mapa: new Map(mapRows.map((r) => [r.patron, r])),
+    // La clave lleva el proveedor: dos proveedores pueden tener el mismo artículo.
+    precios: new Map(priceRows.map((r) => [r.supplier_id + '|' + String(r.articulo).toUpperCase(), Number(r.precio)])),
+    provs: new Map(provs.map((p) => [p.id, p])),
   };
 }
 
 // Costo en dólares de los items de un pedido. Devuelve también qué líneas
 // quedaron sin costo asignado, para poder avisarlo en el panel.
+// Reparte el costo de un pedido entre los proveedores que correspondan.
+// Devuelve un renglón por proveedor, cada uno en su moneda.
 function costoDe(items, t) {
-  let total = 0, ars = 0;
-  const sinCosto = new Set();
-  (items || []).forEach((it) => {
-    const { linea } = splitNombre(it.name);
-    const m = t.mapa.get(norm(linea));
-    const qty = Math.max(1, parseInt(it.qty, 10) || 1);
-    // De otro proveedor: su costo va en pesos y no toca la cuenta de Martín.
-    if (m && m.ignorar) { ars += Number(m.costo_ars || 0) * (m.factor || 1) * qty; return; }
-    const precio = m ? t.precios.get(String(m.articulo).toUpperCase()) : undefined;
-    if (m && precio != null) total += precio * (m.factor || 1) * qty;
-    else sinCosto.add(linea);
+  return costoLineasDe(
+    (items || []).map((it) => ({ linea: splitNombre(it.name).linea,
+                                 qty: Math.max(1, parseInt(it.qty, 10) || 1) })), t);
+}
+
+function costoLineasDe(lineas, t) {
+  const porProv = new Map();
+  const sinCosto = [];
+  const visto = new Set();
+  lineas.forEach((l) => {
+    const m = t.mapa.get(norm(l.linea));
+    const prov = m && m.supplier_id ? t.provs.get(m.supplier_id) : null;
+    const precio = prov ? t.precios.get(prov.id + '|' + String(m.articulo).toUpperCase()) : undefined;
+    if (precio == null) {
+      if (l.qty && !visto.has(l.linea)) {
+        visto.add(l.linea);
+        sinCosto.push({ linea: l.linea, proveedor: prov ? prov.nombre : null });
+      }
+      return;
+    }
+    const cantidad = l.qty * (m.factor || 1);
+    if (!cantidad) return;
+    if (!porProv.has(prov.id)) {
+      porProv.set(prov.id, { supplier_id: prov.id, nombre: prov.nombre,
+                             moneda: prov.moneda || 'USD', monto: 0, items: [] });
+    }
+    const p = porProv.get(prov.id);
+    p.monto += precio * cantidad;
+    const ya = p.items.find((x) => x.articulo === m.articulo);
+    if (ya) ya.cantidad += cantidad;
+    else p.items.push({ articulo: m.articulo, cantidad, precio });
   });
-  return { usd: Math.round(total * 100) / 100, ars: Math.round(ars), sinCosto: [...sinCosto] };
+  const detalle = [...porProv.values()].map((p) => ({ ...p, monto: Math.round(p.monto * 100) / 100 }));
+  return { detalle, sinCosto };
 }
 
 async function costoItems(items) {
   return costoDe(items, await costTables());
 }
 
+// Pasa a pesos el costo repartido, usando la cotización para lo que está en dólares.
+function costoEnPesos(detalle, dolar) {
+  return Math.round((detalle || []).reduce((a, d) =>
+    a + (d.moneda === 'USD' ? d.monto * (Number(dolar) || 0) : d.monto), 0));
+}
+
 module.exports = {
   sql, ensureTables, splitNombre, norm,
   getSettings, setSetting, usdRate,
-  costTables, costoDe, costoItems,
+  costTables, costoDe, costoLineasDe, costoItems, costoEnPesos,
 };
