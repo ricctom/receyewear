@@ -475,6 +475,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
         <a href="#" class="dlbl-link" onclick="filterCat('accesorios');return false;">Accesorios</a>
         <a href="#" onclick="filterCat('accesorios-estuches');return false;">Estuches</a>
         <a href="#" onclick="filterCat('accesorios-limpia');return false;">Limpia Cristales</a>
+        <a href="#" onclick="filterCat('accesorios-franelas');return false;">Franelas</a>
       </div>
     </div>
     <div class="ni"><a href="#" onclick="showPg('faq');return false;">Preguntas Frecuentes</a></div>
@@ -962,6 +963,9 @@ const PRODUCTS = [
   {id:233,name:'LIMPIA CRISTALES PERSONALIZADOS PACK X100',sku:'LIMPIA-100',price:115000,oldPrice:null,discount:null,
    imgs:['https://d22fxaf9t8d39k.cloudfront.net/9dfa3498b5a6b90915411419819be29baa142dfafc35c4d526be1979507e82b6461944.jpg'],
    cats:['accesorios','accesorios-limpia'],desc:'Pack de 100 limpia cristales personalizados con los datos de la óptica: nombre, logo, dirección, mail y teléfono.'},
+  {id:338,name:'FRANELAS PERSONALIZADAS PACK X100',sku:'FRANELA-100',price:28500,oldPrice:null,discount:null,
+   imgs:['imgs/franelas.webp'],cats:['accesorios','accesorios-franelas'],minQty:2,
+   desc:'Pack de 100 franelas de microfibra personalizadas con el logo de tu óptica. Vienen surtidas en colores. $285 cada una. El pedido mínimo es de 200 unidades (2 packs).'},
 
   // -- NUEVOS (14-8-26): acetato SC/G8214 + Clipon TR90 --
   {id:315,name:'Acetato Laminado (SC005)',sku:'SC005',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC005.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Bordó/transparente','Naranja/transparente','Violeta degradé','Celeste/carey azulado']},
@@ -1207,11 +1211,15 @@ function cardClick(e, id) {
 }
 
 function cardAddCart(id) {
-  addToCart(id, 1);
+  const p = PRODUCTS.find(x => x.id === id);
+  addToCart(id, (p && p.minQty) || 1);
   showToast('✓ Agregado al carrito');
 }
 
 function isInCart(id) { return cart.some(l => l.id === id); }
+
+// Algunos productos tienen pedido mínimo (las franelas van de a 200).
+function minDe(id) { return (PRODUCTS.find(x => x.id === id) || {}).minQty || 1; }
 
 function addBtnHTML(id) {
   if (isInCart(id))
@@ -1288,7 +1296,8 @@ function openProduct(id, fromHash) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
   _scrollBeforeProduct = window.scrollY;
-  pdId = id; pdQtyN = 1;
+  pdId = id;
+  pdQtyN = (PRODUCTS.find(x => x.id === id) || {}).minQty || 1;
   if (!fromHash) history.pushState(null, '', '#producto/' + id);
 
   _pdImgs = p.imgs;
@@ -1361,7 +1370,12 @@ function pdImgNav(dir) {
   const next = _pdImgIdx + dir;
   if (next >= 0 && next < _pdImgs.length) _pdSetIdx(next);
 }
-function pdQtyChg(d) { pdQtyN = Math.max(1, pdQtyN + d); document.getElementById('pdQtyN').textContent = pdQtyN; }
+function pdQtyChg(d) {
+  const p = PRODUCTS.find(x => x.id === pdId);
+  const min = (p && p.minQty) || 1;
+  pdQtyN = Math.max(min, pdQtyN + d);
+  document.getElementById('pdQtyN').textContent = pdQtyN;
+}
 function pdAddCart() {
   if (!pdId) return;
   const p = PRODUCTS.find(x => x.id === pdId);
@@ -1402,12 +1416,12 @@ function removeFromCart(id, color = null) {
 function changeQty(id, d, color = null) {
   const l = cart.find(x => x.id === id && _norm(x.color) === _norm(color));
   if (!l) return;
-  l.qty = Math.max(1, l.qty + d);
+  l.qty = Math.max(minDe(id), l.qty + d);
   saveCart(); updateCartUI();
 }
 function changeQtyAt(i, d) {
   const l = cart[i]; if (!l) return;
-  l.qty = Math.max(1, l.qty + d);
+  l.qty = Math.max(minDe(l.id), l.qty + d);
   saveCart(); updateCartUI();
 }
 function removeFromCartAt(i) {

@@ -141,6 +141,18 @@ function ensureTables() {
       articulo TEXT NOT NULL,
       factor INTEGER NOT NULL DEFAULT 1
     )`;
+    // Líneas que no compra a Martín (franelas, líquidos): no suman ni avisan.
+    await sql`ALTER TABLE cost_map ADD COLUMN IF NOT EXISTS ignorar BOOLEAN DEFAULT false`;
+    // Costo en pesos por unidad para lo que compra a otros proveedores
+    // (las franelas de Fernando, los líquidos de Juan): cuenta en el margen
+    // pero no entra en la cuenta corriente de Martín.
+    await sql`ALTER TABLE cost_map ADD COLUMN IF NOT EXISTS costo_ars NUMERIC DEFAULT 0`;
+
+    // Las franelas son de Fernando, no de Martín: $199 la unidad, pack de 100.
+    // Se deja cargado para no tener que asignarlo a mano.
+    await sql`INSERT INTO cost_map (patron, articulo, factor, ignorar, costo_ars)
+      VALUES ('franelas personalizadas pack x100', '', 100, true, 199)
+      ON CONFLICT (patron) DO NOTHING`;
 
     // La carga inicial de datos no es crítica: si algo falla, las tablas ya
     // están creadas y la tienda sigue andando. Se reintenta en el próximo
@@ -280,7 +292,7 @@ async function usdRate() {
 // Tablas de costo (mapa de líneas + lista de precios del proveedor). Se leen
 // una sola vez y después se reusan para todos los pedidos.
 async function costTables() {
-  const mapRows = await sql`SELECT patron, articulo, factor FROM cost_map`;
+  const mapRows = await sql`SELECT patron, articulo, factor, ignorar, costo_ars FROM cost_map`;
   const priceRows = await sql`SELECT articulo, precio_usd FROM supplier_prices WHERE activo`;
   return {
     precios: new Map(priceRows.map((r) => [String(r.articulo).toUpperCase(), Number(r.precio_usd)])),
@@ -291,17 +303,19 @@ async function costTables() {
 // Costo en dólares de los items de un pedido. Devuelve también qué líneas
 // quedaron sin costo asignado, para poder avisarlo en el panel.
 function costoDe(items, t) {
-  let total = 0;
+  let total = 0, ars = 0;
   const sinCosto = new Set();
   (items || []).forEach((it) => {
     const { linea } = splitNombre(it.name);
     const m = t.mapa.get(norm(linea));
-    const precio = m ? t.precios.get(String(m.articulo).toUpperCase()) : undefined;
     const qty = Math.max(1, parseInt(it.qty, 10) || 1);
+    // De otro proveedor: su costo va en pesos y no toca la cuenta de Martín.
+    if (m && m.ignorar) { ars += Number(m.costo_ars || 0) * (m.factor || 1) * qty; return; }
+    const precio = m ? t.precios.get(String(m.articulo).toUpperCase()) : undefined;
     if (m && precio != null) total += precio * (m.factor || 1) * qty;
     else sinCosto.add(linea);
   });
-  return { usd: Math.round(total * 100) / 100, sinCosto: [...sinCosto] };
+  return { usd: Math.round(total * 100) / 100, ars: Math.round(ars), sinCosto: [...sinCosto] };
 }
 
 async function costoItems(items) {

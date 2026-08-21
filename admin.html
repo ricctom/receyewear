@@ -42,6 +42,7 @@
   </div>
   <div class="resumen" id="resumen"></div>
   <div class="filtros" id="filtros"></div>
+  <div id="avisoMartin"></div>
   <div id="avisoCostos"></div>
   <div id="lista"></div>
 </div>
@@ -96,7 +97,7 @@ async function cargar(){
 const cobrado = o => Number(o.cobrado) || 0;
 const debe    = o => Math.max(0, o.total - cobrado(o));
 const dolar   = o => Number(o.usd_rate) || Number(USD.valor) || 0;
-const costo   = o => Math.round((Number(o.costo_usd) || 0) * dolar(o));
+const costo   = o => Math.round((Number(o.costo_usd) || 0) * dolar(o) + (Number(o.costo_ars) || 0));
 const ganancia= o => o.total - costo(o);
 
 // El paso "visible": un pedido despachado y cobrado ya no molesta.
@@ -138,6 +139,16 @@ function pintar(){
     if(!n && k !== vista && k !== 'pendientes') return '';
     return `<button class="chip${vista===k?' on':''}" onclick="verVista('${k}')">${t}<b>${n}</b></button>`;
   }).join('');
+
+  // Pedidos que ya despachaste pero que nunca se le cargaron a Martín
+  // (los que venían de antes y se migraron salteando ese paso).
+  const sinCargar = ORDERS.filter(o => !o.supplier_move_id &&
+    ['recibido','despachado','saldado'].includes(paso(o)));
+  document.getElementById('avisoMartin').innerHTML = sinCargar.length
+    ? `<div class="aviso">${sinCargar.length === 1 ? 'Hay 1 pedido que ya retiraste y' : 'Hay ' + sinCargar.length + ' pedidos que ya retiraste y'}
+        todavía no ${sinCargar.length === 1 ? 'está cargado' : 'están cargados'} en la cuenta de Martín:
+        <b>${sinCargar.map(o => '#' + o.id).join(', ')}</b>.
+        <button class="b sm" style="margin-left:6px" onclick="cargarPendientesMartin()">Cargarlos ahora</button></div>` : '';
 
   const av = document.getElementById('avisoCostos');
   av.innerHTML = SIN_MAPEAR.length
@@ -220,7 +231,9 @@ function accionPrincipal(o, p){
 
 function menu(o, p){
   const atras = { pedido:'nuevo', recibido:'pedido', despachado:'recibido' }[p];
+  const faltaCargar = !o.supplier_move_id && p !== 'nuevo' && p !== 'cancelado';
   return `
+    ${faltaCargar ? `<button onclick="modalRecibir(${o.id})"><b>Cargar a la cuenta de Martín</b></button><hr>` : ''}
     <button onclick="pdfProveedor(${o.id})">PDF para Martín</button>
     <button onclick="pdfCliente(${o.id})">PDF para el cliente</button>
     <button onclick="etiqueta(${o.id})">Etiqueta de envío</button>
@@ -268,8 +281,10 @@ function detalle(o){
 
   const guita = `<div class="det"><h4>Números</h4>
     <div class="dato"><span>Te van a pagar</span><span class="num">${fmt(o.total)}</span></div>
-    <div class="dato"><span>Te cuesta</span><span class="num">${o.costo_usd ? fmt(costo(o)) + ' · US$ ' + Number(o.costo_usd).toFixed(2) : '—'}</span></div>
-    <div class="dato"><span>Te queda</span><span class="num"><b>${o.costo_usd ? fmt(ganancia(o)) + ' · ' + Math.round(ganancia(o)/o.total*100) + '%' : '—'}</b></span></div>
+    <div class="dato"><span>Te cuesta</span><span class="num">${costo(o) ? fmt(costo(o)) : '—'}</span></div>
+    ${o.costo_usd ? `<div class="dato"><span style="padding-left:12px">de Martín</span><span class="num">US$ ${Number(o.costo_usd).toFixed(2)}</span></div>` : ''}
+    ${Number(o.costo_ars) ? `<div class="dato"><span style="padding-left:12px">de otros proveedores</span><span class="num">${fmt(o.costo_ars)}</span></div>` : ''}
+    <div class="dato"><span>Te queda</span><span class="num"><b>${costo(o) ? fmt(ganancia(o)) + ' · ' + Math.round(ganancia(o)/o.total*100) + '%' : '—'}</b></span></div>
     ${cobrado(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobrado(o))}</span></div>` : ''}
     ${debe(o) && (p==='despachado'||p==='saldado') ? `<div class="dato"><span>Te debe</span><span class="num debe"><b>${fmt(debe(o))}</b></span></div>` : ''}
     </div>`;
@@ -317,12 +332,25 @@ async function llegoTalCual(id){
   }catch(e){ alert(e.message); }
 }
 
-function modalRecibir(id){
+// Va cargando de a uno los pedidos que quedaron sin pasar a Martín.
+function cargarPendientesMartin(){
+  const pend = ORDERS.filter(o => !o.supplier_move_id &&
+    ['recibido','despachado','saldado'].includes(paso(o)));
+  if(!pend.length) return;
+  window._enTanda = true;
+  modalRecibir(pend[0].id, pend.length);
+}
+
+function modalRecibir(id, quedan){
   const o = ORDERS.find(x => x.id === id);
   const lineas = porLinea(o.items);
+  const yaDespachado = paso(o) === 'despachado' || paso(o) === 'saldado';
   abrirModal(`
-    <h3>¿Qué te trajo Martín?</h3>
-    <p class="sub">Dejá las que vinieron bien y corregí las que no. Solo cantidades por línea; los modelos no importan.</p>
+    <h3>${yaDespachado ? 'Cargar el pedido #' + id + ' a la cuenta de Martín' : '¿Qué te trajo Martín?'}</h3>
+    <p class="sub">${yaDespachado
+      ? 'Este ya lo retiraste y lo despachaste, pero nunca se le cargó. Confirmá las cantidades y va a su deuda.'
+      : 'Dejá las que vinieron bien y corregí las que no. Solo cantidades por línea; los modelos no importan.'}
+      ${quedan > 1 ? `<br><b>Quedan ${quedan} por cargar.</b>` : ''}</p>
     ${lineas.map((l,i) => `<div class="qrow" id="q${i}">
       <div><span class="qn">${esc(l.linea)}</span><span class="qg">pediste ${l.qty}</span></div>
       <input type="number" min="0" id="qi${i}" value="${l.qty}" data-pedido="${l.qty}" oninput="marcarDif(${i})">
@@ -330,7 +358,7 @@ function modalRecibir(id){
     <div class="qtot"><span>Total</span><span><span id="qTot">${lineas.reduce((a,l)=>a+l.qty,0)}</span> <span class="g">anteojos</span></span></div>
     <div class="mfoot">
       <button class="b q" onclick="cerrarModal()">Cancelar</button>
-      <button class="b p" style="flex:none" onclick="guardarRecibido(${id})">Confirmar y sumar a Martín</button>
+      <button class="b p" style="flex:none" onclick="guardarRecibido(${id})">Sumar a la deuda de Martín</button>
     </div>`);
   window._lineasRecibir = lineas;
 }
@@ -348,6 +376,10 @@ async function guardarRecibido(id){
     const r = await post({ id, recibir:{ lineas } });
     cerrarModal(); await cargar();
     showToast(r.monto_usd ? 'Sumado a Martín: US$ ' + r.monto_usd.toFixed(2) : 'Recibido');
+    // Si venía de la carga en tanda, sigue con el que falte.
+    const pend = ORDERS.filter(o => !o.supplier_move_id && ['recibido','despachado','saldado'].includes(paso(o)));
+    if(window._enTanda && pend.length) return modalRecibir(pend[0].id, pend.length);
+    window._enTanda = false;
   }catch(e){ alert(e.message); }
 }
 
@@ -431,25 +463,37 @@ async function dolarAuto(){
 function editarCostos(){
   const lineas = [...new Set([...SIN_MAPEAR, ...COSTMAP.map(c => c.patron)])].sort();
   abrirModal(`<h3>Costo de cada línea</h3>
-    <p class="sub">Qué artículo de la lista de Martín es cada línea del catálogo. El número son las unidades que trae el ítem (los packs vienen de a 50, 100 o 500).</p>
+    <p class="sub">Qué artículo de la lista de Martín es cada línea del catálogo. Si es de otro proveedor (franelas, líquidos), poné <b>"No es de Martín"</b> y deja de avisarte.
+      El número son las unidades que trae el ítem: los packs de económicos vienen de a 50, 100 o 500.</p>
     ${lineas.map((l,i) => {
       const m = COSTMAP.find(c => c.patron === l) || {};
       return `<div class="qrow" style="grid-template-columns:1fr 1fr 66px">
         <span class="qn">${esc(l)}</span>
         <select id="ca${i}" onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
-          <option value="">— sin costo —</option>
-          ${ARTICULOS.map(a => `<option value="${esc(a)}"${m.articulo===a?' selected':''}>${esc(a)}</option>`).join('')}
+          <option value="">— sin asignar —</option>
+          <option value="otro"${m.ignorar?' selected':''}>No es de Martín</option>
+          ${ARTICULOS.map(a => `<option value="${esc(a)}"${(!m.ignorar && m.articulo===a)?' selected':''}>${esc(a)}</option>`).join('')}
         </select>
-        <input type="number" id="cf${i}" value="${m.factor||1}" min="1"
+        <input type="number" id="cf${i}" value="${m.factor||1}" min="1" title="unidades que trae el ítem"
                onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
+        <div class="otrocosto" id="oc${i}" style="display:${m.ignorar?'grid':'none'}">
+          <span>Te cuesta por unidad</span>
+          <input type="number" id="cp${i}" value="${Number(m.costo_ars)||''}" placeholder="$ por unidad"
+                 onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
+        </div>
       </div>`;
     }).join('')}
     <div class="mfoot"><button class="b p" style="flex:none" onclick="cerrarModal();cargar()">Listo</button></div>`);
 }
 async function guardarCosto(i, patron){
+  const articulo = document.getElementById('ca'+i).value;
+  // El campo del costo en pesos solo aparece si no es de Martín.
+  const otro = document.getElementById('oc'+i);
+  if(otro) otro.style.display = articulo === 'otro' ? 'grid' : 'none';
   try{
-    await post({ costmap:{ patron, articulo: document.getElementById('ca'+i).value,
-      factor: document.getElementById('cf'+i).value } });
+    await post({ costmap:{ patron, articulo,
+      factor: document.getElementById('cf'+i).value,
+      costo_ars: document.getElementById('cp'+i) ? document.getElementById('cp'+i).value : 0 } });
     showToast('Guardado');
   }catch(e){ alert(e.message); }
 }

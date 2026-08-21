@@ -103,7 +103,7 @@ function pintar(){
   document.getElementById('resumen').innerHTML = `
     <div><p class="r1">${ro ? 'Te debe' : 'Le debés'}</p>
       <p class="r2 ${D.deuda_usd > 0 ? 'debe' : 'ok'}">${usd(D.deuda_usd)}</p>
-      ${rate ? `<p class="r1" style="margin-top:4px">≈ ${fmt(D.deuda_usd * rate)}</p>` : ''}</div>
+      ${rate ? `<p class="r1" style="margin-top:4px">son ${fmt(D.deuda_usd * rate)} al dólar ${rate.toLocaleString('es-AR')}</p>` : ''}</div>
     ${D.consign_total_usd ? `<div><p class="r1">En consignación</p>
       <p class="r2">${usd(D.consign_total_usd)}</p></div>` : ''}`;
 

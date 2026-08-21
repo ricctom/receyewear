@@ -30,11 +30,13 @@ function porLinea(items) {
 
 // Costo en dólares de una lista de líneas con sus cantidades.
 function costoLineas(lineas, t) {
-  let total = 0;
+  let total = 0, ars = 0;
   const items = [];
   const sinCosto = [];
   lineas.forEach((l) => {
     const m = t.mapa.get(norm(l.linea));
+    // De otro proveedor: no entra en la entrega de Martín.
+    if (m && m.ignorar) { ars += Number(m.costo_ars || 0) * (m.factor || 1) * l.qty; return; }
     const precio = m ? t.precios.get(String(m.articulo).toUpperCase()) : undefined;
     if (!m || precio == null) { if (l.qty) sinCosto.push(l.linea); return; }
     const cantidad = l.qty * (m.factor || 1);
@@ -44,7 +46,7 @@ function costoLineas(lineas, t) {
     if (ya) ya.cantidad += cantidad;
     else items.push({ articulo: m.articulo, cantidad, precio_usd: precio });
   });
-  return { usd: Math.round(total * 100) / 100, items, sinCosto };
+  return { usd: Math.round(total * 100) / 100, ars: Math.round(ars), items, sinCosto };
 }
 
 module.exports = async (req, res) => {
@@ -56,6 +58,7 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const [rows, usd, tablas] = await Promise.all([
         sql`SELECT o.id, o.items, o.recibido, o.total, o.etapa, o.created_at, o.ship, o.faltante,
+                   o.supplier_move_id,
                    o.usd_rate, o.nota, u.email, u.name,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = o.id), 0) AS cobrado,
                    COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota) ORDER BY p.id)
@@ -70,12 +73,13 @@ module.exports = async (req, res) => {
       const orders = rows.map((o) => {
         const c = costoDe(o.items, tablas);
         c.sinCosto.forEach((l) => sinMapear.add(l));
-        const real = o.recibido ? costoLineas(o.recibido, tablas).usd : null;
-        return { ...o, costo_usd: real != null ? real : c.usd, sin_costo: c.sinCosto };
+        const real = o.recibido ? costoLineas(o.recibido, tablas) : null;
+        return { ...o, costo_usd: real ? real.usd : c.usd,
+                 costo_ars: real ? real.ars : c.ars, sin_costo: c.sinCosto };
       });
 
       const precios = await sql`SELECT articulo FROM supplier_prices WHERE activo ORDER BY articulo`;
-      const mapa = await sql`SELECT patron, articulo, factor FROM cost_map ORDER BY patron`;
+      const mapa = await sql`SELECT patron, articulo, factor, ignorar, costo_ars FROM cost_map ORDER BY patron`;
       return res.status(200).json({
         orders, usd,
         articulos: precios.map((p) => p.articulo),
@@ -104,12 +108,20 @@ module.exports = async (req, res) => {
       const articulo = String(b.costmap.articulo || '').trim();
       const factor = Math.max(1, parseInt(b.costmap.factor, 10) || 1);
       if (!patron) return res.status(400).json({ error: 'Falta la línea' });
+      // "otro" = no es de Martín (franelas, líquidos): no suma ni vuelve a avisar.
+      if (articulo === 'otro') {
+        const costo = Math.max(0, Number(b.costmap.costo_ars) || 0);
+        await sql`INSERT INTO cost_map (patron, articulo, factor, ignorar, costo_ars)
+          VALUES (${patron}, '', ${factor}, true, ${costo})
+          ON CONFLICT (patron) DO UPDATE SET articulo = '', factor = ${factor}, ignorar = true, costo_ars = ${costo}`;
+        return res.status(200).json({ ok: true });
+      }
       if (!articulo) {
         await sql`DELETE FROM cost_map WHERE patron = ${patron}`;
         return res.status(200).json({ ok: true });
       }
-      await sql`INSERT INTO cost_map (patron, articulo, factor) VALUES (${patron}, ${articulo}, ${factor})
-        ON CONFLICT (patron) DO UPDATE SET articulo = EXCLUDED.articulo, factor = EXCLUDED.factor`;
+      await sql`INSERT INTO cost_map (patron, articulo, factor, ignorar) VALUES (${patron}, ${articulo}, ${factor}, false)
+        ON CONFLICT (patron) DO UPDATE SET articulo = EXCLUDED.articulo, factor = EXCLUDED.factor, ignorar = false`;
       return res.status(200).json({ ok: true });
     }
 
@@ -147,7 +159,10 @@ module.exports = async (req, res) => {
         moveId = mov.id;
       }
 
-      await sql`UPDATE orders SET etapa = 'recibido', status = 'preparando',
+      // Si el pedido ya estaba despachado (por ejemplo los viejos, que se
+      // migraron salteando este paso), se le carga la deuda sin hacerlo volver atrás.
+      const nuevaEtapa = ped.etapa === 'despachado' ? 'despachado' : 'recibido';
+      await sql`UPDATE orders SET etapa = ${nuevaEtapa}, status = ${STATUS[nuevaEtapa]},
           recibido = ${JSON.stringify(lineas)}::jsonb, supplier_move_id = ${moveId}
         WHERE id = ${id}`;
       return res.status(200).json({ ok: true, monto_usd: usd, sin_costo: sinCosto });
