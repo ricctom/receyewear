@@ -26,7 +26,38 @@ function itemsToHtml(items) {
   ).join('');
 }
 
-async function notifyOrder(order, user, items) {
+const FALTANTE_TXT = {
+  cambiar: 'Si falta algo: cambiar por otro modelo/color parecido',
+  consultar: 'Si falta algo: consultarle antes',
+  baja: 'Si falta algo: darlo de baja del pedido',
+};
+
+// Datos de envío en texto y en HTML (para el aviso al admin).
+function shipToText(sh) {
+  if (!sh) return '';
+  const d = sh.direccion || {};
+  return [
+    '', 'DATOS DE ENVÍO',
+    'Nombre / Razón social: ' + (sh.razon_social || '-'),
+    'DNI / CUIT: ' + (sh.dni_cuit || '-'),
+    'Teléfono: ' + (sh.telefono || '-'),
+    'Dirección: ' + (d.texto || '-') + (d.piso ? ' (piso/depto ' + d.piso + ')' : ''),
+    FALTANTE_TXT[sh.faltante] || '',
+  ].join('\n');
+}
+function shipToHtml(sh) {
+  if (!sh) return '';
+  const d = sh.direccion || {};
+  return '<div style="border-top:1px solid #eee;margin-top:14px;padding-top:10px;font-size:13px;color:#444">' +
+    '<b style="display:block;margin-bottom:6px">Datos de envío</b>' +
+    (sh.razon_social || '-') + ' · DNI/CUIT ' + (sh.dni_cuit || '-') + '<br>' +
+    'Tel: ' + (sh.telefono || '-') + '<br>' +
+    (d.texto || '-') + (d.piso ? ' (piso/depto ' + d.piso + ')' : '') +
+    '<div style="margin-top:8px;background:#fff4e0;border-radius:6px;padding:7px 10px;color:#8a5a00">' +
+    (FALTANTE_TXT[sh.faltante] || '') + '</div></div>';
+}
+
+async function notifyOrder(order, user, items, ship) {
   const key = process.env.RESEND_API_KEY;
   if (!key) return; // sin clave: el pedido igual se guardó
   const admin = (process.env.ADMIN_EMAIL || 'ricciarditomas@gmail.com');
@@ -42,6 +73,7 @@ async function notifyOrder(order, user, items) {
     `<p style="color:#666;margin:0 0 14px">Cliente: <b>${user.name || ''}</b> (${user.email})</p>` +
     `<div style="border-top:1px solid #eee;padding-top:10px">${itemsToHtml(items)}</div>` +
     `<p style="font-weight:700;margin:12px 0">Total: ${money(order.total)}</p>` +
+    shipToHtml(ship) +
     `<a href="https://visionline.com.ar/admin.html" style="display:inline-block;background:#000;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none">Ver en el panel</a>` +
     `</div>`;
   await sendEmail(key, admin, `🛒 Nuevo pedido #${order.id} — ${user.name || user.email}`, adminText, adminHtml);

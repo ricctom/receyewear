@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Martín · REC Eyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="panel.css"/>
+<style>
+  .mov{display:flex;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--ln)}
+  .mov:last-child{border-bottom:none}
+  .mov .izq{min-width:0}
+  .mov .q{font-size:14px;font-weight:500;margin:0}
+  .mov .f{font-size:12px;color:var(--mt);margin:3px 0 0}
+  .mov .d{font-size:12px;color:var(--md);margin:5px 0 0;line-height:1.55}
+  .mov .der{text-align:right;white-space:nowrap}
+  .mov .mm{font-size:15px;font-weight:600}
+  .mov .mm.sube{color:var(--no)} .mov .mm.baja{color:var(--ok)}
+  .mov .ss{font-size:12px;color:var(--mt);margin-top:2px}
+  .mov .x{background:none;border:none;color:var(--ln2);font-size:16px;padding:0 0 0 8px;align-self:center}
+  .mov .x:hover{color:var(--no)}
+  .caja{background:var(--cd);border:1px solid var(--ln);border-radius:16px;padding:6px 20px;margin-bottom:14px}
+  .cabe{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0 10px;
+    border-bottom:1px solid var(--ln);margin-bottom:2px}
+  .cabe h3{margin:0;font-size:15px;font-weight:600}
+  .cabe .n{font-size:16px;font-weight:600}
+  .plegar{background:none;border:none;color:var(--md);font-size:13px;padding:12px 0;width:100%;text-align:left}
+  .lectura{background:var(--azbg);border-radius:14px;padding:14px 17px;margin-bottom:18px;
+    font-size:13.5px;color:#2c4d70;line-height:1.65}
+  .stk{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--ln);font-size:13.5px}
+  .stk:last-child{border-bottom:none}
+  .stk .g{color:var(--mt);font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>REC</h1>
+  <nav class="tabs" id="nav">
+    <a href="admin.html">Pedidos</a>
+    <a href="crm.html">Clientes</a>
+    <a href="proveedor.html" class="on">Martín</a>
+  </nav>
+  <div class="who" id="who"></div>
+</header>
+
+<div class="wrap" id="gate">
+  <div class="gate">
+    <h2>Cuenta corriente</h2>
+    <p>Entrá con tu cuenta de Google.</p>
+    <div id="gbtn"></div>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</div>
+
+<div class="wrap" id="panel" style="display:none">
+  <div id="lecturaAviso"></div>
+  <div class="top">
+    <div>
+      <h2 id="titulo">Martín</h2>
+      <div class="sub" id="subtitulo"></div>
+    </div>
+    <div class="der" id="acciones"></div>
+  </div>
+  <div class="resumen" id="resumen"></div>
+  <div id="cuerpo"></div>
+</div>
+
+<div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+
+<script src="panel.js"></script>
+<script>
+let D = null, filas = [], verTodo = false, verConsig = false;
+
+async function cargar(){
+  try{ D = await api('/api/proveedor'); pintar(); }
+  catch(e){
+    document.getElementById('cuerpo').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+function pintar(){
+  const ro = D.soloLectura;
+  const rate = Number((D.usd && D.usd.valor) || 0);
+  const nom = D.proveedor.nombre;
+
+  document.getElementById('titulo').textContent = nom;
+  document.getElementById('lecturaAviso').innerHTML = ro
+    ? `<div class="lectura">Hola ${esc(session.user.name||'')}. Esta es la cuenta que llevamos con REC Eyewear.
+       Podés mirarla cuando quieras; los movimientos los carga Tomás.</div>` : '';
+  if(ro) document.getElementById('nav').innerHTML = '<a href="proveedor.html" class="on">Cuenta corriente</a>';
+
+  document.getElementById('subtitulo').textContent =
+    D.movimientos.length + ' movimientos' + (D.consign_total_usd ? ' · ' + usd(D.consign_total_usd) + ' en consignación' : '');
+
+  document.getElementById('acciones').innerHTML = ro ? '' : `
+    <button class="b sm" onclick="modalPago()">Le pagué</button>
+    <button class="b sm q" onclick="modalEntrega()">Cargar entrega</button>
+    <button class="b sm q ico" onclick="masOpciones()" title="Más">⋯</button>`;
+
+  document.getElementById('resumen').innerHTML = `
+    <div><p class="r1">${ro ? 'Te debe' : 'Le debés'}</p>
+      <p class="r2 ${D.deuda_usd > 0 ? 'debe' : 'ok'}">${usd(D.deuda_usd)}</p>
+      ${rate ? `<p class="r1" style="margin-top:4px">≈ ${fmt(D.deuda_usd * rate)}</p>` : ''}</div>
+    ${D.consign_total_usd ? `<div><p class="r1">En consignación</p>
+      <p class="r2">${usd(D.consign_total_usd)}</p></div>` : ''}`;
+
+  const movs = verTodo ? D.movimientos : D.movimientos.slice(0, 8);
+  document.getElementById('cuerpo').innerHTML = `
+    <div class="caja">
+      <div class="cabe"><h3>Movimientos</h3></div>
+      ${movs.map(m => renderMov(m, ro)).join('') || '<div class="empty">Sin movimientos.</div>'}
+      ${D.movimientos.length > 8 ? `<button class="plegar" onclick="verTodo=!verTodo;pintar()">
+        ${verTodo ? 'Ver solo los últimos' : 'Ver los ' + D.movimientos.length + ' movimientos'}</button>` : ''}
+    </div>
+
+    ${D.stock_consignacion.length ? `<div class="caja">
+      <div class="cabe"><h3>En consignación</h3><span class="n">${usd(D.consign_total_usd)}</span></div>
+      ${verConsig
+        ? D.stock_consignacion.map(a => `<div class="stk"><span>${esc(a.articulo)} <span class="g">${a.cantidad} u.</span></span>
+            <span class="num">${usd(a.usd)}</span></div>`).join('')
+        : ''}
+      <button class="plegar" onclick="verConsig=!verConsig;pintar()">
+        ${verConsig ? 'Ocultar' : 'Ver qué tenés de él'}</button>
+    </div>` : ''}`;
+}
+
+function renderMov(m, ro){
+  const sube = m.monto_usd > 0;
+  const items = (m.items || []).map(i => `${i.cantidad}× ${i.articulo}`).join(' · ');
+  return `<div class="mov">
+    <div class="izq">
+      <p class="q">${sube ? 'Te entregó mercadería' : m.tipo === 'PAGO' ? 'Le pagaste' : 'Ajuste'}</p>
+      <p class="f">${fechaCorta(m.fecha)}${m.detalle ? ' · ' + esc(m.detalle) : ''}</p>
+      ${items ? `<p class="d">${esc(items)}</p>` : ''}
+    </div>
+    <div style="display:flex;align-items:center">
+      <div class="der">
+        <div class="mm ${sube?'sube':'baja'}">${sube?'+':''}${usd(m.monto_usd)}</div>
+        <div class="ss num">saldo ${usd(m.saldo)}</div>
+      </div>
+      ${ro ? '' : `<button class="x" title="Borrar" onclick="borrar('borrarMov',${m.id})">×</button>`}
+    </div>
+  </div>`;
+}
+
+/* ---------- pago ---------- */
+function modalPago(){
+  abrirModal(`<h3>Le pagué a ${esc(D.proveedor.nombre)}</h3>
+    <p class="sub">Le debés <b>${usd(D.deuda_usd)}</b>.</p>
+    <div class="fila">
+      <div><label>Monto en dólares</label><input type="number" step="0.01" id="pMonto" placeholder="${D.deuda_usd}"></div>
+      <div><label>Cuándo</label><input type="date" id="pFecha" value="${hoyISO()}"></div>
+    </div>
+    <label>Nota</label><input type="text" id="pDet" placeholder="Transferencia, efectivo…">
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarPago()">Registrar</button></div>`);
+}
+async function guardarPago(){
+  const monto = Number(document.getElementById('pMonto').value);
+  if(!(monto > 0)) return alert('Poné cuánto le pagaste.');
+  try{
+    await api('/api/proveedor', { method:'POST', body: JSON.stringify({
+      fecha: document.getElementById('pFecha').value,
+      pago:{ monto, detalle: document.getElementById('pDet').value } }) });
+    cerrarModal(); showToast('Pago registrado'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+/* ---------- entrega suelta (la de los pedidos entra sola) ---------- */
+function modalEntrega(){
+  filas = [{ articulo:'', cantidad:'', precio_usd:'' }];
+  abrirModal(`<h3>Entrega suelta</h3>
+    <p class="sub">Las entregas de los pedidos de la web entran solas cuando confirmás que llegaron.
+      Esto es para lo que te trae fuera de un pedido.</p>
+    <div class="fila"><div><label>Cuándo</label><input type="date" id="eFecha" value="${hoyISO()}"></div>
+      <div><label>Nota</label><input type="text" id="eDet" placeholder="Reposición de mostrador…"></div></div>
+    <label>Artículos</label><div id="filas"></div>
+    <button class="b sm q" onclick="agregarFila()">+ Otro artículo</button>
+    <div class="qtot"><span>Total</span><span id="fTot"></span></div>
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarEntrega()">Sumar a la deuda</button></div>`);
+  renderFilas();
+}
+function renderFilas(){
+  document.getElementById('filas').innerHTML = filas.map((f,i) => `
+    <div class="qrow" style="grid-template-columns:1fr 74px 88px 26px">
+      <select onchange="elegirArt(${i},this.value)">
+        <option value="">— artículo —</option>
+        ${D.precios.map(p => `<option value="${esc(p.articulo)}"${f.articulo===p.articulo?' selected':''}>${esc(p.articulo)}</option>`).join('')}
+      </select>
+      <input type="number" placeholder="cant." value="${f.cantidad||''}" oninput="filas[${i}].cantidad=this.value;totalFilas()">
+      <input type="number" step="0.01" placeholder="US$" value="${f.precio_usd||''}" oninput="filas[${i}].precio_usd=this.value;totalFilas()">
+      <button class="b q ico" style="height:32px;width:26px" onclick="filas.splice(${i},1);renderFilas()">×</button>
+    </div>`).join('');
+  totalFilas();
+}
+function elegirArt(i, art){
+  filas[i].articulo = art;
+  const p = D.precios.find(x => x.articulo === art);
+  if(p && !filas[i].precio_usd) filas[i].precio_usd = Number(p.precio_usd);
+  renderFilas();
+}
+function agregarFila(){ filas.push({ articulo:'', cantidad:'', precio_usd:'' }); renderFilas(); }
+function totalFilas(){
+  const t = filas.reduce((a,f) => a + (Number(f.cantidad)||0) * (Number(f.precio_usd)||0), 0);
+  const box = document.getElementById('fTot');
+  if(box) box.textContent = usd(t);
+}
+async function guardarEntrega(){
+  const items = filas.filter(f => f.articulo && Number(f.cantidad) > 0);
+  if(!items.length) return alert('Cargá al menos un artículo.');
+  try{
+    await api('/api/proveedor', { method:'POST', body: JSON.stringify({
+      fecha: document.getElementById('eFecha').value,
+      entrega:{ items, detalle: document.getElementById('eDet').value } }) });
+    cerrarModal(); showToast('Sumado a la deuda'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+/* ---------- lo que casi nunca se usa ---------- */
+function masOpciones(){
+  abrirModal(`<h3>Otras cosas</h3>
+    <p class="sub">Lo que se toca una vez cada tanto.</p>
+    <button class="b" style="width:100%;margin-bottom:8px" onclick="modalConsignacion()">Mover consignación</button>
+    <button class="b" style="width:100%;margin-bottom:8px" onclick="modalPrecios()">Lista de precios</button>
+    <button class="b" style="width:100%;margin-bottom:8px" onclick="modalAjuste()">Ajuste de cuenta</button>
+    <button class="b" style="width:100%" onclick="modalAcceso()">Darle acceso a ${esc(D.proveedor.nombre)}</button>
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+
+function modalConsignacion(){
+  filas = [{ articulo:'', cantidad:'', precio_usd:'' }];
+  abrirModal(`<h3>Consignación</h3>
+    <p class="sub">No entra en la cuenta corriente hasta que se la pagás.</p>
+    <div class="fila"><div><label>Cuándo</label><input type="date" id="kFecha" value="${hoyISO()}"></div>
+      <div><label>Qué pasó</label><select id="kTipo">
+        <option value="deja">Me dejó mercadería</option>
+        <option value="devuelvo">Se la devolví</option>
+        <option value="pago">Me la quedo y se la pago</option></select></div></div>
+    <label>Artículos</label><div id="filas"></div>
+    <button class="b sm q" onclick="agregarFila()">+ Otro artículo</button>
+    <div class="qtot"><span>Total</span><span id="fTot"></span></div>
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarConsig()">Guardar</button></div>`);
+  renderFilas();
+}
+async function guardarConsig(){
+  const items = filas.filter(f => f.articulo && Number(f.cantidad) > 0);
+  if(!items.length) return alert('Cargá al menos un artículo.');
+  try{
+    await api('/api/proveedor', { method:'POST', body: JSON.stringify({
+      fecha: document.getElementById('kFecha').value,
+      consignacion:{ tipo: document.getElementById('kTipo').value, items } }) });
+    cerrarModal(); showToast('Guardado'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+function modalPrecios(){
+  abrirModal(`<h3>Lista de precios</h3>
+    <p class="sub">Lo que te cobra por unidad, en dólares. De acá sale el costo de cada pedido.</p>
+    ${D.precios.map((p,i) => `<div class="qrow">
+      <span class="qn">${esc(p.articulo)}</span>
+      <input type="number" step="0.01" id="pr${i}" value="${Number(p.precio_usd)}"
+             onchange="guardarPrecio('${esc(p.articulo).replace(/'/g,"\\'")}',${i})">
+    </div>`).join('')}
+    <div class="mfoot"><button class="b q" onclick="modalNuevoArt()">+ Artículo</button>
+    <button class="b p" style="flex:none" onclick="cerrarModal();cargar()">Listo</button></div>`);
+}
+async function guardarPrecio(articulo, i){
+  const precio_usd = Number(document.getElementById('pr'+i).value);
+  if(!(precio_usd > 0)) return alert('Precio inválido.');
+  try{ await api('/api/proveedor', { method:'POST', body: JSON.stringify({ precio:{ articulo, precio_usd } }) });
+    showToast('Guardado'); }catch(e){ alert(e.message); }
+}
+function modalNuevoArt(){
+  abrirModal(`<h3>Nuevo artículo</h3>
+    <label>Nombre</label><input id="naNom" placeholder="NYLON SOL">
+    <label>Precio (US$)</label><input type="number" step="0.01" id="naPre">
+    <div class="mfoot"><button class="b q" onclick="modalPrecios()">Volver</button>
+    <button class="b p" style="flex:none" onclick="guardarNuevoArt()">Guardar</button></div>`);
+}
+async function guardarNuevoArt(){
+  const articulo = document.getElementById('naNom').value.trim();
+  const precio_usd = Number(document.getElementById('naPre').value);
+  if(!articulo || !(precio_usd > 0)) return alert('Completá nombre y precio.');
+  try{ await api('/api/proveedor', { method:'POST', body: JSON.stringify({ precio:{ articulo, precio_usd } }) });
+    cerrarModal(); await cargar(); showToast('Agregado'); }catch(e){ alert(e.message); }
+}
+
+function modalAjuste(){
+  abrirModal(`<h3>Ajuste de cuenta</h3>
+    <p class="sub">Para cuadrar diferencias. Positivo sube la deuda, negativo la baja.</p>
+    <div class="fila"><div><label>Monto (US$)</label><input type="number" step="0.01" id="aMonto" placeholder="-50"></div>
+      <div><label>Cuándo</label><input type="date" id="aFecha" value="${hoyISO()}"></div></div>
+    <label>Por qué</label><input type="text" id="aDet" placeholder="Descuento, diferencia…">
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarAjuste()">Guardar</button></div>`);
+}
+async function guardarAjuste(){
+  const monto = Number(document.getElementById('aMonto').value);
+  if(!monto) return alert('El ajuste no puede ser cero.');
+  try{
+    await api('/api/proveedor', { method:'POST', body: JSON.stringify({
+      fecha: document.getElementById('aFecha').value,
+      ajuste:{ monto, detalle: document.getElementById('aDet').value } }) });
+    cerrarModal(); showToast('Guardado'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+function modalAcceso(){
+  abrirModal(`<h3>Acceso de ${esc(D.proveedor.nombre)}</h3>
+    <p class="sub">Con su mail de Google entra a esta misma pantalla, en modo lectura.
+      No ve pedidos ni clientes. Vacío = sin acceso.</p>
+    <label>Nombre</label><input id="svNom" value="${esc(D.proveedor.nombre)}">
+    <label>Mail</label><input type="email" id="svMail" value="${esc(D.proveedor.email||'')}" placeholder="martin@gmail.com">
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarAcceso()">Guardar</button></div>`);
+}
+async function guardarAcceso(){
+  try{
+    await api('/api/proveedor', { method:'POST', body: JSON.stringify({ proveedor:{
+      nombre: document.getElementById('svNom').value, email: document.getElementById('svMail').value } }) });
+    cerrarModal(); showToast('Guardado'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+async function borrar(campo, id){
+  if(!confirm('¿Borrar este movimiento?')) return;
+  try{ const b = {}; b[campo] = id;
+    await api('/api/proveedor', { method:'POST', body: JSON.stringify(b) }); await cargar(); }
+  catch(e){ alert(e.message); }
+}
+
+bootPanel(cargar, { admin:false });
+</script>
+</body>
+</html>

@@ -387,6 +387,37 @@ body{color:var(--ink);-webkit-font-smoothing:antialiased}
 .toast{border-radius:12px}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
+<style>
+/* ─── DATOS DE ENVÍO (checkout) ─── */
+#shipModal{max-width:520px;max-height:88vh;overflow-y:auto}
+#shipModal p{margin:0 0 18px}
+.sf-l{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#999;font-weight:700;margin:14px 0 5px}
+.sf-l i{font-style:normal;text-transform:none;letter-spacing:0;color:#bbb;font-weight:500}
+.sf-i{width:100%;border:1px solid #ddd;border-radius:9px;padding:11px 13px;font-size:14px;font-family:inherit;color:#333;background:#fff}
+.sf-i:focus{outline:none;border-color:#111}
+.sf-row{display:flex;gap:10px}
+.sf-row>div{flex:1;min-width:0}
+.sf-ac{position:relative}
+.sf-sug{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e2e2;border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.14);max-height:230px;overflow-y:auto;z-index:5;display:none}
+.sf-sug.open{display:block}
+.sf-sug button{display:block;width:100%;text-align:left;background:none;border:none;padding:10px 13px;font-size:13px;font-family:inherit;color:#333;border-bottom:1px solid #f4f4f4;line-height:1.4}
+.sf-sug button:last-child{border-bottom:none}
+.sf-sug button:hover,.sf-sug button.sel{background:#f6f6f6}
+.sf-sug button small{display:block;color:#999;font-size:11px;margin-top:2px}
+.sf-sug .nada{padding:11px 13px;font-size:12.5px;color:#999}
+.sf-ok{font-size:12px;margin-top:7px;min-height:16px;color:#0f7a3d}
+.sf-ok.warn{color:#b9770e}
+.sf-falt{margin-top:24px;border-top:1px solid #eee;padding-top:18px}
+.sf-falt h4{margin:0 0 4px;font-size:14px}
+.sf-falt p{margin:0 0 12px;font-size:12.5px;color:#888}
+.fopt{display:flex;align-items:flex-start;gap:10px;border:1px solid #e2e2e2;border-radius:10px;padding:11px 13px;margin-bottom:8px;cursor:pointer;font-size:13px;line-height:1.45;transition:border-color .15s,background .15s}
+.fopt:hover{border-color:#bbb}
+.fopt input{margin-top:2px;accent-color:#111;flex:none}
+.fopt:has(input:checked){border-color:#111;background:#fafafa}
+.fopt b{font-weight:700}
+.sf-btn{width:100%;margin-top:6px}
+@media (max-width:520px){ .sf-row{flex-direction:column;gap:0} }
+</style>
 </head>
 <body>
 
@@ -597,6 +628,60 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <div id="ordersList"><p style="color:#999">Cargando…</p></div>
 </div>
 
+<!-- DATOS DE ENVÍO + QUÉ HACER SI FALTA UN MODELO -->
+<div class="modal-ov" id="shipOv" onclick="closeShip()"></div>
+<div class="modal modal-lg" id="shipModal">
+  <button class="modal-cls" onclick="closeShip()">✕</button>
+  <h3>Confirmá tu pedido</h3>
+  <p>Necesitamos estos datos para despacharte. Quedan guardados para la próxima vez.</p>
+
+  <label class="sf-l">Nombre completo o razón social</label>
+  <input class="sf-i" id="shRazon" placeholder="Óptica Eiffel S.R.L." autocomplete="organization"/>
+
+  <div class="sf-row">
+    <div>
+      <label class="sf-l">DNI o CUIT</label>
+      <input class="sf-i" id="shDni" inputmode="numeric" placeholder="20123456789"/>
+    </div>
+    <div>
+      <label class="sf-l">Teléfono</label>
+      <input class="sf-i" id="shTel" inputmode="tel" placeholder="11 5555 5555" autocomplete="tel"/>
+    </div>
+  </div>
+
+  <label class="sf-l">Dirección de entrega</label>
+  <div class="sf-ac">
+    <input class="sf-i" id="shDir" autocomplete="off" placeholder="Escribí calle y altura…"
+           oninput="buscarDir()" onblur="setTimeout(cerrarSug,180)"/>
+    <div class="sf-sug" id="shSug"></div>
+  </div>
+  <div class="sf-row">
+    <div>
+      <label class="sf-l">Piso / depto <i>(opcional)</i></label>
+      <input class="sf-i" id="shPiso" placeholder="3º B"/>
+    </div>
+    <div>
+      <label class="sf-l">Provincia <i>(afina la búsqueda)</i></label>
+      <select class="sf-i" id="shProv" onchange="buscarDir(true)"><option value="">Todas</option></select>
+    </div>
+  </div>
+  <div class="sf-ok" id="shDirOk"></div>
+
+  <div class="sf-falt">
+    <h4>¿Y si justo falta algún modelo?</h4>
+    <p>A veces se acaba alguno de los que pediste. Decinos qué preferís que hagamos:</p>
+    <label class="fopt"><input type="radio" name="falt" value="cambiar"/>
+      <span><b>Cambialo</b> por otro modelo o color parecido</span></label>
+    <label class="fopt"><input type="radio" name="falt" value="consultar" checked/>
+      <span><b>Consultame</b> antes de mandarlo</span></label>
+    <label class="fopt"><input type="radio" name="falt" value="baja"/>
+      <span><b>Dalo de baja</b> y mandame el resto</span></label>
+  </div>
+
+  <div class="modal-msg" id="shMsg"></div>
+  <button class="cart-chk sf-btn" id="shBtn" onclick="confirmarPedido()">Confirmar pedido</button>
+</div>
+
 <!-- CONFIRMACIÓN DE PEDIDO -->
 <div class="modal-ov" id="confirmOv" onclick="closeConfirm()"></div>
 <div class="modal" id="confirmModal">
@@ -699,20 +784,14 @@ const PRODUCTS = [
   {id:336,name:'UNA PLACA (SC008)',sku:'SC008',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC008.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Negro mate','Dorado','Dorado/marrón']},
 
   // ── RECETA > METAL DISEÑO ────────────────────────────────
-  {id:71,name:'Metal Receta Diseño (MS18)',sku:'MS18',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS18.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Azul mate','Marrón/dorado','Negro/plata','Gris/plata']},
-  {id:75,name:'Metal Receta Diseño (MS12)',sku:'MS12',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS12.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Violeta/dorado','Beige/dorado']},
+  {id:337,name:'Metal Receta Diseño (YH-178)',sku:'YH-178',price:17000,oldPrice:20000,discount:15,imgs:['imgs/YH-178.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Dorado/negro','Dorado/marrón','Dorado/lila','Dorado/rosa']},
   {id:76,name:'Metal Receta Diseño (MS09)',sku:'MS09',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS09.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Violeta/dorado','Rosa/dorado','Negro/dorado']},
   {id:77,name:'Metal Receta Diseño (MS07)',sku:'MS07',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS07.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Bordó/dorado','Gris/dorado','Beige/dorado']},
   {id:78,name:'Metal Receta Diseño (MS06)',sku:'MS06',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS06.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Rosa/dorado','Negro/dorado']},
   {id:79,name:'Metal Receta Diseño (MS02)',sku:'MS02',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS02.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Rosa/dorado','Bordó/dorado','Negro/dorado','Beige/dorado']},
   {id:80,name:'Metal Receta Diseño (MS01)',sku:'MS01',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MS01.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Violeta/dorado','Gris/dorado','Bordó/dorado']},
-  {id:81,name:'Metal Receta Diseño (MH044)',sku:'MH044',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MH044.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Plata']},
-  {id:82,name:'Metal Receta Diseño (LV6521)',sku:'LV6521',price:17000,oldPrice:20000,discount:15,imgs:['imgs/LV6521.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Rosa/dorado','Violeta/plata','Rojo/dorado','Damasco/dorado','Verde/plata']},
-  {id:83,name:'Metal Receta Diseño (LV6514)',sku:'LV6514',price:17000,oldPrice:20000,discount:15,imgs:['imgs/LV6514.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Rosa/dorado','Violeta/dorado','Marrón/dorado','Rojo/dorado','Azul/plata']},
-  {id:84,name:'Metal Receta Diseño (GK1068)',sku:'GK1068',price:17000,oldPrice:20000,discount:15,imgs:['imgs/GK1068.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Blanco/carey','Rosa/dorado','Bordó/carey','Negro/dorado','Gris/carey']},
   {id:234,name:'Metal Receta Diseño (YM236005)',sku:'YM236005',price:17000,oldPrice:20000,discount:15,imgs:['imgs/YM236005.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Azul','Gris','Negro/plata']},
   {id:236,name:'Metal Receta Diseño (TJ9630)',sku:'TJ9630',price:17000,oldPrice:20000,discount:15,imgs:['imgs/TJ9630.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Marrón','Rosa','Rosa claro','Blanco/beige']},
-  {id:237,name:'Metal Receta Diseño (NT8082)',sku:'NT8082',price:17000,oldPrice:20000,discount:15,imgs:['imgs/NT8082.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Rosa/dorado','Rosa claro','Marrón','Gris','Beige']},
   {id:281,name:'Metal Receta Diseño (8004)',sku:'8004',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_8004.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Rojo coral','Rosa','Verde/gris','Violeta','Dorado']},
   {id:282,name:'Metal Receta Diseño (1004)',sku:'1004',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1004.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Azul','Marrón/nude','Violeta']},
   {id:283,name:'Metal Receta Diseño (K1003)',sku:'K1003',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_K1003.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Bordó/dorado','Violeta/dorado','Rosa/dorado']},
@@ -723,7 +802,6 @@ const PRODUCTS = [
   {id:288,name:'Metal Receta Diseño (AJ3006)',sku:'AJ3006',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_AJ3006.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro mate','Azul','Negro brillante']},
   {id:289,name:'Metal Receta Diseño (AJ3007)',sku:'AJ3007',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_AJ3007.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Marrón/dorado','Azul/dorado']},
   {id:290,name:'Metal Receta Diseño (1037)',sku:'1037',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_1037.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Rosa/dorado','Gris/dorado','Rojo/dorado','Marrón/dorado','Dorado']},
-  {id:291,name:'Metal Receta Diseño (MS15)',sku:'MS15',price:17000,oldPrice:20000,discount:15,imgs:['imgs/MET_MS15.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Azul','Marrón/dorado','Negro/plata','Negro/gris','Negro/dorado']},
 
   // ── RECETA > METAL OFERTA ────────────────────────────────
 
@@ -816,20 +894,12 @@ const PRODUCTS = [
 
   // ── RECETA > ACETATO LAMINADO ────────────────────────────
 
-  {id:292,name:'Acetato Laminado (1978)',sku:'1978',price:23400,oldPrice:27529,discount:14,imgs:['imgs/1978.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro/rojizo','Gris humo','Carey rosado','Azul degradé','Rosa/beige carey']},
   {id:293,name:'Acetato Laminado (2052)',sku:'2052',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2052.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Transparente floral','Violeta','Rosa durazno/floral','Negro/turquesa']},
   {id:294,name:'Acetato Laminado (2053)',sku:'2053',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2053.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Violeta/carey','Transparente/rosa floral','Verde agua/floral','Rosa/floral']},
-  {id:295,name:'Acetato Laminado (2078)',sku:'2078',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2078.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Violeta/floral','Carey/azul','Rosa/floral']},
   {id:296,name:'Acetato Laminado (2129)',sku:'2129',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2129.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey gris/negro','Carey rosado/transparente','Bordó/carey']},
-  {id:297,name:'Acetato Laminado (2181)',sku:'2181',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2181.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey oscuro','Carey claro','Negro/blanco','Carey/fucsia','Verde oliva']},
-  {id:298,name:'Acetato Laminado (2258)',sku:'2258',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2258.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Crema/transparente','Marrón-rosa degradé (varilla dorada)','Gris/carey azulado']},
-  {id:299,name:'Acetato Laminado (2260)',sku:'2260',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2260.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro/blanco','Rosa-violeta nacarado','Gris/carey verdoso']},
-  {id:300,name:'Acetato Laminado (2270)',sku:'2270',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2270.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Transparente/carey','Azul','Rosa/carey','Rosa claro/carey']},
   {id:301,name:'Acetato Laminado (2273)',sku:'2273',price:23400,oldPrice:27529,discount:14,imgs:['imgs/2273.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey nude','Negro/verde','Gris/nude carey','Transparente/carey']},
   
   {id:303,name:'Acetato Laminado (6075)',sku:'6075',price:23400,oldPrice:27529,discount:14,imgs:['imgs/6075.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey blanco','Negro','Bordó/vino','Carey blanco y negro']},
-  {id:304,name:'Acetato Laminado (SC002)',sku:'SC002',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC002.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro/azul (varilla dorada)','Negro/transparente (varilla dorada)']},
-  {id:305,name:'Acetato Laminado (SC003)',sku:'SC003',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC003.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Transparente','Durazno','Negro','Carey','Azul carey']},
   {id:306,name:'Acetato Laminado (SC004)',sku:'SC004',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC004.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Carey rosado','Gris/verde glitter','Negro/carey']},
   {id:239,name:'Acetato Laminado (25001)',sku:'25001',price:23400,oldPrice:27529,discount:14,imgs:['imgs/25001.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Negro','Verde petróleo','Rojo veteado','Azul veteado']},
   {id:240,name:'Acetato Laminado (9110)',sku:'9110',price:23400,oldPrice:27529,discount:14,imgs:['imgs/9110.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Multicolor/fucsia','Multicolor/rosa','Negro/blanco floral','Violeta/durazno','Verde/floral']},
@@ -895,9 +965,7 @@ const PRODUCTS = [
 
   // -- NUEVOS (14-8-26): acetato SC/G8214 + Clipon TR90 --
   {id:315,name:'Acetato Laminado (SC005)',sku:'SC005',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC005.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Bordó/transparente','Naranja/transparente','Violeta degradé','Celeste/carey azulado']},
-  {id:316,name:'Acetato Laminado (SC006)',sku:'SC006',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC006.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Durazno nacarado','Transparente/verde nacarado','Violeta nacarado','Gris/nacarado']},
   {id:317,name:'Acetato Laminado (SC007)',sku:'SC007',price:23400,oldPrice:27529,discount:14,imgs:['imgs/SC007.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Gris/carey','Verde agua','Beige/gris']},
-  {id:318,name:'Acetato Laminado (G8214)',sku:'G8214',price:23400,oldPrice:27529,discount:14,imgs:['imgs/G8214.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato laminado de diseño. Precio Contado.',colors:['Nude/transparente','Carey','Negro','Transparente cristal']},
   {id:319,name:'Clipón TR90 (2512)',sku:'2512',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2512.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Negro','Azul','Gris','Marrón']},
   {id:320,name:'Clipón TR90 (2513)',sku:'2513',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2513.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Marrón','Negro','Gris/carey','Azul']},
   {id:321,name:'Clipón TR90 (2516)',sku:'2516',price:22800,oldPrice:null,discount:null,imgs:['imgs/clipon_2516.jpeg'],cats:['receta','receta-tr90','clipon','clipon-tr90'],desc:'Armazón TR90 con clip solar polarizado magnético intercambiable. Precio Contado.',colors:['Gris','Azul','Marrón','Negro']},
@@ -1417,7 +1485,7 @@ function doCheckout() {
   if (!authEnabled) { legacyCheckout(); return; }
   // El login se pide RECIÉN acá, al confirmar.
   if (!session) { pendingCheckout = true; closeCart(); openLogin(true); return; }
-  placeOrder();
+  closeCart(); openShip();
 }
 
 function legacyCheckout() {
@@ -1431,7 +1499,7 @@ function legacyCheckout() {
   window.open(`https://wa.me/5491160320008?text=${msg}`, '_blank');
 }
 
-async function placeOrder() {
+async function placeOrder(ship) {
   const items = cart.map(l => {
     const p = PRODUCTS.find(x => x.id === l.id);
     return { sku: p.sku, name: p.name, color: l.color || null, qty: l.qty, price: p.price };
@@ -1440,18 +1508,21 @@ async function placeOrder() {
 
   let order = null;
   try {
-    const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ items, total }) });
+    const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({
+      items, total, ship, faltante: ship && ship.faltante }) });
     order = r.order;
   } catch (e) {
     if (String(e.message).includes('sesión')) { // sesión vencida
-      logout(); pendingCheckout = true; closeCart(); openLogin(true); return;
+      logout(); pendingCheckout = true; closeCart(); closeShip(); openLogin(true); return;
     }
-    showToast('No se pudo registrar el pedido: ' + e.message + '. Probá de nuevo.');
+    const msg = document.getElementById('shMsg');
+    if (msg) msg.textContent = 'No se pudo registrar el pedido: ' + e.message;
+    else showToast('No se pudo registrar el pedido: ' + e.message + '. Probá de nuevo.');
     return;
   }
 
   // Pedido registrado en la base: vaciamos carrito y mostramos confirmación.
-  cart = []; saveCart(); updateCartUI(); closeCart();
+  cart = []; saveCart(); updateCartUI(); closeCart(); closeShip();
   showOrderConfirm(order);
 }
 
@@ -1465,6 +1536,142 @@ function showOrderConfirm(order) {
 function closeConfirm() {
   document.getElementById('confirmOv').classList.remove('open');
   document.getElementById('confirmModal').classList.remove('open');
+}
+
+/* ============================================================
+   DATOS DE ENVÍO + QUÉ HACER SI FALTA UN MODELO
+   La dirección se valida contra Georef (API pública del Estado argentino),
+   que es lo que hace que aparezcan las sugerencias mientras escribís.
+============================================================ */
+let dirElegida = null;      // la dirección validada que eligió el cliente
+let sugerencias = [];
+let dirTimer = null;
+let provinciasCargadas = false;
+
+async function openShip() {
+  document.getElementById('shipOv').classList.add('open');
+  document.getElementById('shipModal').classList.add('open');
+  document.getElementById('shMsg').textContent = '';
+  cargarProvincias();
+  try {
+    const { user } = await api('/api/me');
+    if (user) {
+      document.getElementById('shRazon').value = user.razon_social || '';
+      document.getElementById('shDni').value = user.dni_cuit || '';
+      document.getElementById('shTel').value = user.telefono || '';
+      if (user.direccion) {
+        dirElegida = user.direccion;
+        document.getElementById('shDir').value = user.direccion.texto || '';
+        document.getElementById('shPiso').value = user.direccion.piso || '';
+        if (user.direccion.provincia) document.getElementById('shProv').value = user.direccion.provincia;
+        marcarDir(true);
+      }
+      if (user.faltante) {
+        const r = document.querySelector(`input[name="falt"][value="${user.faltante}"]`);
+        if (r) r.checked = true;
+      }
+    }
+  } catch (e) { /* si falla, se completa a mano */ }
+}
+
+function closeShip() {
+  document.getElementById('shipOv').classList.remove('open');
+  document.getElementById('shipModal').classList.remove('open');
+  cerrarSug();
+}
+
+async function cargarProvincias() {
+  if (provinciasCargadas) return;
+  try {
+    const { provincias } = await api('/api/geo?provincias=1');
+    const sel = document.getElementById('shProv');
+    const actual = sel.value;
+    sel.innerHTML = '<option value="">Todas</option>'
+      + (provincias || []).map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+    sel.value = actual;
+    provinciasCargadas = true;
+  } catch (e) { /* la provincia es opcional */ }
+}
+
+function marcarDir(ok) {
+  const box = document.getElementById('shDirOk');
+  if (ok && dirElegida) {
+    box.className = 'sf-ok';
+    box.textContent = '✓ ' + (dirElegida.validada ? 'Dirección validada' : 'Dirección guardada') +
+      (dirElegida.localidad ? ' · ' + dirElegida.localidad : '');
+  } else {
+    box.className = 'sf-ok warn';
+    box.textContent = 'Elegí una de las sugerencias para validar la dirección (o dejala escrita y la confirmamos por WhatsApp).';
+  }
+}
+
+function buscarDir(forzar) {
+  const q = document.getElementById('shDir').value.trim();
+  dirElegida = null;
+  marcarDir(false);
+  clearTimeout(dirTimer);
+  if (q.length < 4) { cerrarSug(); return; }
+  dirTimer = setTimeout(async () => {
+    const prov = document.getElementById('shProv').value;
+    try {
+      const r = await api('/api/geo?q=' + encodeURIComponent(q) + (prov ? '&provincia=' + encodeURIComponent(prov) : ''));
+      sugerencias = r.direcciones || [];
+      const box = document.getElementById('shSug');
+      box.innerHTML = sugerencias.length
+        ? sugerencias.map((d, i) =>
+            `<button type="button" onmousedown="elegirDir(${i})">${escHtml(d.texto)}
+             <small>${escHtml([d.localidad, d.provincia].filter(Boolean).join(', '))}</small></button>`).join('')
+        : '<div class="nada">No encontramos esa dirección. Escribila igual y la confirmamos por WhatsApp.</div>';
+      box.classList.add('open');
+    } catch (e) { cerrarSug(); }
+  }, forzar ? 0 : 320);
+}
+
+function cerrarSug() { document.getElementById('shSug').classList.remove('open'); }
+
+function elegirDir(i) {
+  const d = sugerencias[i];
+  if (!d) return;
+  dirElegida = { ...d, validada: true };
+  document.getElementById('shDir').value = d.texto;
+  if (d.provincia) document.getElementById('shProv').value = d.provincia;
+  cerrarSug();
+  marcarDir(true);
+}
+
+function datosEnvio() {
+  const texto = document.getElementById('shDir').value.trim();
+  const piso = document.getElementById('shPiso').value.trim();
+  // Si escribió a mano sin elegir sugerencia, igual se guarda (sin validar).
+  const direccion = dirElegida && dirElegida.texto === texto
+    ? { ...dirElegida, piso }
+    : (texto ? { texto, piso, provincia: document.getElementById('shProv').value || null, validada: false } : null);
+  return {
+    razon_social: document.getElementById('shRazon').value.trim(),
+    dni_cuit: document.getElementById('shDni').value.trim(),
+    telefono: document.getElementById('shTel').value.trim(),
+    direccion,
+    faltante: (document.querySelector('input[name="falt"]:checked') || {}).value || 'consultar',
+  };
+}
+
+async function confirmarPedido() {
+  const ship = datosEnvio();
+  const msg = document.getElementById('shMsg');
+  const falta =
+    ship.razon_social.length < 3 ? 'Poné tu nombre completo o razón social.' :
+    ship.dni_cuit.replace(/\D/g, '').length < 7 ? 'Revisá el DNI o CUIT.' :
+    ship.telefono.replace(/\D/g, '').length < 8 ? 'Revisá el teléfono.' :
+    !ship.direccion ? 'Falta la dirección de entrega.' : '';
+  if (falta) { msg.textContent = falta; return; }
+
+  const btn = document.getElementById('shBtn');
+  btn.disabled = true; btn.textContent = 'Confirmando…';
+  try {
+    await placeOrder(ship);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirmar pedido';
+  }
 }
 
 /* ============================================================
@@ -1519,7 +1726,7 @@ async function onCredential(resp) {
     const data = await api('/api/auth', { method: 'POST', body: JSON.stringify({ credential: resp.credential }) });
     saveSession(data); renderAcct(); closeLogin();
     showToast('✓ Sesión iniciada');
-    if (pendingCheckout) { pendingCheckout = false; placeOrder(); }
+    if (pendingCheckout) { pendingCheckout = false; openShip(); }
   } catch (e) { document.getElementById('loginMsg').textContent = e.message; }
 }
 
@@ -1568,8 +1775,14 @@ async function openOrders() {
     box.innerHTML = orders.map(o => {
       const d = new Date(o.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const items = (o.items || []).map(it => `<div>• ${escHtml(it.name)}${it.color ? ` <span class="c">— ${escHtml(it.color)}</span>` : ''} × ${it.qty}</div>`).join('');
+      const cobrado = Number(o.cobrado) || 0;
+      const saldo = Math.max(0, o.total - cobrado);
+      const pago = cobrado <= 0 ? 'Pendiente de pago'
+        : saldo > 0 ? `Pagaste ${fmt(cobrado)} · queda ${fmt(saldo)}` : 'Pagado ✓';
       return `<div class="ord"><div class="ord-top"><span class="ord-id">Pedido #${o.id}</span><span class="ord-st ${o.status}">${escHtml(o.status)}</span></div>`
-        + `<div class="ord-date">${d}</div><div class="ord-items">${items}</div><div class="ord-total">Total: ${fmt(o.total)}</div></div>`;
+        + `<div class="ord-date">${d}</div><div class="ord-items">${items}</div>`
+        + `<div class="ord-total">Total: ${fmt(o.total)}</div>`
+        + `<div class="ord-date">${pago}</div></div>`;
     }).join('');
   } catch (e) {
     if (String(e.message).includes('sesión')) { logout(); closeOrders(); openLogin(); return; }

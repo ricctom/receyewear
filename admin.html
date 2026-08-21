@@ -4,454 +4,571 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="robots" content="noindex"/>
-<title>Panel · REC Eyewear</title>
+<title>Pedidos · REC Eyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<style>
-  *{box-sizing:border-box}
-  body{font-family:'Montserrat',Arial,sans-serif;margin:0;background:#f6f6f6;color:#222;font-size:14px}
-  header{background:#000;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
-  header h1{font-size:16px;margin:0;letter-spacing:1px;text-transform:uppercase}
-  .who{font-size:12px;color:#ccc;display:flex;align-items:center;gap:10px}
-  .who button{background:none;border:1px solid #555;color:#ddd;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px}
-  .wrap{max-width:1050px;margin:24px auto;padding:0 16px}
-  .gate{max-width:420px;margin:12vh auto;background:#fff;border:1px solid #e6e6e6;border-radius:12px;padding:32px;text-align:center}
-  .gate h2{font-size:18px;margin:0 0 6px}
-  .gate p{color:#777;margin:0 0 22px;font-size:13px}
-  #gbtn{display:flex;justify-content:center}
-  .msg{color:#c0392b;font-size:13px;margin-top:16px;min-height:18px}
-  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px}
-  .toolbar .stats{font-size:13px;color:#666}
-  .refresh{background:#000;color:#fff;border:none;padding:8px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600}
-  .order{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:14px 16px;margin-bottom:12px}
-  .order-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-  .order-id{font-weight:700}
-  .order-meta{font-size:12px;color:#888;margin-top:2px}
-  .order-total{font-weight:700;font-size:15px}
-  .items{margin:10px 0 0;padding:10px 0 0;border-top:1px dashed #eee;font-size:13px}
-  .items div{padding:2px 0;color:#444}
-  .items .col{color:#0f7a3d;font-weight:600}
-  .st{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
-  .st.nuevo{background:#fdecea;color:#c0392b}
-  .st.preparando{background:#fff4e0;color:#b9770e}
-  .st.enviado{background:#e7f0fd;color:#1c5fb0}
-  .st.entregado{background:#e6f5ec;color:#0f7a3d}
-  .st.cancelado{background:#eee;color:#888}
-  select.status{margin-top:8px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;cursor:pointer}
-  .pdfbtn{margin-top:8px;margin-left:6px;padding:6px 11px;border:1px solid #222;background:#fff;color:#222;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
-  .pdfbtn:hover{background:#222;color:#fff}
-  .actions{display:flex;flex-wrap:wrap;gap:0;justify-content:flex-end}
-  /* Editor de items */
-  .editor{margin-top:12px;padding-top:12px;border-top:1px dashed #eee}
-  .editor .hint{font-size:12px;color:#777;margin:0 0 8px;line-height:1.5}
-  .editor .hint code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:11px}
-  .editor textarea{width:100%;min-height:220px;font-family:Consolas,'Courier New',monospace;font-size:12px;line-height:1.55;border:1px solid #ddd;border-radius:8px;padding:10px;resize:vertical}
-  .editor .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
-  .editor .calc{font-size:12px;color:#444}
-  .editor .calc b{font-size:13px}
-  .editor .err{color:#c0392b}
-  .editor .btns{display:flex;gap:8px}
-  .editor .btns button{padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ccc;background:#fff;color:#444}
-  .editor .btns button.save{background:#000;color:#fff;border-color:#000}
-  .empty{text-align:center;color:#999;padding:50px 0}
-  a.back{color:#888;font-size:12px;text-decoration:none}
-</style>
+<link rel="stylesheet" href="panel.css"/>
 </head>
 <body>
 <header>
-  <h1>REC Eyewear · Pedidos</h1>
+  <h1>REC</h1>
+  <nav class="tabs">
+    <a href="admin.html" class="on">Pedidos</a>
+    <a href="crm.html">Clientes</a>
+    <a href="proveedor.html">Martín</a>
+  </nav>
   <div class="who" id="who"></div>
 </header>
 
-<!-- Login -->
 <div class="wrap" id="gate">
   <div class="gate">
-    <h2>Panel de administración</h2>
-    <p>Iniciá sesión con la cuenta de Google autorizada.</p>
+    <h2>Pedidos</h2>
+    <p>Entrá con la cuenta de Google de siempre.</p>
     <div id="gbtn"></div>
     <div class="msg" id="gateMsg"></div>
   </div>
 </div>
 
-<!-- Pedidos -->
 <div class="wrap" id="panel" style="display:none">
-  <div class="toolbar">
-    <div class="stats" id="stats"></div>
-    <button class="refresh" onclick="loadOrders()">↻ Actualizar</button>
+  <div class="top">
+    <div>
+      <h2 id="titulo">Pedidos</h2>
+      <div class="sub" id="subtitulo"></div>
+    </div>
+    <div class="der">
+      <button class="b sm q" id="usdBtn" onclick="editarDolar()"></button>
+      <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
+    </div>
   </div>
-  <div id="list"></div>
+  <div class="resumen" id="resumen"></div>
+  <div class="filtros" id="filtros"></div>
+  <div id="avisoCostos"></div>
+  <div id="lista"></div>
 </div>
 
+<div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+
+<script src="panel.js"></script>
 <script>
-const fmt = n => '$' + (n||0).toLocaleString('es-AR');
-const STATES = ['nuevo','preparando','enviado','entregado','cancelado'];
-let session = JSON.parse(localStorage.getItem('rec4_session') || 'null');
-let ORDERS = [];
+/* Cada pedido está en UN paso y muestra UNA acción. Lo demás se calla. */
+const PASOS = {
+  nuevo:      { txt:'Sin mandar a Martín', accion:'Pasar a Martín',  sig:'pedido' },
+  pedido:     { txt:'Esperando a Martín',  accion:'Llegó tal cual',  sig:'recibido' },
+  recibido:   { txt:'Listo para despachar',accion:'Despachado',      sig:'despachado' },
+  despachado: { txt:'Despachado',          accion:'Me pagó todo',    sig:null },
+  saldado:    { txt:'Saldado',             accion:null,              sig:null },
+  cancelado:  { txt:'Cancelado',           accion:null,              sig:null },
+};
+const FALTANTE_TXT = {
+  cambiar: 'Si falta algo, cambiarlo por otro parecido',
+  consultar: 'Si falta algo, consultarle antes',
+  baja: 'Si falta algo, darlo de baja',
+};
+const VISTAS = [
+  ['pendientes', 'Pendientes'],
+  ['nuevo',      'Para mandar'],
+  ['pedido',     'En Martín'],
+  ['recibido',   'Para despachar'],
+  ['cobrar',     'Por cobrar'],
+  ['saldado',    'Saldados'],
+];
 
-function saveSession(s){ session = s; localStorage.setItem('rec4_session', JSON.stringify(s)); }
-function logout(){ localStorage.removeItem('rec4_session'); location.reload(); }
+let ORDERS = [], USD = { valor:0 }, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [];
+let vista = 'pendientes';
+const abiertos = new Set();
 
-async function api(path, opts={}){
-  const headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
-  if(session && session.token) headers['Authorization'] = 'Bearer ' + session.token;
-  const r = await fetch(path, Object.assign({}, opts, { headers }));
-  const data = await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(data.error || ('Error ' + r.status));
-  return data;
-}
-
-async function onCredential(resp){
-  document.getElementById('gateMsg').textContent = '';
+async function cargar(){
+  const lista = document.getElementById('lista');
+  if(!ORDERS.length) lista.innerHTML = '<div class="empty">Cargando…</div>';
   try{
-    const data = await api('/api/auth', { method:'POST', body: JSON.stringify({ credential: resp.credential }) });
-    if(!data.user.admin){ document.getElementById('gateMsg').textContent = 'Esa cuenta no tiene acceso al panel.'; return; }
-    saveSession(data);
-    showPanel();
-  }catch(e){ document.getElementById('gateMsg').textContent = e.message; }
-}
-
-async function initGoogle(){
-  try{
-    const cfg = await api('/api/config');
-    if(!cfg.googleClientId){ document.getElementById('gateMsg').textContent = 'Falta configurar GOOGLE_CLIENT_ID.'; return; }
-    const start = () => {
-      google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onCredential });
-      google.accounts.id.renderButton(document.getElementById('gbtn'), { theme:'filled_black', size:'large', text:'signin_with', shape:'pill' });
-    };
-    if(window.google && google.accounts) start();
-    else { const t=setInterval(()=>{ if(window.google&&google.accounts){clearInterval(t);start();} }, 150); }
-  }catch(e){ document.getElementById('gateMsg').textContent = e.message; }
-}
-
-function showPanel(){
-  document.getElementById('gate').style.display = 'none';
-  document.getElementById('panel').style.display = 'block';
-  document.getElementById('who').innerHTML =
-    (session.user.name || session.user.email) + ' <button onclick="logout()">Salir</button>';
-  loadOrders();
-}
-
-async function loadOrders(){
-  const list = document.getElementById('list');
-  list.innerHTML = '<div class="empty">Cargando…</div>';
-  try{
-    const { orders } = await api('/api/admin');
-    ORDERS = orders;
-    document.getElementById('stats').textContent = orders.length + ' pedido(s)';
-    if(!orders.length){ list.innerHTML = '<div class="empty">Todavía no hay pedidos.</div>'; return; }
-    list.innerHTML = orders.map(renderOrder).join('');
+    const d = await api('/api/admin');
+    ORDERS = d.orders; USD = d.usd || { valor:0 };
+    ARTICULOS = d.articulos || []; SIN_MAPEAR = d.sin_mapear || []; COSTMAP = d.cost_map || [];
+    pintar();
   }catch(e){
-    if(String(e.message).includes('admin')||String(e.message).includes('sesión')) return logout();
-    list.innerHTML = '<div class="empty">'+e.message+'</div>';
+    if(esSesion(e)) return logout();
+    lista.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   }
 }
 
-function renderOrder(o){
+/* ---------- cuentas ---------- */
+const cobrado = o => Number(o.cobrado) || 0;
+const debe    = o => Math.max(0, o.total - cobrado(o));
+const dolar   = o => Number(o.usd_rate) || Number(USD.valor) || 0;
+const costo   = o => Math.round((Number(o.costo_usd) || 0) * dolar(o));
+const ganancia= o => o.total - costo(o);
+
+// El paso "visible": un pedido despachado y cobrado ya no molesta.
+function paso(o){
+  if(o.etapa === 'cancelado') return 'cancelado';
+  if(o.etapa === 'despachado' && debe(o) <= 0) return 'saldado';
+  return o.etapa || 'nuevo';
+}
+function enVista(o, v){
+  const p = paso(o);
+  if(v === 'pendientes') return p !== 'saldado' && p !== 'cancelado';
+  if(v === 'cobrar') return p !== 'cancelado' && debe(o) > 0 && (p === 'despachado' || p === 'saldado');
+  if(v === 'saldado') return p === 'saldado' || p === 'cancelado';
+  return p === v;
+}
+
+/* ---------- pintar ---------- */
+function pintar(){
+  const vivos = ORDERS.filter(o => o.etapa !== 'cancelado');
+  const porCobrar = vivos.filter(o => ['despachado','saldado'].includes(paso(o)))
+                         .reduce((a,o) => a + debe(o), 0);
+  const enMartin = vivos.filter(o => paso(o) === 'pedido').length;
+  const paraDespachar = vivos.filter(o => paso(o) === 'recibido').length;
+
+  document.getElementById('subtitulo').textContent =
+    vivos.length + (vivos.length === 1 ? ' pedido' : ' pedidos') + ' · ' +
+    (porCobrar ? fmt(porCobrar) + ' sin cobrar' : 'todo cobrado');
+
+  document.getElementById('usdBtn').innerHTML =
+    'Dólar ' + (USD.valor ? Number(USD.valor).toLocaleString('es-AR') : '—');
+
+  document.getElementById('resumen').innerHTML = `
+    <div><p class="r1">Te deben</p><p class="r2 ${porCobrar ? 'debe' : 'ok'}">${porCobrar ? fmt(porCobrar) : 'nada'}</p></div>
+    <div><p class="r1">En Martín</p><p class="r2">${enMartin}</p></div>
+    <div><p class="r1">Para despachar</p><p class="r2">${paraDespachar}</p></div>`;
+
+  document.getElementById('filtros').innerHTML = VISTAS.map(([k,t]) => {
+    const n = ORDERS.filter(o => enVista(o,k)).length;
+    if(!n && k !== vista && k !== 'pendientes') return '';
+    return `<button class="chip${vista===k?' on':''}" onclick="verVista('${k}')">${t}<b>${n}</b></button>`;
+  }).join('');
+
+  const av = document.getElementById('avisoCostos');
+  av.innerHTML = SIN_MAPEAR.length
+    ? `<div class="aviso">No sé cuánto te cuestan estas líneas: <b>${SIN_MAPEAR.map(esc).join(', ')}</b>.
+        Sin eso no puedo calcular la deuda con Martín.
+        <button class="b sm" style="margin-left:6px" onclick="editarCostos()">Asignarlas</button></div>` : '';
+
+  const filtrados = ORDERS.filter(o => enVista(o, vista));
+  document.getElementById('lista').innerHTML = filtrados.length
+    ? filtrados.map(tarjeta).join('')
+    : `<div class="empty">${vista==='pendientes' ? 'No tenés nada pendiente. 👌' : 'Nada acá.'}</div>`;
+}
+
+function verVista(v){ vista = v; pintar(); }
+
+// Agrupa por línea; los modelos quedan adentro para cuando quieras mirarlos.
+function porLinea(items){
+  const m = new Map();
+  (items||[]).forEach(it => {
+    const { linea, modelo } = splitNombre(it.name);
+    if(!m.has(linea)) m.set(linea, { linea, qty:0, total:0, modelos:[] });
+    const g = m.get(linea);
+    const q = Math.max(1, parseInt(it.qty,10)||1);
+    g.qty += q; g.total += q * (Number(it.price)||0);
+    g.modelos.push({ modelo: it.sku || modelo, color: it.color || '', qty:q });
+  });
+  return [...m.values()].sort((a,b) => b.total - a.total);
+}
+
+function tarjeta(o){
+  const p = paso(o);
+  const info = PASOS[p];
   const d = new Date(o.created_at);
-  const fecha = d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const items = (o.items||[]).map(it =>
-    `<div>• ${esc(it.name)}${it.color?` <span class="col">— ${esc(it.color)}</span>`:''} × ${it.qty} = ${fmt(it.price*it.qty)}</div>`).join('');
-  const opts = STATES.map(s => `<option value="${s}"${s===o.status?' selected':''}>${s}</option>`).join('');
-  return `<div class="order">
-    <div class="order-top">
+  const cuando = d.toLocaleDateString('es-AR', { day:'numeric', month:'long' });
+  const unidades = (o.items||[]).reduce((a,it) => a + (parseInt(it.qty,10)||1), 0);
+  const uTxt = unidades + (unidades === 1 ? ' anteojo' : ' anteojos');
+  const sh = o.ship || {};
+  const nombre = sh.razon_social || o.name || o.email;
+
+  // La plata de la derecha: mientras no despachaste, el total. Después, lo que te deben.
+  const plata = (p === 'despachado' || p === 'saldado')
+    ? `<span class="big ${debe(o)>0?'debe':''}">${debe(o) > 0 ? fmt(debe(o)) : fmt(o.total)}</span>
+       <span class="chico">${debe(o) > 0 ? 'te debe · de ' + fmt(o.total) : 'cobrado'}</span>`
+    : `<span class="big">${fmt(o.total)}</span><span class="chico">${uTxt}</span>`;
+
+  return `<div class="card ${p==='cancelado'||p==='saldado'?'mudo':''}" id="c${o.id}">
+    <div class="chead">
       <div>
-        <span class="order-id">#${o.id}</span> <span class="st ${o.status}">${o.status}</span>
-        <div class="order-meta">${esc(o.name||'')} · ${esc(o.email)} · ${fecha}</div>
+        <p class="cname">${esc(nombre)}</p>
+        <p class="cmeta">#${o.id} · ${cuando}${p!=='despachado'&&p!=='saldado' ? '' : ' · ' + uTxt}</p>
       </div>
-      <div style="text-align:right">
-        <div class="order-total">${fmt(o.total)}</div>
-        <select class="status" onchange="setStatus(${o.id}, this.value)">${opts}</select>
-        <div class="actions">
-          <button class="pdfbtn" onclick="exportProveedorPDF(${o.id})" title="Unidades por línea, sin precios ni datos del cliente">📦 PDF proveedor</button>
-          <button class="pdfbtn" onclick="exportClientePDF(${o.id})" title="Con los datos del cliente y los precios">🧾 PDF cliente</button>
-          <button class="pdfbtn" onclick="toggleEditor(${o.id})" title="Agregar, sacar o corregir items del pedido">✏️ Editar</button>
-        </div>
+      <div class="cplata">${plata}</div>
+    </div>
+
+    <div class="paso"><span class="pt ${p}"></span>${info.txt}</div>
+
+    <div class="acc">
+      ${accionPrincipal(o, p)}
+      <button class="b ico" onclick="verDetalle(${o.id})" title="Ver el pedido">${abiertos.has(o.id)?'▴':'▾'}</button>
+      <div class="mas">
+        <button class="b ico" onclick="abrirMenu(event,${o.id})" title="Más">⋯</button>
+        <div class="menu" id="m${o.id}">${menu(o,p)}</div>
       </div>
     </div>
-    <div class="items">${items}</div>
-    <div class="editor" id="ed-${o.id}" style="display:none">
-      <p class="hint">Un item por renglón: <code>Línea (MODELO) | Color | Cantidad | Precio</code><br>
-        Borrá renglones para sacar items, agregá renglones para sumarlos. El total se recalcula solo al guardar.</p>
-      <textarea id="tx-${o.id}" spellcheck="false" oninput="recalcEditor(${o.id})">${esc(itemsToText(o.items||[]))}</textarea>
-      <div class="foot">
-        <div class="calc" id="calc-${o.id}"></div>
-        <div class="btns">
-          <button onclick="toggleEditor(${o.id})">Cancelar</button>
-          <button class="save" onclick="saveItems(${o.id})">Guardar cambios</button>
-        </div>
-      </div>
-    </div>
+
+    <div id="d${o.id}">${abiertos.has(o.id) ? detalle(o) : ''}</div>
   </div>`;
 }
 
-async function setStatus(id, status){
-  try{ await api('/api/admin', { method:'POST', body: JSON.stringify({ id, status }) }); loadOrders(); }
+function accionPrincipal(o, p){
+  if(p === 'nuevo') return `<button class="b p" onclick="pasarAMartin(${o.id})">Pasar a Martín</button>`;
+  if(p === 'pedido') return `<button class="b p" onclick="llegoTalCual(${o.id})">Llegó tal cual</button>
+    <button class="b" onclick="modalRecibir(${o.id})">Vino distinto</button>`;
+  if(p === 'recibido') return `<button class="b p" onclick="mover(${o.id},'despachado')">Despachado</button>
+    <button class="b" onclick="etiqueta(${o.id})">Etiqueta</button>`;
+  if(p === 'despachado') return `<button class="b p" onclick="cobrarTodo(${o.id})">Me pagó todo</button>
+    <button class="b" onclick="modalPago(${o.id})">Una parte</button>`;
+  return `<button class="b q" style="flex:1" onclick="verDetalle(${o.id})">Ver el pedido</button>`;
+}
+
+function menu(o, p){
+  const atras = { pedido:'nuevo', recibido:'pedido', despachado:'recibido' }[p];
+  return `
+    <button onclick="pdfProveedor(${o.id})">PDF para Martín</button>
+    <button onclick="pdfCliente(${o.id})">PDF para el cliente</button>
+    <button onclick="etiqueta(${o.id})">Etiqueta de envío</button>
+    <hr>
+    <button onclick="editarItems(${o.id})">Editar el pedido</button>
+    <button onclick="editarNota(${o.id})">${o.nota ? 'Cambiar la nota' : 'Agregar una nota'}</button>
+    ${cobrado(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
+    ${atras ? `<button onclick="mover(${o.id},'${atras}')">Volver un paso atrás</button>` : ''}
+    <hr>
+    ${o.etapa === 'cancelado'
+      ? `<button onclick="mover(${o.id},'nuevo')">Reactivar</button>`
+      : `<button onclick="mover(${o.id},'cancelado')">Cancelar el pedido</button>`}
+    <button class="mal" onclick="borrarPedido(${o.id})">Borrar</button>`;
+}
+
+function abrirMenu(ev, id){
+  ev.stopPropagation();
+  const m = document.getElementById('m'+id);
+  const abierto = m.classList.contains('open');
+  document.querySelectorAll('.menu.open').forEach(x => x.classList.remove('open'));
+  if(!abierto) m.classList.add('open');
+}
+document.addEventListener('click', () => document.querySelectorAll('.menu.open').forEach(x => x.classList.remove('open')));
+
+/* ---------- detalle ---------- */
+function verDetalle(id){
+  const box = document.getElementById('d'+id);
+  if(abiertos.has(id)){ abiertos.delete(id); box.innerHTML = ''; }
+  else { abiertos.add(id); box.innerHTML = detalle(ORDERS.find(o => o.id === id)); }
+  pintar();
+}
+
+function detalle(o){
+  const sh = o.ship || {};
+  const dir = sh.direccion || {};
+  const lineas = porLinea(o.items);
+  const p = paso(o);
+
+  const pedido = `<div class="det"><h4>El pedido</h4>
+    ${lineas.map(l => `<div class="ln"><span><b>${esc(l.linea)}</b> <span class="g">${l.qty} u.</span></span>
+      <span class="num">${fmt(l.total)}</span></div>
+      <div class="mod">${l.modelos.map(m => esc(m.modelo||'—') + (m.color?' '+esc(m.color):'') + ' ×' + m.qty).join(' · ')}</div>`).join('')}
+    <div class="ln" style="border-top:1px solid var(--ln);margin-top:6px;padding-top:9px">
+      <span><b>Total</b></span><span class="num"><b>${fmt(o.total)}</b></span></div></div>`;
+
+  const guita = `<div class="det"><h4>Números</h4>
+    <div class="dato"><span>Te van a pagar</span><span class="num">${fmt(o.total)}</span></div>
+    <div class="dato"><span>Te cuesta</span><span class="num">${o.costo_usd ? fmt(costo(o)) + ' · US$ ' + Number(o.costo_usd).toFixed(2) : '—'}</span></div>
+    <div class="dato"><span>Te queda</span><span class="num"><b>${o.costo_usd ? fmt(ganancia(o)) + ' · ' + Math.round(ganancia(o)/o.total*100) + '%' : '—'}</b></span></div>
+    ${cobrado(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobrado(o))}</span></div>` : ''}
+    ${debe(o) && (p==='despachado'||p==='saldado') ? `<div class="dato"><span>Te debe</span><span class="num debe"><b>${fmt(debe(o))}</b></span></div>` : ''}
+    </div>`;
+
+  const pagos = (o.pagos||[]).length ? `<div class="det"><h4>Cobros</h4>
+    ${o.pagos.map(pg => `<div class="dato"><span>${fechaCorta(pg.fecha)}${pg.medio?' · '+esc(pg.medio):''}${pg.nota?' · '+esc(pg.nota):''}</span>
+      <span class="num">${fmt(pg.monto)}</span></div>`).join('')}</div>` : '';
+
+  const envio = sh.razon_social ? `<div class="det"><h4>Envío</h4>
+    <div class="dato"><span>${esc(sh.razon_social)}</span><span>${esc(sh.dni_cuit||'')}</span></div>
+    <div class="dato"><span>${esc(dir.texto||'—')}${dir.piso?' · '+esc(dir.piso):''}</span>
+      <span>${sh.telefono?`<a href="https://wa.me/${String(sh.telefono).replace(/\D/g,'')}" target="_blank">${esc(sh.telefono)}</a>`:''}</span></div>
+    </div>` : '<div class="det"><h4>Envío</h4><div class="dato"><span>Pedido viejo, sin datos de envío.</span></div></div>';
+
+  const extra = (o.faltante ? `<div class="aviso">${esc(FALTANTE_TXT[o.faltante]||'')}</div>` : '')
+    + (o.nota ? `<div class="aviso info">${esc(o.nota)}</div>` : '');
+
+  return pedido + guita + pagos + envio + extra;
+}
+
+/* ---------- acciones ---------- */
+async function post(body){ return api('/api/admin', { method:'POST', body: JSON.stringify(body) }); }
+
+async function mover(id, etapa){
+  if(etapa === 'cancelado' && !confirm('¿Cancelar el pedido #'+id+'?')) return;
+  try{ await post({ id, etapa }); await cargar(); }catch(e){ alert(e.message); }
+}
+
+// "Pasar a Martín": baja el PDF y deja el pedido esperando.
+async function pasarAMartin(id){
+  pdfProveedor(id);
+  try{ await post({ id, etapa:'pedido' }); await cargar(); showToast('Pedido #'+id+' a la espera de Martín'); }
   catch(e){ alert(e.message); }
 }
 
-function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-/* ---------- Editor de items ----------------------------------------------
-   El pedido se edita como texto plano, un item por renglón:
-       Línea (MODELO) | Color | Cantidad | Precio
-   Así se pueden sacar items (borrando el renglón) o agregar modelos que
-   todavía no están en el catálogo. El total lo recalcula el server. */
-
-const NL = '\n';
-
-function itemsToText(items){
-  return (items||[]).map(it =>
-    `${it.name} | ${it.color || ''} | ${it.qty} | ${it.price}`).join(NL);
-}
-
-function textToItems(txt){
-  const items = [], errores = [];
-  String(txt||'').split(/\r?\n/).forEach((raw, i) => {
-    const line = raw.trim();
-    if(!line || line.startsWith('#')) return;
-    const p = line.split('|').map(x => x.trim());
-    if(p.length < 4){ errores.push(`Renglón ${i+1}: faltan campos (van 4 separados por |)`); return; }
-    const name = p[0];
-    const color = p[1];
-    const qty = parseInt(p[2], 10);
-    const price = Number(String(p[3]).replace(/[^\d.-]/g, ''));
-    if(!name){ errores.push(`Renglón ${i+1}: falta el nombre`); return; }
-    if(!(qty > 0)){ errores.push(`Renglón ${i+1}: cantidad inválida`); return; }
-    if(!isFinite(price) || price < 0){ errores.push(`Renglón ${i+1}: precio inválido`); return; }
-    const m = name.match(/\(([^)]+)\)\s*$/);
-    items.push({ sku: m ? m[1].trim() : '', name, color: color || null, qty, price });
-  });
-  if(!items.length && !errores.length) errores.push('El pedido no puede quedar vacío');
-  return { items, errores };
-}
-
-function recalcEditor(id){
-  const box = document.getElementById('calc-' + id);
-  const { items, errores } = textToItems(document.getElementById('tx-' + id).value);
-  if(errores.length){ box.innerHTML = '<span class="err">' + esc(errores[0]) + '</span>'; return; }
-  const u = items.reduce((a,it) => a + it.qty, 0);
-  const t = items.reduce((a,it) => a + it.qty * it.price, 0);
-  box.innerHTML = `${items.length} renglón(es) · ${u} unidades · total <b>${fmt(t)}</b>`;
-}
-
-function toggleEditor(id){
-  const ed = document.getElementById('ed-' + id);
-  const abierto = ed.style.display !== 'none';
-  if(abierto){ ed.style.display = 'none'; return; }
-  document.getElementById('tx-' + id).value = itemsToText((ORDERS.find(o => o.id === id) || {}).items);
-  ed.style.display = 'block';
-  recalcEditor(id);
-}
-
-async function saveItems(id){
-  const { items, errores } = textToItems(document.getElementById('tx-' + id).value);
-  if(errores.length){ alert('Revisá el pedido:' + NL + NL + errores.join(NL)); return; }
-  const u = items.reduce((a,it) => a + it.qty, 0);
-  const t = items.reduce((a,it) => a + it.qty * it.price, 0);
-  if(!confirm(`Guardar el pedido #${id} con ${items.length} renglón(es), ${u} unidades y un total de ${fmt(t)}?`)) return;
+async function llegoTalCual(id){
+  const o = ORDERS.find(x => x.id === id);
+  const u = (o.items||[]).reduce((a,it) => a + (parseInt(it.qty,10)||1), 0);
+  if(!confirm(`Llegaron los ${u} anteojo${u===1?'':'s'} del pedido #${id} tal cual.\n\nSe le suma a la deuda de Martín.`)) return;
   try{
-    await api('/api/admin', { method:'POST', body: JSON.stringify({ id, items }) });
-    loadOrders();
+    const r = await post({ id, recibir:{} });
+    await cargar();
+    showToast(r.monto_usd ? 'Sumado a Martín: US$ ' + r.monto_usd.toFixed(2) : 'Recibido');
+    if(r.sin_costo && r.sin_costo.length) alert('Ojo: no tengo el costo de ' + r.sin_costo.join(', ') + ', así que no entró en la deuda.');
   }catch(e){ alert(e.message); }
 }
 
-// Separa "Metal Receta Diseño (MS18)" -> { linea:'Metal Receta Diseño', modelo:'MS18' }
-function splitNombre(name){
-  const s = String(name || '').trim();
-  const m = s.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-  if(m) return { linea: m[1].trim() || 'Sin línea', modelo: m[2].trim() };
-  return { linea: s || 'Sin línea', modelo: '' };
-}
-
-// PDF para el PROVEEDOR: solo unidades por línea (Modelo · Color · Cantidad),
-// sin precios ni datos del cliente. Hoja angosta tipo ticket, cómoda para el celu.
-function exportProveedorPDF(id){
+function modalRecibir(id){
   const o = ORDERS.find(x => x.id === id);
-  if(!o){ alert('No se encontró el pedido.'); return; }
-
-  // Agrupar por línea, y dentro por (modelo + color)
-  const lineas = new Map(); // linea -> Map(clave -> {modelo,color,qty})
-  (o.items || []).forEach(it => {
-    const { linea, modelo } = splitNombre(it.name);
-    const mod = it.sku ? String(it.sku) : modelo;
-    const color = it.color ? String(it.color) : '';
-    const qty = Math.max(1, parseInt(it.qty, 10) || 1);
-    if(!lineas.has(linea)) lineas.set(linea, new Map());
-    const g = lineas.get(linea);
-    const key = mod + '¬' + color;
-    if(g.has(key)) g.get(key).qty += qty;
-    else g.set(key, { modelo: mod, color, qty });
-  });
-
-  let totalGeneral = 0;
-  const bloques = [...lineas.entries()].map(([linea, g]) => {
-    const filas = [...g.values()].sort((a,b) =>
-      a.modelo.localeCompare(b.modelo) || a.color.localeCompare(b.color));
-    const subtotal = filas.reduce((s,f) => s + f.qty, 0);
-    totalGeneral += subtotal;
-    const trs = filas.map(f => `<tr>
-      <td>${esc(f.modelo || '—')}</td>
-      <td>${esc(f.color || '—')}</td>
-      <td class="q">${f.qty}</td></tr>`).join('');
-    return `<section class="linea">
-      <h2>${esc(linea)} <span class="ln-total">${subtotal} u.</span></h2>
-      <table>
-        <thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th></tr></thead>
-        <tbody>${trs}</tbody>
-      </table>
-    </section>`;
-  }).join('');
-
-  const d = new Date(o.created_at);
-  const fecha = d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<title>Pedido #${o.id} · REC Eyewear</title>
-<style>
-  *{box-sizing:border-box}
-  /* Hoja angosta tipo ticket: cómoda para ver/bajar en el celular */
-  @page{size:105mm auto;margin:7mm 6mm}
-  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0 auto;padding:16px;font-size:12px;max-width:105mm}
-  .head{border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:16px}
-  .head h1{font-size:17px;margin:0;letter-spacing:.5px;text-transform:uppercase}
-  .head .meta{font-size:11px;color:#555;margin-top:3px}
-  .linea{margin:0 0 15px;break-inside:avoid}
-  .linea h2{font-size:13px;margin:0 0 5px;padding-bottom:4px;border-bottom:1px solid #bbb;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .ln-total{font-size:11px;font-weight:700;background:#111;color:#fff;padding:2px 8px;border-radius:12px;white-space:nowrap}
-  table{width:100%;border-collapse:collapse}
-  th,td{text-align:left;padding:4px 4px;border-bottom:1px solid #eee;vertical-align:top}
-  th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#666;border-bottom:1px solid #ccc}
-  td.q,th.q{text-align:right;width:40px;white-space:nowrap}
-  .grand{margin-top:18px;border-top:2px solid #111;padding-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700}
-  .grand .n{font-size:18px}
-  @media print{ body{padding:0} .noprint{display:none} }
-  .noprint{margin-bottom:14px}
-  .noprint button{font-size:13px;padding:9px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer;width:100%}
-</style></head><body>
-  <div class="noprint"><button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>
-  <div class="head">
-    <h1>Pedido #${o.id}</h1>
-    <div class="meta">REC Eyewear · ${fecha}</div>
-  </div>
-  ${bloques || '<p>El pedido no tiene ítems.</p>'}
-  <div class="grand"><span>Total de unidades</span><span class="n">${totalGeneral}</span></div>
-  <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
-</body></html>`;
-
-  abrirParaImprimir(html);
+  const lineas = porLinea(o.items);
+  abrirModal(`
+    <h3>¿Qué te trajo Martín?</h3>
+    <p class="sub">Dejá las que vinieron bien y corregí las que no. Solo cantidades por línea; los modelos no importan.</p>
+    ${lineas.map((l,i) => `<div class="qrow" id="q${i}">
+      <div><span class="qn">${esc(l.linea)}</span><span class="qg">pediste ${l.qty}</span></div>
+      <input type="number" min="0" id="qi${i}" value="${l.qty}" data-pedido="${l.qty}" oninput="marcarDif(${i})">
+    </div>`).join('')}
+    <div class="qtot"><span>Total</span><span><span id="qTot">${lineas.reduce((a,l)=>a+l.qty,0)}</span> <span class="g">anteojos</span></span></div>
+    <div class="mfoot">
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" onclick="guardarRecibido(${id})">Confirmar y sumar a Martín</button>
+    </div>`);
+  window._lineasRecibir = lineas;
+}
+function marcarDif(i){
+  const inp = document.getElementById('qi'+i);
+  document.getElementById('q'+i).classList.toggle('dif', Number(inp.value) !== Number(inp.dataset.pedido));
+  let t = 0;
+  (window._lineasRecibir||[]).forEach((l,k) => { t += Number(document.getElementById('qi'+k).value) || 0; });
+  document.getElementById('qTot').textContent = t;
+}
+async function guardarRecibido(id){
+  const lineas = (window._lineasRecibir||[]).map((l,i) =>
+    ({ linea: l.linea, qty: Math.max(0, parseInt(document.getElementById('qi'+i).value,10) || 0) }));
+  try{
+    const r = await post({ id, recibir:{ lineas } });
+    cerrarModal(); await cargar();
+    showToast(r.monto_usd ? 'Sumado a Martín: US$ ' + r.monto_usd.toFixed(2) : 'Recibido');
+  }catch(e){ alert(e.message); }
 }
 
-function abrirParaImprimir(html){
-  const w = window.open('', '_blank');
-  if(!w){ alert('Permití las ventanas emergentes para exportar el PDF.'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-}
-
-// PDF para el CLIENTE: datos del cliente + items con precio unitario, subtotal
-// por renglón, subtotal por línea y total del pedido. Hoja A4.
-function exportClientePDF(id){
+async function cobrarTodo(id){
   const o = ORDERS.find(x => x.id === id);
-  if(!o){ alert('No se encontró el pedido.'); return; }
+  if(!confirm(`¿Te pagó los ${fmt(debe(o))} que faltaban?`)) return;
+  try{ await post({ id, pago:{ resto:true } }); await cargar(); showToast('Cobrado'); }
+  catch(e){ alert(e.message); }
+}
 
-  // Agrupar por línea, y dentro por (modelo + color + precio)
-  const lineas = new Map();
-  (o.items || []).forEach(it => {
-    const { linea, modelo } = splitNombre(it.name);
-    const mod = it.sku ? String(it.sku) : modelo;
-    const color = it.color ? String(it.color) : '';
-    const qty = Math.max(1, parseInt(it.qty, 10) || 1);
-    const price = Number(it.price) || 0;
-    if(!lineas.has(linea)) lineas.set(linea, new Map());
-    const g = lineas.get(linea);
-    const key = mod + '¬' + color + '¬' + price;
-    if(g.has(key)) g.get(key).qty += qty;
-    else g.set(key, { modelo: mod, color, qty, price });
-  });
-
-  let totalUnidades = 0, totalPesos = 0;
-  const bloques = [...lineas.entries()].map(([linea, g]) => {
-    const filas = [...g.values()].sort((a,b) =>
-      a.modelo.localeCompare(b.modelo) || a.color.localeCompare(b.color));
-    const subU = filas.reduce((s,f) => s + f.qty, 0);
-    const subP = filas.reduce((s,f) => s + f.qty * f.price, 0);
-    totalUnidades += subU; totalPesos += subP;
-    const trs = filas.map(f => `<tr>
-      <td>${esc(f.modelo || '—')}</td>
-      <td>${esc(f.color || '—')}</td>
-      <td class="q">${f.qty}</td>
-      <td class="m">${fmt(f.price)}</td>
-      <td class="m">${fmt(f.qty * f.price)}</td></tr>`).join('');
-    return `<section class="linea">
-      <h2>${esc(linea)}</h2>
-      <table>
-        <thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th><th class="m">P. unit.</th><th class="m">Subtotal</th></tr></thead>
-        <tbody>${trs}</tbody>
-        <tfoot><tr><td colspan="2">Subtotal ${esc(linea)}</td><td class="q">${subU}</td><td class="m"></td><td class="m">${fmt(subP)}</td></tr></tfoot>
-      </table>
-    </section>`;
-  }).join('');
-
-  const d = new Date(o.created_at);
-  const fecha = d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<title>Pedido #${o.id} · ${esc(o.name || o.email || 'Cliente')}</title>
-<style>
-  *{box-sizing:border-box}
-  @page{size:A4;margin:14mm 12mm}
-  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0 auto;padding:20px;font-size:12px;max-width:190mm}
-  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
-  .head h1{font-size:20px;margin:0;letter-spacing:.5px;text-transform:uppercase}
-  .head .marca{font-size:12px;color:#555;margin-top:3px;letter-spacing:1px;text-transform:uppercase}
-  .head .der{text-align:right;font-size:11px;color:#555;line-height:1.6}
-  .cliente{background:#f5f5f5;border:1px solid #e2e2e2;border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:12px;line-height:1.7}
-  .cliente .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#777;display:block}
-  .cliente .nom{font-size:14px;font-weight:700;text-transform:uppercase}
-  .linea{margin:0 0 16px;break-inside:avoid}
-  .linea h2{font-size:13px;margin:0 0 5px;text-transform:uppercase;letter-spacing:.4px}
-  table{width:100%;border-collapse:collapse}
-  th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #eee;vertical-align:top}
-  th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#666;border-bottom:1px solid #999}
-  td.q,th.q{text-align:right;width:50px;white-space:nowrap}
-  td.m,th.m{text-align:right;width:95px;white-space:nowrap}
-  tfoot td{font-weight:700;border-top:1px solid #999;border-bottom:none;background:#fafafa}
-  .grand{margin-top:20px;border-top:2px solid #111;padding-top:12px;display:flex;justify-content:space-between;align-items:baseline;font-size:15px;font-weight:700}
-  .grand .u{font-size:12px;font-weight:400;color:#555}
-  .grand .n{font-size:22px}
-  .pie{margin-top:26px;font-size:10px;color:#888;text-align:center;line-height:1.6}
-  @media print{ body{padding:0} .noprint{display:none} }
-  .noprint{margin-bottom:14px}
-  .noprint button{font-size:13px;padding:9px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer}
-</style></head><body>
-  <div class="noprint"><button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>
-  <div class="head">
-    <div>
-      <h1>Pedido #${o.id}</h1>
-      <div class="marca">REC Eyewear</div>
+function modalPago(id){
+  const o = ORDERS.find(x => x.id === id);
+  abrirModal(`
+    <h3>Cobro parcial</h3>
+    <p class="sub">${esc((o.ship&&o.ship.razon_social) || o.name)} · te debe <b>${fmt(debe(o))}</b> de ${fmt(o.total)}.</p>
+    <label>¿Cuánto te pagó?</label>
+    <input type="number" id="pMonto" inputmode="numeric" placeholder="${debe(o)}">
+    <div class="fila">
+      <div><label>¿Cómo?</label>
+        <select id="pMedio">
+          <option>Transferencia</option><option>Efectivo</option><option>Cheque</option>
+          <option>Echeq</option><option>Otro</option>
+        </select></div>
+      <div><label>Cuándo</label><input type="date" id="pFecha" value="${hoyISO()}"></div>
     </div>
-    <div class="der">${fecha}<br>Estado: ${esc(o.status || '')}</div>
-  </div>
-  <div class="cliente">
-    <span class="lbl">Cliente</span>
-    <span class="nom">${esc(o.name || '—')}</span><br>
-    ${esc(o.email || '')}
-  </div>
-  ${bloques || '<p>El pedido no tiene items.</p>'}
-  <div class="grand">
-    <span>Total <span class="u">(${totalUnidades} unidades)</span></span>
-    <span class="n">${fmt(totalPesos)}</span>
-  </div>
-  <div class="pie">Precios en pesos. Este comprobante no es factura.</div>
-  <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
-</body></html>`;
-
-  abrirParaImprimir(html);
+    <label>Nota</label>
+    <input type="text" id="pNota" placeholder="Cheque a 30 días, vence 20/9…">
+    <div class="mfoot">
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" onclick="guardarPago(${id})">Registrar</button>
+    </div>`);
+}
+async function guardarPago(id){
+  const monto = Number(document.getElementById('pMonto').value);
+  if(!(monto > 0)) return alert('Poné cuánto te pagó.');
+  try{
+    await post({ id, pago:{ monto, medio: document.getElementById('pMedio').value,
+      nota: document.getElementById('pNota').value, fecha: document.getElementById('pFecha').value } });
+    cerrarModal(); await cargar(); showToast('Cobro registrado');
+  }catch(e){ alert(e.message); }
 }
 
-// arranque
-if(session && session.user && session.user.admin) showPanel();
-else initGoogle();
+async function borrarPagos(id){
+  if(!confirm('¿Borrar todos los cobros de este pedido?')) return;
+  try{ await post({ id, resetPagos:true }); await cargar(); }catch(e){ alert(e.message); }
+}
+async function borrarPedido(id){
+  if(!confirm('¿Borrar el pedido #'+id+'? No se puede deshacer.')) return;
+  try{ await post({ id, borrar:true }); await cargar(); }catch(e){ alert(e.message); }
+}
+
+function editarNota(id){
+  const o = ORDERS.find(x => x.id === id);
+  abrirModal(`<h3>Nota del pedido</h3><p class="sub">Solo la ves vos.</p>
+    <textarea id="nTxt" rows="3">${esc(o.nota||'')}</textarea>
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarNota(${id})">Guardar</button></div>`);
+}
+async function guardarNota(id){
+  try{ await post({ id, nota: document.getElementById('nTxt').value }); cerrarModal(); await cargar(); }
+  catch(e){ alert(e.message); }
+}
+
+/* ---------- dólar y costos ---------- */
+function editarDolar(){
+  abrirModal(`<h3>Dólar</h3>
+    <p class="sub">Se usa para pasar a pesos lo que te cuesta Martín. Hoy: <b>${Number(USD.valor||0).toLocaleString('es-AR')}</b> (${esc(USD.fuente||'')}).</p>
+    <label>Ponerlo a mano</label><input type="number" id="uVal" value="${Number(USD.valor||0)}">
+    <div class="mfoot"><button class="b q" onclick="dolarAuto()">Seguir el blue</button>
+    <button class="b p" style="flex:none" onclick="dolarManual()">Fijar</button></div>`);
+}
+async function dolarManual(){
+  const valor = Number(document.getElementById('uVal').value);
+  if(!(valor > 0)) return alert('Poné un valor.');
+  try{ await post({ usd:{ valor } }); cerrarModal(); await cargar(); }catch(e){ alert(e.message); }
+}
+async function dolarAuto(){
+  try{ await post({ usd:{ auto:true } }); cerrarModal(); await cargar(); }catch(e){ alert(e.message); }
+}
+
+function editarCostos(){
+  const lineas = [...new Set([...SIN_MAPEAR, ...COSTMAP.map(c => c.patron)])].sort();
+  abrirModal(`<h3>Costo de cada línea</h3>
+    <p class="sub">Qué artículo de la lista de Martín es cada línea del catálogo. El número son las unidades que trae el ítem (los packs vienen de a 50, 100 o 500).</p>
+    ${lineas.map((l,i) => {
+      const m = COSTMAP.find(c => c.patron === l) || {};
+      return `<div class="qrow" style="grid-template-columns:1fr 1fr 66px">
+        <span class="qn">${esc(l)}</span>
+        <select id="ca${i}" onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
+          <option value="">— sin costo —</option>
+          ${ARTICULOS.map(a => `<option value="${esc(a)}"${m.articulo===a?' selected':''}>${esc(a)}</option>`).join('')}
+        </select>
+        <input type="number" id="cf${i}" value="${m.factor||1}" min="1"
+               onchange="guardarCosto(${i},'${esc(l).replace(/'/g,"\\'")}')">
+      </div>`;
+    }).join('')}
+    <div class="mfoot"><button class="b p" style="flex:none" onclick="cerrarModal();cargar()">Listo</button></div>`);
+}
+async function guardarCosto(i, patron){
+  try{
+    await post({ costmap:{ patron, articulo: document.getElementById('ca'+i).value,
+      factor: document.getElementById('cf'+i).value } });
+    showToast('Guardado');
+  }catch(e){ alert(e.message); }
+}
+
+/* ---------- editor de items ---------- */
+function itemsToText(items){
+  return (items||[]).map(it => `${it.name} | ${it.color || ''} | ${it.qty} | ${it.price}`).join('\n');
+}
+function textToItems(txt){
+  const items = [], errores = [];
+  String(txt||'').split(/\r?\n/).forEach((raw,i) => {
+    const line = raw.trim(); if(!line) return;
+    const p = line.split('|').map(x => x.trim());
+    if(p.length < 4){ errores.push('Renglón '+(i+1)+': van 4 campos separados por |'); return; }
+    const qty = parseInt(p[2],10), price = Number(String(p[3]).replace(/[^\d.-]/g,''));
+    if(!p[0] || !(qty>0) || !isFinite(price)){ errores.push('Renglón '+(i+1)+': revisá los datos'); return; }
+    const m = p[0].match(/\(([^)]+)\)\s*$/);
+    items.push({ sku: m?m[1].trim():'', name:p[0], color:p[1]||null, qty, price });
+  });
+  if(!items.length && !errores.length) errores.push('No puede quedar vacío');
+  return { items, errores };
+}
+function editarItems(id){
+  const o = ORDERS.find(x => x.id === id);
+  abrirModal(`<h3>Editar el pedido #${id}</h3>
+    <p class="sub">Un renglón por item: <code>Línea (MODELO) | Color | Cantidad | Precio</code>. Borrá renglones para sacar cosas.</p>
+    <textarea class="mono" id="iTxt" rows="11" spellcheck="false">${esc(itemsToText(o.items))}</textarea>
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarItems(${id})">Guardar</button></div>`);
+}
+async function guardarItems(id){
+  const { items, errores } = textToItems(document.getElementById('iTxt').value);
+  if(errores.length) return alert(errores.join('\n'));
+  try{ await post({ id, items }); cerrarModal(); await cargar(); }catch(e){ alert(e.message); }
+}
+
+/* ---------- impresiones ---------- */
+function imprimir(html){
+  const w = window.open('', '_blank');
+  if(!w) return alert('Permití las ventanas emergentes.');
+  w.document.open(); w.document.write(html); w.document.close();
+}
+const HOJA = `*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0 auto;padding:18px;font-size:12px}
+h1{font-size:18px;margin:0;letter-spacing:.5px;text-transform:uppercase}
+.meta{font-size:11px;color:#555;margin-top:3px}
+.head{border-bottom:2px solid #111;padding-bottom:9px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:5px 4px;border-bottom:1px solid #eee}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#666;border-bottom:1px solid #bbb}
+td.q,th.q{text-align:right;width:46px;white-space:nowrap}
+td.m,th.m{text-align:right;width:92px;white-space:nowrap}
+h2{font-size:13px;margin:16px 0 5px;padding-bottom:4px;border-bottom:1px solid #ccc;display:flex;justify-content:space-between}
+.tot{margin-top:18px;border-top:2px solid #111;padding-top:11px;display:flex;justify-content:space-between;font-size:15px;font-weight:700}
+@media print{body{padding:0}.noprint{display:none}}
+.noprint{margin-bottom:14px}.noprint button{font-size:13px;padding:10px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:7px;cursor:pointer;width:100%}`;
+
+function pdfProveedor(id){
+  const o = ORDERS.find(x => x.id === id); if(!o) return;
+  const lineas = porLinea(o.items);
+  const total = lineas.reduce((a,l) => a + l.qty, 0);
+  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id} para Martín</title>
+<style>@page{size:105mm auto;margin:7mm 6mm}${HOJA}body{max-width:105mm}</style></head><body>
+<div class="noprint"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>
+<div class="head"><h1>Pedido #${o.id}</h1><div class="meta">REC Eyewear · ${new Date(o.created_at).toLocaleDateString('es-AR')}</div></div>
+${lineas.map(l => `<h2><span>${esc(l.linea)}</span><span>${l.qty} u.</span></h2>
+<table><thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th></tr></thead><tbody>
+${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'—')}</td><td class="q">${m.qty}</td></tr>`).join('')}
+</tbody></table>`).join('')}
+<div class="tot"><span>Total</span><span>${total} anteojos</span></div>
+<script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
+}
+
+function pdfCliente(id){
+  const o = ORDERS.find(x => x.id === id); if(!o) return;
+  const sh = o.ship || {}, dir = sh.direccion || {};
+  const lineas = porLinea(o.items);
+  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id}</title>
+<style>@page{size:A4;margin:14mm 12mm}${HOJA}body{max-width:190mm}
+.cli{background:#f5f5f5;border:1px solid #e2e2e2;border-radius:6px;padding:11px 13px;margin-bottom:16px;line-height:1.7}</style></head><body>
+<div class="noprint"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>
+<div class="head"><h1>Pedido #${o.id}</h1><div class="meta">REC Eyewear · ${new Date(o.created_at).toLocaleDateString('es-AR')}</div></div>
+<div class="cli"><b>${esc(sh.razon_social || o.name || '—')}</b>${sh.dni_cuit?' · DNI/CUIT '+esc(sh.dni_cuit):''}<br>
+${esc(dir.texto||'')}${dir.piso?' · '+esc(dir.piso):''}<br>${esc(sh.telefono||'')} ${esc(o.email||'')}</div>
+${lineas.map(l => `<h2><span>${esc(l.linea)}</span><span>${fmt(l.total)}</span></h2>
+<table><thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th><th class="m">Subtotal</th></tr></thead><tbody>
+${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'—')}</td><td class="q">${m.qty}</td><td class="m"></td></tr>`).join('')}
+</tbody></table>`).join('')}
+<div class="tot"><span>Total</span><span>${fmt(o.total)}</span></div>
+${cobrado(o) ? `<div class="tot" style="border-top:none;font-size:13px"><span>Cobrado</span><span>${fmt(cobrado(o))}</span></div>
+<div class="tot" style="border-top:none;font-size:13px"><span>Saldo</span><span>${fmt(debe(o))}</span></div>` : ''}
+<p style="margin-top:24px;font-size:10px;color:#888;text-align:center">Precios en pesos. Este comprobante no es factura.</p>
+<script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
+}
+
+function etiqueta(id){
+  const o = ORDERS.find(x => x.id === id); if(!o) return;
+  const sh = o.ship || {}, dir = sh.direccion || {};
+  if(!sh.razon_social) return alert('Este pedido no tiene datos de envío cargados.');
+  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiqueta ${o.id}</title>
+<style>@page{size:100mm 70mm;margin:5mm}
+body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0;padding:8px;font-size:13px;line-height:1.5}
+.de{font-size:10px;color:#555;border-bottom:1px solid #999;padding-bottom:5px;margin-bottom:9px}
+.para{font-size:10px;letter-spacing:1px;color:#666;text-transform:uppercase}
+.nom{font-size:17px;font-weight:bold;margin:2px 0 4px;text-transform:uppercase}
+.dir{font-size:14px}
+.pie{margin-top:10px;padding-top:6px;border-top:1px solid #999;font-size:11px;display:flex;justify-content:space-between}
+@media print{body{padding:0}.noprint{display:none}}
+.noprint button{font-size:13px;padding:9px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer;width:100%;margin-bottom:10px}</style></head><body>
+<div class="noprint"><button onclick="window.print()">Imprimir etiqueta</button></div>
+<div class="de">REC EYEWEAR · visionline.com.ar · 11 6032-0008</div>
+<div class="para">Enviar a</div>
+<div class="nom">${esc(sh.razon_social)}</div>
+<div class="dir">${esc(dir.texto||'')}${dir.piso?'<br>'+esc(dir.piso):''}</div>
+<div class="dir">${esc(sh.telefono||'')}</div>
+<div class="pie"><span>DNI/CUIT ${esc(sh.dni_cuit||'—')}</span><span>Pedido #${o.id}</span></div>
+<script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
+}
+
+bootPanel(cargar);
 </script>
 </body>
 </html>

@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Clientes · REC Eyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="panel.css"/>
+<style>
+  .cli{background:var(--cd);border:1px solid var(--ln);border-radius:16px;padding:16px 18px;margin-bottom:9px;
+    display:flex;gap:14px;align-items:flex-start;cursor:pointer}
+  .cli:hover{border-color:var(--ln2)}
+  .cli .t{width:9px;height:9px;border-radius:50%;flex:none;margin-top:6px}
+  .t.compro{background:var(--ok)} .t.caliente{background:var(--no)}
+  .t.tibio{background:var(--al)} .t.esperar{background:var(--mt)} .t.frio{background:var(--ln2)}
+  .cli .cuerpo{flex:1;min-width:0}
+  .cli .nom{font-size:15.5px;font-weight:600;margin:0;letter-spacing:-.2px}
+  .cli .zona{font-size:12.5px;color:var(--mt);margin:3px 0 0}
+  .cli .acc{font-size:13.5px;color:var(--md);margin:8px 0 0;line-height:1.55}
+  .cli .acc.hoy{color:var(--no);font-weight:500}
+  .cli .der{text-align:right;white-space:nowrap}
+  .cli .der .m{font-size:15px;font-weight:600}
+  .cli .der .d{font-size:12.5px;color:var(--no);font-weight:500;margin-top:2px}
+  .cli .der .g{font-size:12.5px;color:var(--mt);margin-top:2px}
+  .busca{border:1px solid var(--ln2);border-radius:11px;padding:9px 14px;font-size:14px;
+    font-family:inherit;background:var(--cd);color:var(--tx);min-width:200px;flex:1;max-width:320px}
+  .busca:focus{outline:none;border-color:var(--tx)}
+  .hist{margin-top:6px}
+  .hist .it{padding:11px 0;border-bottom:1px solid var(--ln);font-size:13.5px;line-height:1.6}
+  .hist .it:last-child{border-bottom:none}
+  .hist .f{font-size:11.5px;color:var(--mt);display:block;margin-bottom:2px}
+  .link{background:var(--azbg);border-radius:12px;padding:12px 15px;font-size:13px;color:#2c4d70;
+    line-height:1.8;margin-bottom:16px}
+  .link b{cursor:pointer;text-decoration:underline;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>REC</h1>
+  <nav class="tabs">
+    <a href="admin.html">Pedidos</a>
+    <a href="crm.html" class="on">Clientes</a>
+    <a href="proveedor.html">Martín</a>
+  </nav>
+  <div class="who" id="who"></div>
+</header>
+
+<div class="wrap" id="gate">
+  <div class="gate">
+    <h2>Clientes</h2>
+    <p>Entrá con la cuenta de Google de siempre.</p>
+    <div id="gbtn"></div>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</div>
+
+<div class="wrap" id="panel" style="display:none">
+  <div class="top">
+    <div>
+      <h2>Clientes</h2>
+      <div class="sub" id="subtitulo"></div>
+    </div>
+    <div class="der">
+      <button class="b sm" onclick="nuevoCliente()">+ Cliente</button>
+      <button class="b sm q" onclick="modalImportar()">Importar</button>
+    </div>
+  </div>
+  <div class="top" style="margin-bottom:14px">
+    <input class="busca" id="q" placeholder="Buscar por nombre, zona o comentario…" oninput="pintar()">
+  </div>
+  <div class="filtros" id="filtros"></div>
+  <div id="huerfanos"></div>
+  <div id="lista"></div>
+</div>
+
+<div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+
+<script src="panel.js"></script>
+<script>
+const ESTADOS = [['compro','Compró'],['caliente','Caliente'],['tibio','Tibio'],['esperar','Esperar'],['frio','Frío']];
+const NOM = Object.fromEntries(ESTADOS);
+const PESO = { compro:0, caliente:1, tibio:2, esperar:3, frio:4 };
+let CLIENTES = [], WEB = [], filtro = 'hoy';
+
+async function cargar(){
+  const lista = document.getElementById('lista');
+  if(!CLIENTES.length) lista.innerHTML = '<div class="empty">Cargando…</div>';
+  try{
+    const d = await api('/api/crm');
+    CLIENTES = d.clientes || []; WEB = d.web || [];
+    pintar();
+  }catch(e){
+    if(esSesion(e)) return logout();
+    lista.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+const web = c => c.email ? WEB.find(w => w.email === String(c.email).toLowerCase()) : null;
+const paraHoy = c => !!c.fecha_accion && c.fecha_accion <= hoyISO();
+function debeCliente(c){
+  const w = web(c);
+  return w ? Math.max(0, Number(w.total) - Number(w.cobrado)) : Number(c.pendiente) || 0;
+}
+
+function pintar(){
+  const q = (document.getElementById('q').value || '').toLowerCase().trim();
+  const hoy = CLIENTES.filter(paraHoy).length;
+  const deben = CLIENTES.reduce((a,c) => a + debeCliente(c), 0);
+  document.getElementById('subtitulo').textContent =
+    CLIENTES.length + ' en la lista · ' + (hoy ? hoy + ' para contactar hoy' : 'ninguno pendiente') +
+    (deben ? ' · te deben ' + fmt(deben) : '');
+
+  const cuenta = { hoy, todos: CLIENTES.length };
+  ESTADOS.forEach(([k]) => { cuenta[k] = CLIENTES.filter(c => c.estado === k).length; });
+  document.getElementById('filtros').innerHTML =
+    [['hoy','Para hoy'],['todos','Todos'],...ESTADOS]
+      .map(([k,t]) => `<button class="chip${filtro===k?' on':''}" onclick="verFiltro('${k}')">${t}<b>${cuenta[k]||0}</b></button>`).join('');
+
+  const enCrm = new Set(CLIENTES.map(c => (c.email||'').toLowerCase()).filter(Boolean));
+  const sueltos = WEB.filter(w => !enCrm.has(w.email));
+  document.getElementById('huerfanos').innerHTML = sueltos.length
+    ? `<div class="link">Compraron por la web y no están en la lista:
+        ${sueltos.map(w => `<b onclick="altaDesdeWeb('${esc(w.email)}')">${esc(w.name||w.email)}</b>`).join(' · ')}
+        — tocá el nombre para darlo de alta.</div>` : '';
+
+  const filtrados = CLIENTES.filter(c => {
+    if(filtro === 'hoy' && !paraHoy(c)) return false;
+    if(filtro !== 'hoy' && filtro !== 'todos' && c.estado !== filtro) return false;
+    if(!q) return true;
+    return [c.nombre,c.zona,c.resumen,c.proxima_accion,c.email,c.telefono]
+      .some(v => String(v||'').toLowerCase().includes(q));
+  }).sort((a,b) => {
+    const va = paraHoy(a)?0:1, vb = paraHoy(b)?0:1;
+    if(va !== vb) return va - vb;
+    const pa = PESO[a.estado] ?? 9, pb = PESO[b.estado] ?? 9;
+    if(pa !== pb) return pa - pb;
+    if(va === 0) return String(a.fecha_accion).localeCompare(String(b.fecha_accion));
+    return String(b.ultimo_contacto||'').localeCompare(String(a.ultimo_contacto||''));
+  });
+
+  document.getElementById('lista').innerHTML = filtrados.length
+    ? filtrados.map(fila).join('')
+    : `<div class="empty">${filtro==='hoy' ? 'No tenés a nadie pendiente de contactar. 👌' : 'Nadie con ese filtro.'}</div>`;
+}
+function verFiltro(f){ filtro = f; pintar(); }
+
+function fila(c){
+  const w = web(c);
+  const dias = diasDesde(c.ultimo_contacto);
+  const comprado = w ? Number(w.total) : Number(c.comprado) || 0;
+  const deuda = debeCliente(c);
+  return `<div class="cli" onclick="verCliente(${c.id})">
+    <span class="t ${c.estado}" title="${NOM[c.estado]||''}"></span>
+    <div class="cuerpo">
+      <p class="nom">${esc(c.nombre)}</p>
+      <p class="zona">${esc(c.zona || 'sin zona')}${dias!=null ? ' · hace ' + dias + (dias===1?' día':' días') : ' · sin contacto'}</p>
+      ${c.proxima_accion ? `<p class="acc ${paraHoy(c)?'hoy':''}">${esc(c.proxima_accion)}${c.fecha_accion ? ' · ' + (paraHoy(c) ? 'era para el ' + fechaCorta(c.fecha_accion) : fechaCorta(c.fecha_accion)) : ''}</p>` : ''}
+    </div>
+    <div class="der">
+      ${comprado ? `<div class="m">${fmt(comprado)}</div>` : ''}
+      ${deuda ? `<div class="d">debe ${fmt(deuda)}</div>` : (comprado ? '<div class="g">al día</div>' : '')}
+    </div>
+  </div>`;
+}
+
+/* ---------- ficha ---------- */
+let FICHA = null;
+async function verCliente(id){
+  abrirModal('<p class="sub">Cargando…</p>');
+  try{
+    const d = await api('/api/crm?id=' + id);
+    FICHA = d;
+    pintarFicha();
+  }catch(e){ abrirModal('<p class="sub">' + esc(e.message) + '</p>'); }
+}
+
+function pintarFicha(){
+  const { cliente:c, eventos, pedidos, pagos } = FICHA;
+  const tel = String(c.telefono||'').replace(/\D/g,'');
+  const total = (pedidos||[]).reduce((a,p) => a + p.total, 0);
+  const cob = (pedidos||[]).reduce((a,p) => a + p.cobrado, 0);
+  const saldo = Math.max(0, total - cob);
+
+  abrirModal(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><h3>${esc(c.nombre)}</h3>
+        <p class="sub" style="margin-bottom:0">${esc(c.zona||'sin zona')}
+        ${tel ? ` · <a href="https://wa.me/${tel}" target="_blank">WhatsApp</a>` : ''}
+        ${c.email ? ' · ' + esc(c.email) : ''}</p></div>
+      <span class="t ${c.estado}" style="width:10px;height:10px;border-radius:50%;margin-top:8px;flex:none;display:block"></span>
+    </div>
+
+    ${c.resumen ? `<p class="sub" style="color:var(--md);margin-top:14px">${esc(c.resumen)}</p>` : ''}
+    ${c.proxima_accion ? `<div class="aviso" style="margin-bottom:4px">${esc(c.proxima_accion)}${c.fecha_accion?' · '+fechaCorta(c.fecha_accion):''}</div>` : ''}
+
+    ${(pedidos||[]).length ? `<div class="det"><h4>Cuenta corriente</h4>
+      <div class="dato"><span>Compró</span><span class="num">${fmt(total)}</span></div>
+      <div class="dato"><span>Pagó</span><span class="num">${fmt(cob)}</span></div>
+      <div class="dato"><span><b>Te debe</b></span><span class="num"><b style="color:${saldo?'var(--no)':'var(--ok)'}">${saldo ? fmt(saldo) : 'nada'}</b></span></div>
+      ${pedidos.map(p => `<div class="dato" style="font-size:12.5px;color:var(--mt)">
+        <span>#${p.id} · ${fechaCorta(p.created_at)}</span>
+        <span class="num">${fmt(p.total)}${p.total-p.cobrado>0 ? ' · debe ' + fmt(p.total-p.cobrado) : ' · pagado'}</span></div>`).join('')}
+      ${saldo ? `<button class="b p" style="width:100%;margin-top:12px" onclick="modalCobro(${c.id},${saldo})">Registrar un pago</button>` : ''}
+      </div>` : (c.email ? '' : `<div class="det"><h4>Cuenta corriente</h4>
+        <div class="dato"><span>Cargale el mail para engancharlo con sus pedidos de la web.</span></div></div>`)}
+
+    <div class="det"><h4>Anotar un contacto</h4>
+      <textarea id="evTxt" rows="3" placeholder="Qué hablaron, qué quedó…"></textarea>
+      <div class="fila" style="margin-top:10px">
+        <div><label>Estado</label><select id="evEst">
+          ${ESTADOS.map(([k,t]) => `<option value="${k}"${c.estado===k?' selected':''}>${t}</option>`).join('')}
+        </select></div>
+        <div><label>Cuándo lo retomás</label><input type="date" id="evCuando" value="${esc(c.fecha_accion||'')}"></div>
+      </div>
+      <label>Qué hay que hacer</label>
+      <input type="text" id="evAcc" value="${esc(c.proxima_accion||'')}" placeholder="Llamarlo, mandarle el link…">
+      <button class="b p" style="width:100%;margin-top:14px" onclick="guardarEvento(${c.id})">Guardar</button>
+    </div>
+
+    ${eventos.length ? `<div class="det"><h4>Historial · ${eventos.length}</h4>
+      <div class="hist">${eventos.map(e => `<div class="it"><span class="f">${fechaCorta(e.fecha)}</span>${esc(e.texto)}</div>`).join('')}</div>
+      </div>` : ''}
+
+    <div class="mfoot">
+      <button class="b q mal" onclick="borrarCliente(${c.id})">Borrar</button>
+      <button class="b q" onclick="editarCliente(${c.id})">Editar ficha</button>
+      <button class="b" onclick="cerrarModal()">Cerrar</button>
+    </div>`);
+}
+
+async function guardarEvento(id){
+  const texto = document.getElementById('evTxt').value.trim();
+  if(!texto) return alert('Escribí qué pasó.');
+  try{
+    await api('/api/crm', { method:'POST', body: JSON.stringify({ id, evento:{
+      texto, fecha: hoyISO(), estado: document.getElementById('evEst').value,
+      proxima_accion: document.getElementById('evAcc').value,
+      fecha_accion: document.getElementById('evCuando').value } }) });
+    cerrarModal(); showToast('Anotado'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+function modalCobro(id, saldo){
+  abrirModal(`<h3>Registrar un pago</h3>
+    <p class="sub">Se reparte solo entre sus pedidos impagos, del más viejo al más nuevo. Te debe <b>${fmt(saldo)}</b>.</p>
+    <label>¿Cuánto te pagó?</label><input type="number" id="coMonto" placeholder="${saldo}">
+    <div class="fila">
+      <div><label>¿Cómo?</label><select id="coMedio">
+        <option>Transferencia</option><option>Efectivo</option><option>Cheque</option>
+        <option>Echeq</option><option>Otro</option></select></div>
+      <div><label>Cuándo</label><input type="date" id="coFecha" value="${hoyISO()}"></div>
+    </div>
+    <label>Nota</label><input type="text" id="coNota" placeholder="Cheque a 30 días…">
+    <div class="mfoot"><button class="b q" onclick="verCliente(${id})">Volver</button>
+    <button class="b p" style="flex:none" onclick="guardarCobro(${id})">Registrar</button></div>`);
+}
+async function guardarCobro(id){
+  const monto = Number(document.getElementById('coMonto').value);
+  if(!(monto > 0)) return alert('Poné cuánto te pagó.');
+  try{
+    const r = await api('/api/crm', { method:'POST', body: JSON.stringify({ id, cobro:{
+      monto, medio: document.getElementById('coMedio').value,
+      nota: document.getElementById('coNota').value, fecha: document.getElementById('coFecha').value } }) });
+    cerrarModal();
+    showToast(r.sobrante ? 'Cargado. Sobraron ' + fmt(r.sobrante) : 'Pago cargado');
+    await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+/* ---------- alta y edición ---------- */
+function formCliente(c){
+  c = c || {};
+  return `
+    <div class="fila">
+      <div><label>Nombre</label><input id="cNom" value="${esc(c.nombre||'')}"></div>
+      <div><label>Zona</label><input id="cZona" value="${esc(c.zona||'')}" placeholder="CUYO - Mendoza"></div>
+    </div>
+    <div class="fila">
+      <div><label>Teléfono</label><input id="cTel" value="${esc(c.telefono||'')}"></div>
+      <div><label>Mail de la web</label><input id="cMail" value="${esc(c.email||'')}"></div>
+    </div>
+    <div class="fila">
+      <div><label>Estado</label><select id="cEst">
+        ${ESTADOS.map(([k,t]) => `<option value="${k}"${c.estado===k?' selected':''}>${t}</option>`).join('')}
+      </select></div>
+      <div><label>Último contacto</label><input type="date" id="cUlt" value="${esc(c.ultimo_contacto||'')}"></div>
+    </div>
+    <label>Situación</label>
+    <textarea id="cRes" rows="3">${esc(c.resumen||'')}</textarea>
+    <div class="fila">
+      <div><label>Próxima acción</label><input id="cAcc" value="${esc(c.proxima_accion||'')}"></div>
+      <div><label>¿Cuándo?</label><input type="date" id="cCuando" value="${esc(c.fecha_accion||'')}"></div>
+    </div>`;
+}
+function nuevoCliente(){
+  abrirModal('<h3>Nuevo cliente</h3><p class="sub">Con el nombre alcanza; el resto lo vas completando.</p>'
+    + formCliente({}) + `<div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarCliente()">Guardar</button></div>`);
+}
+function editarCliente(id){
+  const c = CLIENTES.find(x => x.id === id);
+  abrirModal('<h3>Editar ficha</h3>' + formCliente(c) + `<div class="mfoot">
+    <button class="b q" onclick="verCliente(${id})">Volver</button>
+    <button class="b p" style="flex:none" onclick="guardarCliente(${id})">Guardar</button></div>`);
+}
+function altaDesdeWeb(email){
+  const w = WEB.find(x => x.email === email);
+  abrirModal('<h3>Nuevo cliente</h3><p class="sub">Lo traje del pedido que hizo por la web.</p>'
+    + formCliente({ nombre:(w&&w.name)||email, email, estado:'compro' })
+    + `<div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarCliente()">Guardar</button></div>`);
+}
+async function guardarCliente(id){
+  const v = x => document.getElementById(x).value;
+  if(!v('cNom').trim()) return alert('Poné al menos el nombre.');
+  try{
+    await api('/api/crm', { method:'POST', body: JSON.stringify({ cliente:{
+      id, nombre:v('cNom'), zona:v('cZona'), telefono:v('cTel'), email:v('cMail'),
+      estado:v('cEst'), ultimo_contacto:v('cUlt'), resumen:v('cRes'),
+      proxima_accion:v('cAcc'), fecha_accion:v('cCuando') } }) });
+    cerrarModal(); showToast('Guardado'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+async function borrarCliente(id){
+  if(!confirm('¿Borrar este cliente y todo su historial?')) return;
+  try{ await api('/api/crm', { method:'POST', body: JSON.stringify({ id, borrar:true }) });
+    cerrarModal(); await cargar(); }catch(e){ alert(e.message); }
+}
+
+/* ---------- importador ---------- */
+function modalImportar(){
+  abrirModal(`<h3>Importar clientes</h3>
+    <p class="sub">Copiá el listado de Excel o de una tabla y pegalo con la fila de títulos incluida.
+      Los que ya existan se actualizan, no se duplican.</p>
+    <textarea class="mono" id="impTxt" rows="9" placeholder="CLIENTE	ZONA	ESTADO	..."></textarea>
+    <label style="display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13.5px;color:var(--md)">
+      <input type="checkbox" id="impMiles" style="width:auto">
+      Los montos están en miles (702 = $702.000)</label>
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="importar()">Importar</button></div>`);
+}
+async function importar(){
+  const texto = document.getElementById('impTxt').value;
+  if(!texto.trim()) return alert('Pegá el listado primero.');
+  try{
+    const r = await api('/api/crm', { method:'POST', body: JSON.stringify({
+      importar: texto, miles: document.getElementById('impMiles').checked }) });
+    cerrarModal(); showToast(r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
+bootPanel(cargar);
+</script>
+</body>
+</html>
