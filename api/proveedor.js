@@ -5,7 +5,7 @@
 //   GET                        -> lista de proveedores + la cuenta del elegido
 //   GET ?proveedor=ID          -> la cuenta de ese
 //   GET ?pedido=N              -> borrador de entrega a partir de un pedido
-//   POST { entrega|pago|ajuste|consignacion|precio|proveedor|nuevo|invitacion }
+//   POST { entrega|pago|ajuste|consignacion|editarConsign|precio|proveedor|nuevo|invitacion }
 const crypto = require('crypto');
 const { sql, ensureTables, splitNombre, norm, usdRate } = require('./_db');
 const { getSession, ADMIN_EMAIL } = require('./_auth');
@@ -272,6 +272,27 @@ module.exports = async (req, res) => {
             VALUES (${destino.id}, COALESCE(${fecha}::date, CURRENT_DATE), 'PEDIDO', ${monto}, ${monto},
                     'Consignación que me quedo', ${JSON.stringify(items)}::jsonb)`;
         }
+        return res.status(200).json({ ok: true });
+      }
+
+      /* ----- Corregir una línea de consignación ya cargada ----- */
+      if (b.editarConsign) {
+        const id = parseInt(b.editarConsign.id, 10);
+        const articulo = String(b.editarConsign.articulo || '').trim().slice(0, 80);
+        const cantidad = parseInt(b.editarConsign.cantidad, 10);
+        const precio = Math.round((Number(b.editarConsign.precio) || 0) * 100) / 100;
+        if (!id) return res.status(400).json({ error: 'Falta la línea' });
+        if (!articulo) return res.status(400).json({ error: 'Falta el artículo' });
+        if (!cantidad) return res.status(400).json({ error: 'La cantidad no puede ser cero' });
+        if (precio < 0) return res.status(400).json({ error: 'El precio no puede ser negativo' });
+        const [row] = await sql`UPDATE supplier_consign
+            SET articulo = ${articulo}, cantidad = ${cantidad},
+                precio = ${precio}, precio_usd = ${precio},
+                fecha = COALESCE(${fecha}::date, fecha),
+                nota = ${b.editarConsign.nota ? String(b.editarConsign.nota).slice(0, 200) : null}
+          WHERE id = ${id} AND supplier_id = ${destino.id}
+          RETURNING id`;
+        if (!row) return res.status(404).json({ error: 'No existe esa línea' });
         return res.status(200).json({ ok: true });
       }
 

@@ -21,6 +21,8 @@
   .mov .ss{font-size:12.5px;color:var(--mt);margin-top:2px}
   .mov .x{background:none;border:none;color:var(--ln2);font-size:16px;padding:0 0 0 8px;align-self:center}
   .mov .x:hover{color:var(--no)}
+  .mov .x.ed{font-size:13.5px;padding-left:10px}
+  .mov .x.ed:hover{color:var(--tx)}
   .caja{background:var(--cd);border:1px solid var(--ln);border-radius:18px;padding:6px 24px;margin-bottom:14px}
   .cabe{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0 11px;
     border-bottom:1px solid var(--ln);margin-bottom:2px}
@@ -177,7 +179,8 @@ function pintar(){
             <div class="mm ${c.cantidad > 0 ? 'sube' : 'baja'}">${c.cantidad > 0 ? '+' : ''}${c.cantidad} u.</div>
             <div class="ss num">${plata(c.cantidad * Number(c.precio), P.moneda)}</div>
           </div>
-          ${ro ? '' : `<button class="x" onclick="borrar('borrarConsign',${c.id})">×</button>`}
+          ${ro ? '' : `<button class="x ed" title="Corregir" onclick="modalEditarConsign(${c.id})">✎</button>
+            <button class="x" title="Borrar" onclick="borrar('borrarConsign',${c.id},'esta línea de consignación')">×</button>`}
         </div></div>`).join('') : ''}
       <button class="plegar" onclick="verMovCons=!verMovCons;pintar()">
         ${verMovCons ? 'Ocultar' : 'Ver los ' + D.consignacion.length + ' movimientos'}</button>
@@ -340,6 +343,44 @@ async function guardarConsig(){
   }catch(e){ alert(e.message); }
 }
 
+/* ---------- corregir una linea de consignacion ---------- */
+function modalEditarConsign(id){
+  const c = D.consignacion.find(x => x.id === id);
+  if(!c) return;
+  abrirModal(`<h3>Corregir consignación</h3>
+    <p class="sub">Se toca <b>solo esta línea</b>. Si ese día cargaste varios artículos,
+      los otros quedan como están. Para sacar un artículo del movimiento, borralo con la ×.</p>
+    <div class="fila">
+      <div><label>Cuándo</label><input type="date" id="ecFecha" value="${String(c.fecha).slice(0,10)}"></div>
+      <div><label>Qué pasó</label><select id="ecTipo">
+        <option value="deja"${c.cantidad > 0 ? ' selected' : ''}>Me dejó mercadería</option>
+        <option value="saca"${c.cantidad < 0 ? ' selected' : ''}>Salió de consignación</option></select></div>
+    </div>
+    <label>Artículo</label><input id="ecArt" value="${esc(c.articulo)}">
+    <div class="fila">
+      <div><label>Cantidad</label><input type="number" min="1" id="ecCant" value="${Math.abs(c.cantidad)}"></div>
+      <div><label>Precio por unidad (${unidad()})</label>
+        <input type="number" step="0.01" id="ecPre" value="${Number(c.precio)}"></div>
+    </div>
+    <label>Nota</label><input id="ecNota" value="${esc(c.nota || '')}" placeholder="Opcional">
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarEditConsign(${id})">Guardar</button></div>`);
+}
+async function guardarEditConsign(id){
+  const articulo = document.getElementById('ecArt').value.trim();
+  const cantidad = Math.abs(parseInt(document.getElementById('ecCant').value, 10) || 0);
+  const precio = Number(document.getElementById('ecPre').value) || 0;
+  if(!articulo) return alert('Falta el artículo.');
+  if(!cantidad) return alert('La cantidad tiene que ser mayor a cero.');
+  const signo = document.getElementById('ecTipo').value === 'deja' ? 1 : -1;
+  try{
+    await post({ fecha: document.getElementById('ecFecha').value,
+      editarConsign:{ id, articulo, cantidad: signo * cantidad, precio,
+                      nota: document.getElementById('ecNota').value } });
+    cerrarModal(); showToast('Corregido'); await cargar();
+  }catch(e){ alert(e.message); }
+}
+
 function modalPrecios(){
   abrirModal(`<h3>Precios de ${esc(D.proveedor.nombre)}</h3>
     <p class="sub">Lo que te cobra por unidad, en ${unidad()}. De acá sale el costo de cada pedido.</p>
@@ -482,8 +523,8 @@ function mandarPorWhatsApp(){
   window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
 }
 
-async function borrar(campo, id){
-  if(!confirm('¿Borrar este movimiento?')) return;
+async function borrar(campo, id, que){
+  if(!confirm('¿Borrar ' + (que || 'este movimiento') + '?')) return;
   try{ const b = {}; b[campo] = id; await post(b); await cargar(); }
   catch(e){ alert(e.message); }
 }
