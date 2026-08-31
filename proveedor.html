@@ -23,6 +23,9 @@
   .mov .x:hover{color:var(--no)}
   .mov .x.ed{font-size:13.5px;padding-left:10px}
   .mov .x.ed:hover{color:var(--tx)}
+  .modal .chk{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--md);
+    line-height:1.55;margin:10px 0 4px;font-weight:400}
+  .modal .chk input{width:auto;margin:2px 0 0;flex:none}
   .caja{background:var(--cd);border:1px solid var(--ln);border-radius:18px;padding:6px 24px;margin-bottom:14px}
   .cabe{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0 11px;
     border-bottom:1px solid var(--ln);margin-bottom:2px}
@@ -56,6 +59,7 @@
     <a href="admin.html">Pedidos</a>
     <a href="crm.html">Clientes</a>
     <a href="proveedor.html" class="on">Proveedores</a>
+    <a href="cupones.html">Cupones</a>
   </nav>
   <div class="who" id="who"></div>
 </header>
@@ -347,6 +351,9 @@ async function guardarConsig(){
 function modalEditarConsign(id){
   const c = D.consignacion.find(x => x.id === id);
   if(!c) return;
+  // Cuántos otros renglones comparten el nombre del artículo.
+  const otros = D.consignacion.filter(x => x.id !== id &&
+    String(x.articulo).toUpperCase() === String(c.articulo).toUpperCase()).length;
   abrirModal(`<h3>Corregir consignación</h3>
     <p class="sub">Se toca <b>solo esta línea</b>. Si ese día cargaste varios artículos,
       los otros quedan como están. Para sacar un artículo del movimiento, borralo con la ×.</p>
@@ -357,6 +364,9 @@ function modalEditarConsign(id){
         <option value="saca"${c.cantidad < 0 ? ' selected' : ''}>Salió de consignación</option></select></div>
     </div>
     <label>Artículo</label><input id="ecArt" value="${esc(c.articulo)}">
+    ${otros ? `<label class="chk"><input type="checkbox" id="ecTodos" checked>
+      Si le cambio el nombre, cambiarlo también en ${otros === 1 ? 'el otro movimiento' : 'los otros ' + otros + ' movimientos'}
+      de <b>${esc(c.articulo)}</b>, en la lista de precios y en el mapeo de la web</label>` : ''}
     <div class="fila">
       <div><label>Cantidad</label><input type="number" min="1" id="ecCant" value="${Math.abs(c.cantidad)}"></div>
       <div><label>Precio por unidad (${unidad()})</label>
@@ -373,11 +383,19 @@ async function guardarEditConsign(id){
   if(!articulo) return alert('Falta el artículo.');
   if(!cantidad) return alert('La cantidad tiene que ser mayor a cero.');
   const signo = document.getElementById('ecTipo').value === 'deja' ? 1 : -1;
+  const c = D.consignacion.find(x => x.id === id);
+  const todos = document.getElementById('ecTodos');
+  const renombrarTodo = c && todos && todos.checked &&
+    articulo.toUpperCase() !== String(c.articulo).toUpperCase();
+  if(renombrarTodo && !confirm(`Se va a llamar «${articulo}» en todos los movimientos de `
+    + `«${c.articulo}», en la lista de precios y en el mapeo de la web. ¿Va?`)) return;
   try{
+    // Primero el nombre en todos lados, después el resto de esta línea.
+    if(renombrarTodo) await post({ renombrar:{ de: c.articulo, a: articulo } });
     await post({ fecha: document.getElementById('ecFecha').value,
       editarConsign:{ id, articulo, cantidad: signo * cantidad, precio,
                       nota: document.getElementById('ecNota').value } });
-    cerrarModal(); showToast('Corregido'); await cargar();
+    cerrarModal(); showToast(renombrarTodo ? 'Renombrado' : 'Corregido'); await cargar();
   }catch(e){ alert(e.message); }
 }
 

@@ -277,6 +277,39 @@ button{font-family:inherit;cursor:pointer}
 .wa-float{position:fixed;bottom:24px;right:24px;background:#25d366;color:#fff;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 18px rgba(37,211,102,.4);z-index:1500;transition:transform .2s}
 .wa-float:hover{transform:scale(1.08)}
 
+/* --- Barra que recuerda el cupón (queda fija abajo, al lado del WhatsApp) --- */
+.vbar{position:fixed;bottom:24px;left:24px;right:88px;z-index:1490;display:none;
+  align-items:center;gap:14px;background:#1a1a1a;color:#fff;border-radius:12px;
+  padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,.28);cursor:pointer;
+  font-size:13.5px;transform:translateY(90px);transition:transform .35s ease,background .25s}
+.vbar.on{display:flex;transform:translateY(0)}
+.vbar.listo{background:#15803d}
+.vbar-ico{font-size:20px;line-height:1;flex:none}
+.vbar-txt{flex:1;min-width:0;line-height:1.35}
+.vbar-txt b{font-weight:700}
+.vbar-sub{display:block;font-size:11.5px;opacity:.72;margin-top:2px}
+.vbar-prog{flex:none;width:130px;height:6px;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden}
+.vbar-prog i{display:block;height:100%;background:#fff;border-radius:99px;transition:width .35s ease}
+.vbar-dias{flex:none;font-size:11.5px;opacity:.8;white-space:nowrap}
+.vbar-x{flex:none;background:none;border:none;color:rgba(255,255,255,.55);font-size:16px;
+  cursor:pointer;padding:0 2px;line-height:1}
+.vbar-x:hover{color:#fff}
+/* Versión mínima, cuando lo cierran */
+.vpill{position:fixed;bottom:24px;left:24px;z-index:1490;display:none;align-items:center;gap:7px;
+  background:#1a1a1a;color:#fff;border:none;border-radius:99px;padding:10px 15px;cursor:pointer;
+  font-family:inherit;font-size:13px;font-weight:600;box-shadow:0 6px 22px rgba(0,0,0,.28)}
+.vpill.on{display:flex}
+.vpill.listo{background:#15803d}
+@media(max-width:640px){
+  /* En el celular la barra tiene que ser una sola línea: se cae el subtítulo y
+     el titular solo ya dice todo lo que hace falta. */
+  .vbar{left:12px;right:12px;bottom:88px;padding:11px 13px;gap:10px;font-size:12.5px}
+  .vbar-sub{display:none}
+  .vbar-prog{width:56px}
+  .vbar-dias{display:none}
+  .vpill{bottom:88px;left:12px}
+}
+
 /* ─── TOAST ─── */
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(12px);background:#1a1a1a;color:#fff;padding:14px 26px;font-size:14px;font-weight:600;border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.3);z-index:3000;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -728,6 +761,16 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <button class="pd-add-btn" onclick="closeConfirm();openOrders()">Ver mis pedidos</button>
   <button class="acct-link" style="display:block;margin:14px auto 0;font-size:13px" onclick="closeConfirm()">Seguir comprando</button>
 </div>
+
+<!-- RECORDATORIO DEL CUPÓN -->
+<div class="vbar" id="vbar" onclick="openCart()">
+  <span class="vbar-ico" id="vbarIco">🎁</span>
+  <span class="vbar-txt" id="vbarTxt"></span>
+  <span class="vbar-prog" id="vbarProg"><i id="vbarFill"></i></span>
+  <span class="vbar-dias" id="vbarDias"></span>
+  <button class="vbar-x" onclick="event.stopPropagation();achicarVbar()" title="Achicar">✕</button>
+</div>
+<button class="vpill" id="vpill" onclick="agrandarVbar()"></button>
 
 <a class="wa-float" href="https://wa.me/5491160320008" target="_blank" title="WhatsApp">💬</a>
 <div class="toast" id="toastEl"></div>
@@ -1499,6 +1542,7 @@ function updateCartUI() {
     cupRow.style.display = 'none';
   }
   document.getElementById('cartTotal').textContent = fmt(totalAmt - desc);
+  renderVoucherBar(totalAmt, desc);
   refreshCardButtons();
 
   const body = document.getElementById('cartBody');
@@ -1780,6 +1824,77 @@ function fmtVence(v) {
   const d = new Date(v);
   if (isNaN(d)) return '';
   return DIAS[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1);
+}
+
+// Días de calendario que faltan para que se venza (0 = vence hoy).
+// Se compara fecha contra fecha, no hora contra hora: si vence el lunes y hoy
+// es lunes, tiene que decir "7 días", no "8" por unas horas de más.
+function diasParaVencer(v) {
+  if (!v) return null;
+  const fin = new Date(v);
+  if (isNaN(fin)) return null;
+  const aMedianoche = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((aMedianoche(fin) - aMedianoche(new Date())) / 86400000);
+}
+
+let cupoListo = false;   // para festejar solo cuando ACABA de llegar al mínimo
+
+/* La barra de abajo: el cupón tiene que estar a la vista siempre, no escondido
+   adentro del carrito. Muestra cuánto falta para poder usarlo y cuánto tiempo
+   queda, que es lo que empuja a completar el pedido. */
+function renderVoucherBar(subtotal, desc) {
+  const bar = document.getElementById('vbar');
+  const pill = document.getElementById('vpill');
+  if (!bar) return;
+
+  if (!miVoucher) { bar.classList.remove('on'); pill.classList.remove('on'); return; }
+
+  const monto = Number(miVoucher.monto);
+  const minimo = Number(miVoucher.minimo);
+  const falta = Math.max(0, minimo - subtotal);
+  const listo = desc > 0;
+  const dias = diasParaVencer(miVoucher.vence);
+
+  // Festejo una sola vez, justo cuando cruza el mínimo.
+  if (listo && !cupoListo) showToast('🎉 ¡Listo! Tus ' + fmtR(monto) + ' ya se descuentan');
+  cupoListo = listo;
+
+  bar.classList.toggle('listo', listo);
+  pill.classList.toggle('listo', listo);
+  document.getElementById('vbarIco').textContent = listo ? '✅' : '🎁';
+
+  document.getElementById('vbarTxt').innerHTML = listo
+    ? '<b>Tus ' + fmtR(monto) + ' ya están aplicados.</b>'
+      + '<span class="vbar-sub">Terminá el pedido para no perderlos.</span>'
+    : subtotal > 0
+      ? '<b>Te faltan ' + fmtR(falta) + ' para usar tus ' + fmtR(monto) + '.</b>'
+        + '<span class="vbar-sub">Seguí sumando y se descuentan solos.</span>'
+      : '<b>Tenés ' + fmtR(monto) + ' sin usar.</b>'
+        + '<span class="vbar-sub">Armá un pedido de ' + fmtR(minimo) + ' y se descuentan solos.</span>';
+
+  const pct = minimo > 0 ? Math.min(100, Math.round((subtotal / minimo) * 100)) : 0;
+  document.getElementById('vbarFill').style.width = (listo ? 100 : pct) + '%';
+
+  document.getElementById('vbarDias').textContent =
+    dias == null ? '' : dias <= 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : 'Vence en ' + dias + ' días';
+
+  pill.innerHTML = '🎁 ' + fmtR(monto);
+
+  // Si lo achicaron en esta visita, se muestra la versión chiquita.
+  const achicada = sessionStorage.getItem('rec4_vbar_min') === '1';
+  bar.classList.toggle('on', !achicada);
+  pill.classList.toggle('on', achicada);
+}
+
+function achicarVbar() {
+  sessionStorage.setItem('rec4_vbar_min', '1');
+  document.getElementById('vbar').classList.remove('on');
+  document.getElementById('vpill').classList.add('on');
+}
+function agrandarVbar() {
+  sessionStorage.removeItem('rec4_vbar_min');
+  document.getElementById('vpill').classList.remove('on');
+  document.getElementById('vbar').classList.add('on');
 }
 
 async function loadVoucher() {
