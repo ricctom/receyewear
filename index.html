@@ -207,6 +207,22 @@ button{font-family:inherit;cursor:pointer}
 .gbtn-wrap{display:flex;justify-content:center;min-height:44px}
 .modal-msg{color:#c0392b;font-size:12px;min-height:16px;margin-top:14px;text-align:center}
 .modal-lg{max-width:560px;max-height:80vh;overflow-y:auto}
+
+/* --- Cartel de campaña del cupón + descuento en el carrito --- */
+.promo-modal{text-align:center;max-width:400px}
+.promo-gift{font-size:40px;line-height:1;margin-bottom:10px}
+.promo-modal h3{font-size:24px;margin:0 0 10px;letter-spacing:-.5px}
+.promo-modal h3 b{color:#111}
+.promo-lead{margin:0 0 20px;color:#555;font-size:14px;line-height:1.55}
+.promo-cond{margin:16px 0 0;color:#999;font-size:11.5px;line-height:1.5}
+.promo-no{margin-top:14px;background:none;border:none;color:#999;font-size:12.5px;cursor:pointer;text-decoration:underline}
+.promo-no:hover{color:#555}
+.promo-ok{background:#f4fbf5;border:1px solid #cde9d2;border-radius:10px;padding:14px 16px;margin:0 0 4px;color:#256b33;font-size:13.5px;line-height:1.5}
+.cart-cup{display:flex;justify-content:space-between;font-size:13px;color:#256b33;margin-bottom:10px}
+.cart-cup.off{color:#999}
+.cart-cup .cup-lbl{display:flex;align-items:center;gap:5px}
+.cart-sub{display:flex;justify-content:space-between;font-size:13px;color:#777;margin-bottom:8px}
+.cart-total-row.final{font-size:17px;border-top:1px solid #eee;padding-top:12px}
 .ord{border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:10px}
 .ord-top{display:flex;justify-content:space-between;align-items:center}
 .ord-id{font-weight:700;font-size:13px}
@@ -606,9 +622,28 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   </div>
   <div class="cart-body" id="cartBody"></div>
   <div class="cart-ftr">
-    <div class="cart-total-row"><span>Subtotal</span><span id="cartTotal">$0,00</span></div>
+    <div class="cart-sub"><span>Subtotal</span><span id="cartSub">$0,00</span></div>
+    <div class="cart-cup" id="cartCupRow" style="display:none">
+      <span class="cup-lbl">🎁 <span id="cartCupLbl">Cupón</span></span>
+      <span id="cartCupAmt">-$0,00</span>
+    </div>
+    <div class="cart-total-row final"><span>Total</span><span id="cartTotal">$0,00</span></div>
     <button class="cart-chk" onclick="doCheckout()">Finalizar pedido</button>
   </div>
+</div>
+
+<!-- CARTEL DE LA CAMPAÑA DEL CUPÓN -->
+<div class="modal-ov" id="promoOv" onclick="closePromo()"></div>
+<div class="modal promo-modal" id="promoModal">
+  <button class="modal-cls" onclick="closePromo()">✕</button>
+  <div class="promo-gift">🎁</div>
+  <h3 id="promoTitle">Llevate <b>$50.000</b></h3>
+  <p class="promo-lead" id="promoLead">Iniciá sesión con Google y te dejamos el cupón cargado en tu cuenta. Tarda 2 segundos y no hace falta contraseña.</p>
+  <div class="gbtn-wrap" id="gbtnPromo"></div>
+  <div class="promo-ok" id="promoOk" style="display:none"></div>
+  <p class="promo-cond" id="promoCond"></p>
+  <div class="modal-msg" id="promoMsg"></div>
+  <button class="promo-no" onclick="closePromo()">Ahora no, gracias</button>
 </div>
 
 <!-- LOGIN MODAL -->
@@ -1043,6 +1078,10 @@ function handleHash() {
 function fmt(n) {
   return '$' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
+// Misma plata pero sin centavos: para los textos donde "$50.000,00" queda feo.
+function fmtR(n) {
+  return '$' + Math.round(Number(n) || 0).toLocaleString('es-AR');
+}
 
 /* ============================================================
    PAGES
@@ -1442,7 +1481,24 @@ function updateCartUI() {
   const lblTxt = totalQty + ' - ' + fmt(totalAmt);
   document.getElementById('cartLbl').textContent = lblTxt;
   const navLbl = document.getElementById('navCartLbl'); if (navLbl) navLbl.textContent = lblTxt;
-  document.getElementById('cartTotal').textContent = fmt(totalAmt);
+  document.getElementById('cartSub').textContent = fmt(totalAmt);
+
+  // Cupón: si el usuario tiene uno, se muestra la línea. Si todavía no llega al
+  // mínimo, se le avisa cuánto le falta en vez de esconderlo.
+  const cupRow = document.getElementById('cartCupRow');
+  const desc = descuentoDeCarrito(totalAmt);
+  if (miVoucher && totalQty) {
+    const falta = Number(miVoucher.minimo) - totalAmt;
+    cupRow.style.display = '';
+    cupRow.classList.toggle('off', desc === 0);
+    document.getElementById('cartCupLbl').textContent = desc > 0
+      ? 'Cupón aplicado'
+      : 'Cupón: te faltan ' + fmtR(falta);
+    document.getElementById('cartCupAmt').textContent = desc > 0 ? '-' + fmt(desc) : fmt(0);
+  } else {
+    cupRow.style.display = 'none';
+  }
+  document.getElementById('cartTotal').textContent = fmt(totalAmt - desc);
   refreshCardButtons();
 
   const body = document.getElementById('cartBody');
@@ -1531,14 +1587,19 @@ async function placeOrder(ship) {
   }
 
   // Pedido registrado en la base: vaciamos carrito y mostramos confirmación.
-  cart = []; saveCart(); updateCartUI(); closeCart(); closeShip();
+  cart = []; saveCart();
+  if (Number(order && order.descuento) > 0) miVoucher = null;  // el cupón se gastó
+  updateCartUI(); closeCart(); closeShip();
   showOrderConfirm(order);
 }
 
 function showOrderConfirm(order) {
   const num = order && order.id ? ' #' + order.id : '';
+  const desc = Number(order && order.descuento) || 0;
   document.getElementById('confirmText').textContent =
-    'Tu pedido' + num + ' quedó registrado. Nos vamos a contactar para coordinar la entrega. Lo podés seguir cuando quieras desde "Mis pedidos".';
+    'Tu pedido' + num + ' quedó registrado'
+    + (desc > 0 ? ' con el descuento de ' + fmtR(desc) + ' de tu cupón ya aplicado' : '')
+    + '. Nos vamos a contactar para coordinar la entrega. Lo podés seguir cuando quieras desde "Mis pedidos".';
   document.getElementById('confirmOv').classList.add('open');
   document.getElementById('confirmModal').classList.add('open');
 }
@@ -1690,11 +1751,102 @@ let session = JSON.parse(localStorage.getItem('rec4_session') || 'null');
 let pendingCheckout = false;
 let googleReady = false;
 let authEnabled = false; // se activa solo si el backend (Neon + Google) está configurado
+let promo = null;        // condiciones de la campaña de cupones (null = no hay campaña)
+let miVoucher = null;    // el cupón del usuario logueado, si tiene uno sin usar
 
 async function bootAuth() {
-  try { const cfg = await api('/api/config'); authEnabled = !!cfg.googleClientId; }
-  catch { authEnabled = false; }
+  try {
+    const cfg = await api('/api/config');
+    authEnabled = !!cfg.googleClientId;
+    promo = cfg.promo || null;
+  } catch { authEnabled = false; promo = null; }
   renderAcct();
+  if (session) await loadVoucher();   // ya logueado: traemos su cupón
+  updateCartUI();
+  maybeShowPromo();
+}
+
+/* ============================================================
+   CUPÓN DE CAMPAÑA
+   El monto y el mínimo SIEMPRE los decide el servidor (api/_promo.js).
+   Acá solo se muestran; el descuento real se vuelve a calcular al
+   confirmar el pedido, así no se puede falsear desde el navegador.
+============================================================ */
+const PROMO_VISTA = 'rec4_promo_vista';   // para no repetir el cartel
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function fmtVence(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return DIAS[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1);
+}
+
+async function loadVoucher() {
+  if (!authEnabled || !session) { miVoucher = null; return; }
+  try {
+    const r = await api('/api/voucher');
+    miVoucher = r.voucher || null;
+    if (r.promo) promo = r.promo;
+  } catch { miVoucher = null; }
+}
+
+// Cuánto descuenta el cupón sobre un subtotal (mismo criterio que el server).
+function descuentoDeCarrito(subtotal) {
+  if (!miVoucher) return 0;
+  if (subtotal < Number(miVoucher.minimo)) return 0;
+  return Math.min(Number(miVoucher.monto), subtotal);
+}
+
+function textoCondiciones(pr) {
+  if (!pr) return '';
+  return 'Válido para compras superiores a ' + fmtR(pr.minimo)
+       + '. Lo podés usar hasta el ' + fmtVence(pr.vence) + '. Un cupón por cliente.';
+}
+
+// El cartel aparece solo si hay campaña y la persona todavía no tiene el cupón.
+function maybeShowPromo() {
+  if (!authEnabled || !promo) return;
+  if (miVoucher) return;                                  // ya lo tiene
+  if (localStorage.getItem(PROMO_VISTA) === String(promo.vence)) return;  // ya lo cerró
+  setTimeout(openPromo, 600);
+}
+
+async function openPromo() {
+  if (!promo) return;
+  document.getElementById('promoTitle').innerHTML = 'Llevate <b>' + fmtR(promo.monto) + '</b>';
+  document.getElementById('promoCond').textContent = textoCondiciones(promo);
+  document.getElementById('promoMsg').textContent = '';
+  document.getElementById('promoOk').style.display = 'none';
+  document.getElementById('promoLead').style.display = '';
+  document.getElementById('promoOv').classList.add('open');
+  document.getElementById('promoModal').classList.add('open');
+
+  const ok = await initGoogle('promoMsg');
+  const wrap = document.getElementById('gbtnPromo');
+  wrap.innerHTML = '';
+  wrap.style.display = '';
+  if (ok) google.accounts.id.renderButton(wrap, { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280 });
+}
+
+function closePromo() {
+  if (promo) localStorage.setItem(PROMO_VISTA, String(promo.vence));
+  document.getElementById('promoOv').classList.remove('open');
+  document.getElementById('promoModal').classList.remove('open');
+}
+
+// Después de loguearse desde el cartel: en vez de cerrarlo, se convierte en la
+// confirmación de que el cupón quedó guardado.
+function promoConfirmado() {
+  const box = document.getElementById('promoOk');
+  if (!miVoucher) { closePromo(); return; }
+  document.getElementById('promoLead').style.display = 'none';
+  document.getElementById('gbtnPromo').style.display = 'none';
+  document.getElementById('promoMsg').textContent = '';
+  document.querySelector('#promoModal .promo-no').textContent = 'Listo, seguir mirando';
+  box.style.display = '';
+  box.innerHTML = '✅ <b>Listo, tu cupón de ' + fmtR(miVoucher.monto) + ' quedó guardado.</b><br>'
+    + 'Se descuenta solo del total cuando hagas el pedido.';
 }
 
 function saveSession(s) {
@@ -1730,20 +1882,32 @@ function renderAcct() {
 }
 
 async function onCredential(resp) {
+  const desdePromo = document.getElementById('promoModal').classList.contains('open');
   document.getElementById('loginMsg').textContent = '';
+  document.getElementById('promoMsg').textContent = '';
   try {
     const data = await api('/api/auth', { method: 'POST', body: JSON.stringify({ credential: resp.credential }) });
     saveSession(data); renderAcct(); closeLogin();
-    showToast('✓ Sesión iniciada');
+    // El cupón viene en la misma respuesta del login: si la campaña está viva,
+    // el servidor ya se lo asignó a este usuario (sea cuenta nueva o vieja).
+    miVoucher = data.voucher || null;
+    if (data.promo) promo = data.promo;
+    updateCartUI();
+
+    if (desdePromo && miVoucher) { promoConfirmado(); return; }
+    showToast(miVoucher ? '🎁 Tu cupón de ' + fmtR(miVoucher.monto) + ' quedó guardado' : '✓ Sesión iniciada');
     if (pendingCheckout) { pendingCheckout = false; openShip(); }
-  } catch (e) { document.getElementById('loginMsg').textContent = e.message; }
+  } catch (e) {
+    document.getElementById(desdePromo ? 'promoMsg' : 'loginMsg').textContent = e.message;
+  }
 }
 
-async function initGoogle() {
+async function initGoogle(msgId) {
+  const err = (t) => { const el = document.getElementById(msgId || 'loginMsg'); if (el) el.textContent = t; };
   if (googleReady) return true;
   try {
     const cfg = await api('/api/config');
-    if (!cfg.googleClientId) { document.getElementById('loginMsg').textContent = 'El login todavía no está configurado.'; return false; }
+    if (!cfg.googleClientId) { err('El login todavía no está configurado.'); return false; }
     const start = () => { google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onCredential }); googleReady = true; };
     if (window.google && google.accounts) start();
     else await new Promise(res => {
@@ -1751,7 +1915,7 @@ async function initGoogle() {
       setTimeout(() => { clearInterval(t); res(); }, 6000);
     });
     return googleReady;
-  } catch (e) { document.getElementById('loginMsg').textContent = e.message; return false; }
+  } catch (e) { err(e.message); return false; }
 }
 
 async function openLogin(forCheckout) {
@@ -1771,7 +1935,7 @@ function closeLogin() {
   document.getElementById('loginModal').classList.remove('open');
   pendingCheckout = false;
 }
-function logout() { saveSession(null); renderAcct(); showToast('Sesión cerrada'); }
+function logout() { saveSession(null); miVoucher = null; renderAcct(); updateCartUI(); showToast('Sesión cerrada'); }
 
 async function openOrders() {
   document.getElementById('ordersOv').classList.add('open');
@@ -1790,6 +1954,7 @@ async function openOrders() {
         : saldo > 0 ? `Pagaste ${fmt(cobrado)} · queda ${fmt(saldo)}` : 'Pagado ✓';
       return `<div class="ord"><div class="ord-top"><span class="ord-id">Pedido #${o.id}</span><span class="ord-st ${o.status}">${escHtml(o.status)}</span></div>`
         + `<div class="ord-date">${d}</div><div class="ord-items">${items}</div>`
+        + (Number(o.descuento) > 0 ? `<div class="ord-date">Cupón aplicado: -${fmt(o.descuento)}</div>` : '')
         + `<div class="ord-total">Total: ${fmt(o.total)}</div>`
         + `<div class="ord-date">${pago}</div></div>`;
     }).join('');

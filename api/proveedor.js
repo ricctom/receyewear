@@ -5,7 +5,7 @@
 //   GET                        -> lista de proveedores + la cuenta del elegido
 //   GET ?proveedor=ID          -> la cuenta de ese
 //   GET ?pedido=N              -> borrador de entrega a partir de un pedido
-//   POST { entrega|pago|ajuste|consignacion|editarConsign|precio|proveedor|nuevo|invitacion }
+//   POST { entrega|pago|ajuste|consignacion|editarConsign|renombrar|precio|proveedor|nuevo|invitacion }
 const crypto = require('crypto');
 const { sql, ensureTables, splitNombre, norm, usdRate } = require('./_db');
 const { getSession, ADMIN_EMAIL } = require('./_auth');
@@ -273,6 +273,56 @@ module.exports = async (req, res) => {
                     'Consignación que me quedo', ${JSON.stringify(items)}::jsonb)`;
         }
         return res.status(200).json({ ok: true });
+      }
+
+      /* ----- Renombrar un artículo en todo el proveedor -----
+         El nombre del artículo es la clave que une la consignación, la lista de
+         precios y el mapeo de la web. Si se cambia en un solo lado, el stock
+         queda partido y el pedido automático deja de encontrar el precio. */
+      if (b.renombrar) {
+        const de = String(b.renombrar.de || '').trim();
+        const a = String(b.renombrar.a || '').trim().slice(0, 80);
+        if (!de || !a) return res.status(400).json({ error: 'Faltan los nombres' });
+        if (de.toUpperCase() === a.toUpperCase()) return res.status(400).json({ error: 'Es el mismo nombre' });
+
+        // Va primero el más delicado: los artículos dentro de las entregas ya
+        // cargadas (items es un jsonb). Si esto fallara, todavía no se tocó nada.
+        await sql`UPDATE supplier_moves m SET items = s.nuevo
+          FROM (
+            SELECT x.id, jsonb_agg(
+                     CASE WHEN upper(e->>'articulo') = upper(${de})
+                          THEN jsonb_set(e, '{articulo}', to_jsonb(${a}::text))
+                          ELSE e END ORDER BY ord) AS nuevo
+            FROM supplier_moves x, LATERAL jsonb_array_elements(x.items)
+                 WITH ORDINALITY AS t(e, ord)
+            WHERE x.supplier_id = ${destino.id} AND jsonb_typeof(x.items) = 'array'
+            GROUP BY x.id
+          ) s
+          WHERE m.id = s.id`;
+
+        const [{ n: enConsig }] = await sql`SELECT count(*)::int AS n FROM supplier_consign
+          WHERE supplier_id = ${destino.id} AND upper(articulo) = upper(${de})`;
+        await sql`UPDATE supplier_consign SET articulo = ${a}
+          WHERE supplier_id = ${destino.id} AND upper(articulo) = upper(${de})`;
+
+        // En la lista de precios el nombre es único: si el destino ya existe se
+        // conserva ese precio y se descarta el viejo, en vez de romper el índice.
+        const [choca] = await sql`SELECT id FROM supplier_prices
+          WHERE supplier_id = ${destino.id} AND upper(articulo) = upper(${a})`;
+        if (choca) {
+          await sql`DELETE FROM supplier_prices
+            WHERE supplier_id = ${destino.id} AND upper(articulo) = upper(${de})`;
+        } else {
+          await sql`UPDATE supplier_prices SET articulo = ${a}
+            WHERE supplier_id = ${destino.id} AND upper(articulo) = upper(${de})`;
+        }
+
+        // El mapeo de la web: las filas viejas quedaron sin supplier_id.
+        await sql`UPDATE cost_map SET articulo = ${a}
+          WHERE upper(articulo) = upper(${de})
+            AND (supplier_id = ${destino.id} OR supplier_id IS NULL)`;
+
+        return res.status(200).json({ ok: true, consignacion: enConsig });
       }
 
       /* ----- Corregir una línea de consignación ya cargada ----- */

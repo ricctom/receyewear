@@ -59,16 +59,29 @@ module.exports = async (req, res) => {
         return { ...o, costo: c.detalle, sin_costo: c.sinCosto };
       });
 
-      const [precios, mapa, provs] = await Promise.all([
+      const [precios, mapa, provs, cupones] = await Promise.all([
         sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo ORDER BY articulo`,
         sql`SELECT patron, articulo, factor, supplier_id FROM cost_map ORDER BY patron`,
         sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
+        // Reporte de la campaña: quién se guardó el cupón, cuándo, si la cuenta
+        // era nueva (se creó el mismo día que lo pidió) y si ya lo usó.
+        sql`SELECT v.id, v.codigo, v.monto, v.minimo, v.vence,
+                   v.created_at AS pedido_el, v.used_at AS usado_el, v.order_id,
+                   u.id AS user_id, u.email, u.name, u.telefono, u.razon_social,
+                   u.created_at AS cuenta_creada,
+                   (u.created_at > v.created_at - interval '5 minutes') AS cuenta_nueva,
+                   o.total AS pedido_total
+              FROM vouchers v
+              JOIN users u ON u.id = v.user_id
+              LEFT JOIN orders o ON o.id = v.order_id
+             ORDER BY v.created_at DESC LIMIT 1000`,
       ]);
       return res.status(200).json({
         orders, usd, proveedores: provs,
         articulos: precios,
         cost_map: mapa,
         sin_mapear: [...sinMapear.values()],
+        cupones,
       });
     }
 

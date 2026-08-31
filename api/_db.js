@@ -51,6 +51,28 @@ function ensureTables() {
       WHERE etapa IS NULL`;
     await sql`ALTER TABLE orders ALTER COLUMN etapa SET DEFAULT 'nuevo'`;
 
+    // Descuento aplicado por un cupón de campaña (0 si no hubo).
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS descuento INTEGER DEFAULT 0`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS voucher_id INTEGER`;
+
+    /* ---------- Cupones de campaña ---------- */
+    // Un cupón por usuario por campaña (lo garantiza el índice único de abajo).
+    // "total" del pedido ya viene con el descuento restado; "descuento" queda
+    // aparte para poder reportarlo.
+    await sql`CREATE TABLE IF NOT EXISTS vouchers (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      codigo TEXT NOT NULL,
+      monto INTEGER NOT NULL,
+      minimo INTEGER NOT NULL,
+      vence TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      used_at TIMESTAMPTZ,
+      order_id INTEGER
+    )`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS vouchers_user_codigo
+      ON vouchers (user_id, codigo)`;
+
     // Cobros del pedido (permite pagos parciales).
     await sql`CREATE TABLE IF NOT EXISTS order_payments (
       id SERIAL PRIMARY KEY,

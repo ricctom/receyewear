@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Cupones · REC Eyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="panel.css"/>
+<style>
+  .cup-tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+  .cup-tbl th{text-align:left;font-weight:500;color:var(--mt);font-size:12px;
+    padding:0 14px 10px 0;border-bottom:1px solid var(--ln);white-space:nowrap}
+  .cup-tbl td{padding:13px 14px 13px 0;border-bottom:1px solid var(--ln);vertical-align:top}
+  .cup-tbl tr:hover td{background:#faf9f6}
+  .cup-nom{font-weight:600}
+  .cup-mail{color:var(--mt);font-size:12.5px}
+  .tag{display:inline-block;font-size:11px;border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .tag.nueva{background:#eaf4ec;color:#256b33}
+  .tag.vieja{background:#f0efe9;color:var(--mt)}
+  .tag.usado{background:#e9eff7;color:#2c5b8f}
+  .tag.libre{background:#fdf3e3;color:#8a6413}
+  .cup-scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>REC</h1>
+  <nav class="tabs">
+    <a href="admin.html">Pedidos</a>
+    <a href="crm.html">Clientes</a>
+    <a href="proveedor.html">Proveedores</a>
+    <a href="cupones.html" class="on">Cupones</a>
+  </nav>
+  <div class="who" id="who"></div>
+</header>
+
+<div class="wrap" id="gate">
+  <div class="gate">
+    <h2>Cupones</h2>
+    <p>Entrá con la cuenta de Google de siempre.</p>
+    <div id="gbtn"></div>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</div>
+
+<div class="wrap" id="panel" style="display:none">
+  <div class="top">
+    <div>
+      <h2>Cupones de la campaña</h2>
+      <div class="sub" id="subtitulo">Quién se guardó el cupón al iniciar sesión.</div>
+    </div>
+    <div class="der">
+      <button class="b sm" onclick="bajarCsv()">Bajar Excel</button>
+      <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
+    </div>
+  </div>
+  <div class="resumen" id="resumen"></div>
+  <div class="filtros" id="filtros"></div>
+  <div class="cup-scroll" id="lista"></div>
+</div>
+
+<div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+
+<script src="panel.js"></script>
+<script>
+/* Reporte de la campaña del cupón: lo alimenta el bloque "cupones" que
+   devuelve GET /api/admin. Acá no se calcula ninguna condición de la promo,
+   solo se muestra lo que ya decidió el servidor (api/_promo.js). */
+let CUP = [];
+let filtro = 'todos';
+
+const FILTROS = {
+  todos:  { txt: 'Todos',          test: () => true },
+  libres: { txt: 'Sin usar',       test: (c) => !c.usado_el },
+  usados: { txt: 'Ya lo usaron',   test: (c) => !!c.usado_el },
+  nuevas: { txt: 'Cuentas nuevas', test: (c) => c.cuenta_nueva },
+};
+
+async function cargar() {
+  document.getElementById('lista').innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const d = await api('/api/admin');
+    CUP = d.cupones || [];
+    pintar();
+  } catch (e) {
+    if (esSesion(e)) return logout();
+    document.getElementById('lista').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+function fechaHora(f) {
+  if (!f) return '—';
+  const d = new Date(f);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+       + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function pintar() {
+  const usados = CUP.filter(c => c.usado_el);
+  const nuevas = CUP.filter(c => c.cuenta_nueva);
+  const descontado = usados.reduce((s, c) => s + (Number(c.monto) || 0), 0);
+  const vendido = usados.reduce((s, c) => s + (Number(c.pedido_total) || 0), 0);
+
+  document.getElementById('resumen').innerHTML = [
+    ['Se lo guardaron', CUP.length],
+    ['Cuentas nuevas', nuevas.length],
+    ['Ya lo usaron', usados.length],
+    ['Descontado', fmt(descontado)],
+    ['Vendido con cupón', fmt(vendido)],
+  ].map(([t, v]) => `<div><p class="r1">${t}</p><p class="r2">${v}</p></div>`).join('');
+
+  document.getElementById('filtros').innerHTML = Object.entries(FILTROS).map(([k, f]) =>
+    `<button class="chip ${k === filtro ? 'on' : ''}" onclick="setFiltro('${k}')">${f.txt}<b>${CUP.filter(f.test).length}</b></button>`
+  ).join('');
+
+  const rows = CUP.filter(FILTROS[filtro].test);
+  const box = document.getElementById('lista');
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty">Todavía nadie se guardó el cupón.<br>En cuanto alguien inicie sesión va a aparecer acá.</div>';
+    return;
+  }
+  box.innerHTML = `<table class="cup-tbl"><thead><tr>
+      <th>Cliente</th><th>Teléfono</th><th>Se lo guardó</th>
+      <th>Cuenta</th><th>Estado</th><th>Pedido</th></tr></thead><tbody>`
+    + rows.map(c => `<tr>
+        <td><div class="cup-nom">${esc(c.razon_social || c.name || '—')}</div>
+            <div class="cup-mail">${esc(c.email)}</div></td>
+        <td>${esc(c.telefono || '—')}</td>
+        <td>${fechaHora(c.pedido_el)}</td>
+        <td><span class="tag ${c.cuenta_nueva ? 'nueva' : 'vieja'}">${c.cuenta_nueva ? 'Nueva' : 'Ya era cliente'}</span></td>
+        <td><span class="tag ${c.usado_el ? 'usado' : 'libre'}">${c.usado_el ? 'Usado ' + fechaHora(c.usado_el) : 'Sin usar'}</span></td>
+        <td>${c.order_id ? '#' + c.order_id + ' · ' + fmt(c.pedido_total) : '—'}</td>
+      </tr>`).join('')
+    + '</tbody></table>';
+}
+
+function setFiltro(k) { filtro = k; pintar(); }
+
+// Se baja como CSV con ; y BOM, que es lo que abre bien el Excel en español.
+function bajarCsv() {
+  const cab = ['Cliente', 'Email', 'Telefono', 'Se lo guardo', 'Cuenta nueva', 'Usado', 'Pedido', 'Total pedido'];
+  const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const filas = CUP.map(c => [
+    c.razon_social || c.name || '', c.email, c.telefono || '',
+    fechaHora(c.pedido_el), c.cuenta_nueva ? 'si' : 'no',
+    c.usado_el ? fechaHora(c.usado_el) : '',
+    c.order_id ? '#' + c.order_id : '',
+    c.pedido_total || '',
+  ].map(q).join(';'));
+  const csv = '\uFEFF' + [cab.map(q).join(';')].concat(filas).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'cupones-' + hoyISO() + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Descargado');
+}
+
+bootPanel(cargar);
+</script>
+</body>
+</html>
