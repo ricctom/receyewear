@@ -26,6 +26,29 @@ function itemsToHtml(items) {
   ).join('');
 }
 
+// Qué pidió que se haga en cada escenario de faltante.
+const COLOR_TXT = {
+  mismo:     'mandarle el mismo modelo en otro color',
+  parecido:  'mandarle uno parecido',
+  consultar: 'CONSULTARLE antes de mandarlo',
+  baja:      'darlo de baja y mandarle el resto',
+};
+const MODELO_TXT = {
+  parecido:  'mandarle uno parecido',
+  consultar: 'CONSULTARLE antes de mandarlo',
+  baja:      'darlo de baja y mandarle el resto',
+};
+function faltanteLineas(sh) {
+  const d = sh && sh.faltante_detalle;
+  if (!d) return [];
+  const l = [];
+  if (COLOR_TXT[d.color]) l.push('Si no está el COLOR: ' + COLOR_TXT[d.color]);
+  if (MODELO_TXT[d.modelo]) l.push('Si no está el MODELO: ' + MODELO_TXT[d.modelo]);
+  if (d.sin_repetir) l.push('¡OJO! Está pidiendo de a uno para probar: NO repetirle colores ni modelos');
+  if (d.nota) l.push('Aclaró: «' + d.nota + '»');
+  return l;
+}
+
 const FALTANTE_TXT = {
   cambiar: 'Si falta algo: cambiar por otro modelo/color parecido',
   consultar: 'Si falta algo: consultarle antes',
@@ -43,6 +66,7 @@ function shipToText(sh) {
     'Teléfono: ' + (sh.telefono || '-'),
     'Dirección: ' + (d.texto || '-') + (d.piso ? ' (piso/depto ' + d.piso + ')' : ''),
     FALTANTE_TXT[sh.faltante] || '',
+    ...faltanteLineas(sh).map((x) => '  · ' + x),
   ].join('\n');
 }
 function shipToHtml(sh) {
@@ -54,7 +78,9 @@ function shipToHtml(sh) {
     'Tel: ' + (sh.telefono || '-') + '<br>' +
     (d.texto || '-') + (d.piso ? ' (piso/depto ' + d.piso + ')' : '') +
     '<div style="margin-top:8px;background:#fff4e0;border-radius:6px;padding:7px 10px;color:#8a5a00">' +
-    (FALTANTE_TXT[sh.faltante] || '') + '</div></div>';
+    (FALTANTE_TXT[sh.faltante] || '') +
+    faltanteLineas(sh).map((x) => '<div style="margin-left:12px;color:#666">· ' + x + '</div>').join('') +
+    '</div></div>';
 }
 
 async function notifyOrder(order, user, items, ship) {

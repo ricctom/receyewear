@@ -28,11 +28,12 @@ module.exports = async (req, res) => {
         await sql`UPDATE users SET
             dni_cuit = ${datos.dni_cuit}, razon_social = ${datos.razon_social},
             telefono = ${datos.telefono}, direccion = ${JSON.stringify(datos.direccion)}::jsonb,
-            faltante = ${datos.faltante}
+            faltante = ${datos.faltante},
+            faltante_detalle = ${datos.faltante_detalle ? JSON.stringify(datos.faltante_detalle) : null}::jsonb
           WHERE id = ${s.uid}`;
         ship = datos;
       } else {
-        const rows = await sql`SELECT dni_cuit, razon_social, telefono, direccion, faltante
+        const rows = await sql`SELECT dni_cuit, razon_social, telefono, direccion, faltante, faltante_detalle
           FROM users WHERE id = ${s.uid}`;
         const u = rows[0] || {};
         if (!u.razon_social || !u.direccion) {

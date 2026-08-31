@@ -24,6 +24,8 @@ function ensureTables() {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS telefono TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS direccion JSONB`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS faltante TEXT`;
+    // Detalle de cómo quiere que se reemplace (prioridad, alcance y nota libre).
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS faltante_detalle JSONB`;
 
     await sql`CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,

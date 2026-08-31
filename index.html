@@ -208,6 +208,19 @@ button{font-family:inherit;cursor:pointer}
 .modal-msg{color:#c0392b;font-size:12px;min-height:16px;margin-top:14px;text-align:center}
 .modal-lg{max-width:560px;max-height:80vh;overflow-y:auto}
 
+/* --- Sub-preguntas del faltante (solo cuando eligen "Cambialo") --- */
+.fdet-q{display:block;font-size:12.5px;font-weight:600;color:#333;margin:14px 0 6px}
+.fdet-q:first-of-type{margin-top:0}
+.fdet-q .opt{font-weight:400;color:#999}
+.fchk{display:flex;gap:9px;align-items:flex-start;margin:14px 0 4px;padding:11px 13px;
+  background:#faf9f6;border:1px solid #eee;border-radius:9px;font-size:12.5px;line-height:1.5;cursor:pointer}
+.fchk input{width:auto;margin:1px 0 0;flex:none}
+.fopt.sm span{font-size:12.5px}
+.sf-falt textarea{width:100%;max-width:100%;border:1px solid #ddd;border-radius:8px;padding:9px 11px;
+  font-family:inherit;font-size:13px;line-height:1.45;resize:vertical;box-sizing:border-box;
+  overflow-x:hidden;white-space:pre-wrap}
+.sf-falt textarea:focus{outline:none;border-color:#888}
+
 /* --- Cartel de campaña del cupón + descuento en el carrito --- */
 .promo-modal{text-align:center;max-width:400px}
 .promo-gift{font-size:40px;line-height:1;margin-bottom:10px}
@@ -277,6 +290,19 @@ button{font-family:inherit;cursor:pointer}
 .wa-float{position:fixed;bottom:24px;right:24px;background:#25d366;color:#fff;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 18px rgba(37,211,102,.4);z-index:1500;transition:transform .2s}
 .wa-float:hover{transform:scale(1.08)}
 
+/* --- Chip del cupón arriba: que se vea siempre, no solo en el carrito --- */
+.cup-chip{display:none;align-items:center;gap:6px;background:#1a1a1a;color:#fff;border:none;
+  border-radius:99px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:700;
+  cursor:pointer;white-space:nowrap;line-height:1.5}
+.cup-chip.on{display:inline-flex}
+.cup-chip.listo{background:#15803d}
+.cup-chip:hover{opacity:.88}
+.cup-chip.nav{font-size:12.5px;padding:7px 13px}
+.nav-right{position:absolute;right:24px;top:50%;transform:translateY(-50%);
+  display:flex;align-items:center;gap:10px}
+.nav-right .nav-cart{position:static;transform:none;right:auto;top:auto}
+@media(max-width:640px){ .cup-chip.nav{display:none!important} }
+
 /* --- Barra que recuerda el cupón (queda fija abajo, al lado del WhatsApp) --- */
 .vbar{position:fixed;bottom:24px;left:24px;right:88px;z-index:1490;display:none;
   align-items:center;gap:14px;background:#1a1a1a;color:#fff;border-radius:12px;
@@ -291,6 +317,10 @@ button{font-family:inherit;cursor:pointer}
 .vbar-prog{flex:none;width:130px;height:6px;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden}
 .vbar-prog i{display:block;height:100%;background:#fff;border-radius:99px;transition:width .35s ease}
 .vbar-dias{flex:none;font-size:11.5px;opacity:.8;white-space:nowrap}
+.vbar-cta{flex:none;background:#fff;color:#1a1a1a;border:none;border-radius:8px;
+  padding:9px 15px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.vbar-cta:hover{background:#e9e9e9}
+.vbar-prog.oculta{display:none}
 .vbar-x{flex:none;background:none;border:none;color:rgba(255,255,255,.55);font-size:16px;
   cursor:pointer;padding:0 2px;line-height:1}
 .vbar-x:hover{color:#fff}
@@ -307,6 +337,7 @@ button{font-family:inherit;cursor:pointer}
   .vbar-sub{display:none}
   .vbar-prog{width:56px}
   .vbar-dias{display:none}
+  .vbar-cta{padding:8px 12px;font-size:12px}
   .vpill{bottom:88px;left:12px}
 }
 
@@ -530,7 +561,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
     <div class="ni"><a href="#" onclick="showPg('faq');return false;">Preguntas Frecuentes</a></div>
     <div class="ni"><a href="#" onclick="showPg('contact');return false;">Contacto</a></div>
   </div>
-  <button class="nav-cart" onclick="openCart()" title="Mi carrito">🛒 <span id="navCartLbl">0 - $0,00</span></button>
+  <div class="nav-right">
+    <button class="cup-chip nav" id="cupChipNav" onclick="openCart()"></button>
+    <button class="nav-cart" onclick="openCart()" title="Mi carrito">🛒 <span id="navCartLbl">0 - $0,00</span></button>
+  </div>
 </nav>
 
 <!-- PAGE: HOME -->
@@ -737,14 +771,37 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <div class="sf-ok" id="shDirOk"></div>
 
   <div class="sf-falt">
-    <h4>¿Y si justo falta algún modelo?</h4>
-    <p>A veces se acaba alguno de los que pediste. Decinos qué preferís que hagamos:</p>
-    <label class="fopt"><input type="radio" name="falt" value="cambiar"/>
-      <span><b>Cambialo</b> por otro modelo o color parecido</span></label>
-    <label class="fopt"><input type="radio" name="falt" value="consultar" checked/>
+    <h4>¿Y si justo falta algo?</h4>
+    <p>Pasa poco, pero cuando pasa preferimos tener tu instrucción antes que hacerte esperar.</p>
+
+    <label class="fdet-q">Si no está el <b>color</b> que elegiste</label>
+    <label class="fopt sm"><input type="radio" name="fColor" value="mismo"/>
+      <span>Mandame el <b>mismo modelo en otro color</b></span></label>
+    <label class="fopt sm"><input type="radio" name="fColor" value="parecido" checked/>
+      <span>Mandame <b>uno parecido</b></span></label>
+    <label class="fopt sm"><input type="radio" name="fColor" value="consultar"/>
       <span><b>Consultame</b> antes de mandarlo</span></label>
-    <label class="fopt"><input type="radio" name="falt" value="baja"/>
+    <label class="fopt sm"><input type="radio" name="fColor" value="baja"/>
       <span><b>Dalo de baja</b> y mandame el resto</span></label>
+
+    <label class="fdet-q">Si no está el <b>modelo</b></label>
+    <label class="fopt sm"><input type="radio" name="fModelo" value="parecido" checked/>
+      <span>Mandame <b>uno parecido</b></span></label>
+    <label class="fopt sm"><input type="radio" name="fModelo" value="consultar"/>
+      <span><b>Consultame</b> antes de mandarlo</span></label>
+    <label class="fopt sm"><input type="radio" name="fModelo" value="baja"/>
+      <span><b>Dalo de baja</b> y mandame el resto</span></label>
+
+    <!-- Solo aparece si está pidiendo de a uno: al que lleva 4 por color no le
+         sirve de nada esta pregunta. -->
+    <label class="fchk" id="faltRepWrap" style="display:none">
+      <input type="checkbox" id="faltRep"/>
+      <span>Estoy pidiendo de a uno para probar: <b>no me repitas</b> colores ni modelos</span>
+    </label>
+
+    <label class="fdet-q">¿Algo más que tengamos en cuenta? <span class="opt">(opcional)</span></label>
+    <textarea id="faltNota" maxlength="300" rows="3"
+      placeholder="Ej: si cambiás algo, mejor que sea de la misma línea"></textarea>
   </div>
 
   <div class="modal-msg" id="shMsg"></div>
@@ -767,6 +824,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <span class="vbar-ico" id="vbarIco">🎁</span>
   <span class="vbar-txt" id="vbarTxt"></span>
   <span class="vbar-prog" id="vbarProg"><i id="vbarFill"></i></span>
+  <button class="vbar-cta" id="vbarCta" onclick="event.stopPropagation();irAlCatalogo()">Ver modelos</button>
   <span class="vbar-dias" id="vbarDias"></span>
   <button class="vbar-x" onclick="event.stopPropagation();achicarVbar()" title="Achicar">✕</button>
 </div>
@@ -1680,12 +1738,21 @@ async function openShip() {
         if (user.direccion.provincia) document.getElementById('shProv').value = user.direccion.provincia;
         marcarDir(true);
       }
-      if (user.faltante) {
-        const r = document.querySelector(`input[name="falt"][value="${user.faltante}"]`);
-        if (r) r.checked = true;
+      const fd = user.faltante_detalle;
+      if (fd) {
+        const marcar = (n, v) => {
+          const el = v && document.querySelector(`input[name="${n}"][value="${v}"]`);
+          if (el) el.checked = true;
+        };
+        marcar('fColor', fd.color);
+        marcar('fModelo', fd.modelo);
+        document.getElementById('faltRep').checked = !!fd.sin_repetir;
+        document.getElementById('faltNota').value = fd.nota || '';
       }
+      verRepetidos();
     }
   } catch (e) { /* si falla, se completa a mano */ }
+  verRepetidos();   // depende del carrito, no de que /api/me responda
 }
 
 function closeShip() {
@@ -1753,6 +1820,43 @@ function elegirDir(i) {
   marcarDir(true);
 }
 
+/* El faltante se pregunta por escenario: falta el COLOR o falta el MODELO.
+   Son decisiones distintas y mezclarlas en una sola opción es lo que hacía que
+   Tomás tuviera que adivinar. Los dos vienen con "mandame uno parecido"
+   tildado, que es lo que menos frena el pedido. */
+
+// Promedio de unidades por renglón del carrito. Por debajo de 1,25 la mayoría
+// de los renglones son de a uno: está armando surtido y le importa la variedad.
+// El que lleva 4 por color no está en ese caso y no ve la pregunta.
+// El campo viejo de la base solo tenía cambiar/consultar/baja: se sigue
+// escribiendo para que los pedidos históricos y el panel no se rompan.
+const FALT_LEGACY = { parecido: 'cambiar', consultar: 'consultar', baja: 'baja' };
+
+function promedioPorRenglon() {
+  if (!cart.length) return 0;
+  const total = cart.reduce((s, l) => s + (parseInt(l.qty, 10) || 0), 0);
+  return total / cart.length;
+}
+
+// La pregunta de "no me repitas" solo se le muestra al que compra de a uno.
+function verRepetidos() {
+  const wrap = document.getElementById('faltRepWrap');
+  if (!wrap) return;
+  wrap.style.display = promedioPorRenglon() < 1.25 ? '' : 'none';
+}
+
+function detalleFaltante() {
+  const val = (n) => (document.querySelector('input[name="' + n + '"]:checked') || {}).value || null;
+  const rep = document.getElementById('faltRep');
+  const muestraRep = document.getElementById('faltRepWrap').style.display !== 'none';
+  return {
+    color: val('fColor') || 'parecido',
+    modelo: val('fModelo') || 'parecido',
+    sin_repetir: !!(muestraRep && rep && rep.checked),
+    nota: document.getElementById('faltNota').value.trim().slice(0, 300) || null,
+  };
+}
+
 function datosEnvio() {
   const texto = document.getElementById('shDir').value.trim();
   const piso = document.getElementById('shPiso').value.trim();
@@ -1765,7 +1869,8 @@ function datosEnvio() {
     dni_cuit: document.getElementById('shDni').value.trim(),
     telefono: document.getElementById('shTel').value.trim(),
     direccion,
-    faltante: (document.querySelector('input[name="falt"]:checked') || {}).value || 'consultar',
+    faltante: FALT_LEGACY[(document.querySelector('input[name="fModelo"]:checked') || {}).value] || 'cambiar',
+    faltante_detalle: detalleFaltante(),
   };
 }
 
@@ -1837,7 +1942,14 @@ function diasParaVencer(v) {
   return Math.round((aMedianoche(fin) - aMedianoche(new Date())) / 86400000);
 }
 
-let cupoListo = false;   // para festejar solo cuando ACABA de llegar al mínimo
+let cupoListo = false;    // para festejar solo cuando ACABA de llegar al mínimo
+let cupoArrancado = false; // para empujar una sola vez cuando suma el primero
+
+// El botón de la barra cuando todavía no sumó nada: lo lleva al catálogo.
+function irAlCatalogo() {
+  const a = document.getElementById('grid-anchor');
+  if (a) a.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 /* La barra de abajo: el cupón tiene que estar a la vista siempre, no escondido
    adentro del carrito. Muestra cuánto falta para poder usarlo y cuánto tiempo
@@ -1847,7 +1959,13 @@ function renderVoucherBar(subtotal, desc) {
   const pill = document.getElementById('vpill');
   if (!bar) return;
 
-  if (!miVoucher) { bar.classList.remove('on'); pill.classList.remove('on'); return; }
+  const chips = [document.getElementById('cupChip'), document.getElementById('cupChipNav')].filter(Boolean);
+
+  if (!miVoucher) {
+    bar.classList.remove('on'); pill.classList.remove('on');
+    chips.forEach((c) => c.classList.remove('on'));
+    return;
+  }
 
   const monto = Number(miVoucher.monto);
   const minimo = Number(miVoucher.minimo);
@@ -1859,26 +1977,49 @@ function renderVoucherBar(subtotal, desc) {
   if (listo && !cupoListo) showToast('🎉 ¡Listo! Tus ' + fmtR(monto) + ' ya se descuentan');
   cupoListo = listo;
 
+  // Festejo el arranque: sumar el primero es el paso que más cuesta.
+  const arrancado = subtotal > 0;
+  if (arrancado && !cupoArrancado && !listo) {
+    showToast('🎁 Arrancaste. Te faltan ' + fmtR(falta) + ' para tus ' + fmtR(monto));
+  }
+  cupoArrancado = arrancado;
+
   bar.classList.toggle('listo', listo);
   pill.classList.toggle('listo', listo);
   document.getElementById('vbarIco').textContent = listo ? '✅' : '🎁';
 
+  // Con el carrito vacío NO se le menciona el mínimo ni se le muestra una barra
+  // en cero: las dos cosas parecen un muro. Ahí lo único que importa es que
+  // sume el primero, así que va un botón que lo lleva al catálogo.
   document.getElementById('vbarTxt').innerHTML = listo
     ? '<b>Tus ' + fmtR(monto) + ' ya están aplicados.</b>'
       + '<span class="vbar-sub">Terminá el pedido para no perderlos.</span>'
-    : subtotal > 0
+    : arrancado
       ? '<b>Te faltan ' + fmtR(falta) + ' para usar tus ' + fmtR(monto) + '.</b>'
         + '<span class="vbar-sub">Seguí sumando y se descuentan solos.</span>'
-      : '<b>Tenés ' + fmtR(monto) + ' sin usar.</b>'
-        + '<span class="vbar-sub">Armá un pedido de ' + fmtR(minimo) + ' y se descuentan solos.</span>';
+      : '<b>Tenés ' + fmtR(monto) + ' esperándote.</b>'
+        + '<span class="vbar-sub">Empezá a sumar modelos y los usás en este pedido.</span>';
 
   const pct = minimo > 0 ? Math.min(100, Math.round((subtotal / minimo) * 100)) : 0;
   document.getElementById('vbarFill').style.width = (listo ? 100 : pct) + '%';
+  document.getElementById('vbarProg').classList.toggle('oculta', !arrancado);
+  document.getElementById('vbarCta').style.display = arrancado ? 'none' : '';
 
   document.getElementById('vbarDias').textContent =
     dias == null ? '' : dias <= 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : 'Vence en ' + dias + ' días';
 
   pill.innerHTML = '🎁 ' + fmtR(monto);
+
+  // El chip de arriba: el cupón tiene que estar a la vista en el encabezado,
+  // al lado del carrito, aunque nunca lo abra.
+  chips.forEach((c) => {
+    c.classList.add('on');
+    c.classList.toggle('listo', listo);
+    c.textContent = listo ? '✅ ' + fmtR(monto) + ' aplicados' : '🎁 ' + fmtR(monto) + ' para usar';
+    c.title = listo
+      ? 'Tu cupón ya está aplicado en el total'
+      : 'Tenés un cupón de ' + fmtR(monto) + ' · mínimo ' + fmtR(minimo);
+  });
 
   // Si lo achicaron en esta visita, se muestra la versión chiquita.
   const achicada = sessionStorage.getItem('rec4_vbar_min') === '1';
