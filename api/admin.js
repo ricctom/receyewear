@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
         return { ...o, costo: c.detalle, sin_costo: c.sinCosto };
       });
 
-      const [precios, mapa, provs, cupones] = await Promise.all([
+      const [precios, mapa, provs, cupones, embudo, origenes] = await Promise.all([
         sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo ORDER BY articulo`,
         sql`SELECT patron, articulo, factor, supplier_id FROM cost_map ORDER BY patron`,
         sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
@@ -75,13 +75,21 @@ module.exports = async (req, res) => {
               JOIN users u ON u.id = v.user_id
               LEFT JOIN orders o ON o.id = v.order_id
              ORDER BY v.created_at DESC LIMIT 1000`,
+        // Embudo: personas distintas que llegaron a cada paso.
+        sql`SELECT tipo, count(DISTINCT sid)::int AS n,
+                   max(created_at) AS ultimo
+              FROM events GROUP BY tipo`,
+        // De dónde vinieron los que abrieron el sitio.
+        sql`SELECT COALESCE(ref, 'directo') AS ref, count(DISTINCT sid)::int AS n
+              FROM events WHERE tipo = 'visita'
+             GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
       ]);
       return res.status(200).json({
         orders, usd, proveedores: provs,
         articulos: precios,
         cost_map: mapa,
         sin_mapear: [...sinMapear.values()],
-        cupones,
+        cupones, embudo, origenes,
       });
     }
 

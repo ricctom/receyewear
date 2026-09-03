@@ -57,6 +57,21 @@ function ensureTables() {
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS descuento INTEGER DEFAULT 0`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS voucher_id INTEGER`;
 
+    /* ---------- Eventos: el embudo de la web ---------- */
+    // Una fila por visitante y por paso. El índice único hace que cada persona
+    // cuente UNA sola vez en cada paso, así el embudo son personas y no clicks.
+    await sql`CREATE TABLE IF NOT EXISTS events (
+      id SERIAL PRIMARY KEY,
+      tipo TEXT NOT NULL,
+      sid TEXT NOT NULL,
+      user_id INTEGER,
+      ref TEXT,
+      meta JSONB,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS events_sid_tipo ON events (sid, tipo)`;
+    await sql`CREATE INDEX IF NOT EXISTS events_tipo_fecha ON events (tipo, created_at)`;
+
     /* ---------- Cupones de campaña ---------- */
     // Un cupón por usuario por campaña (lo garantiza el índice único de abajo).
     // "total" del pedido ya viene con el descuento restado; "descuento" queda

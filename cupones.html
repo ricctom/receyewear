@@ -22,6 +22,22 @@
   .tag.usado{background:#e9eff7;color:#2c5b8f}
   .tag.libre{background:#fdf3e3;color:#8a6413}
   .cup-scroll{overflow-x:auto}
+  .emb{margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--ln)}
+  .emb h3{font-size:14px;font-weight:600;margin:0 0 4px}
+  .emb .ayuda{font-size:12.5px;color:var(--mt);margin:0 0 16px;line-height:1.6}
+  .paso-f{display:flex;align-items:center;gap:14px;margin-bottom:7px}
+  .paso-f .et{width:210px;font-size:13px;flex:none}
+  .paso-f .barra{flex:1;height:26px;background:#f0efe9;border-radius:6px;overflow:hidden;min-width:60px}
+  .paso-f .barra i{display:block;height:100%;background:var(--tx);border-radius:6px}
+  .paso-f .barra i.cero{background:#e0ddd6}
+  .paso-f .n{width:118px;text-align:right;font-size:13px;flex:none}
+  .paso-f .n b{font-size:16px}
+  .paso-f .n span{color:var(--mt);font-size:11.5px;margin-left:5px}
+  .orig{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .orig div{background:#f4f3ee;border-radius:8px;padding:8px 13px;font-size:12.5px}
+  .orig b{font-size:14px}
+  .nada{background:#fdf3e3;border:1px solid #f0dfbb;border-radius:10px;padding:14px 16px;
+    font-size:13px;color:#8a6413;line-height:1.6;margin-top:14px}
 </style>
 </head>
 <body>
@@ -56,6 +72,7 @@
       <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
     </div>
   </div>
+  <div class="emb" id="embudo"></div>
   <div class="resumen" id="resumen"></div>
   <div class="filtros" id="filtros"></div>
   <div class="cup-scroll" id="lista"></div>
@@ -70,6 +87,8 @@
    devuelve GET /api/admin. Acá no se calcula ninguna condición de la promo,
    solo se muestra lo que ya decidió el servidor (api/_promo.js). */
 let CUP = [];
+let EMB = [];
+let ORIG = [];
 let filtro = 'todos';
 
 const FILTROS = {
@@ -84,6 +103,9 @@ async function cargar() {
   try {
     const d = await api('/api/admin');
     CUP = d.cupones || [];
+    EMB = d.embudo || [];
+    ORIG = d.origenes || [];
+    pintarEmbudo();
     pintar();
   } catch (e) {
     if (esSesion(e)) return logout();
@@ -97,6 +119,45 @@ function fechaHora(f) {
   if (isNaN(d)) return '—';
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
        + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Los pasos del embudo, en orden. El primero marca el 100% de la barra.
+const PASOS = [
+  ['visita',           'Abrieron el sitio'],
+  ['promo_vista',      'Vieron el cartel del cupón'],
+  ['login_ok',         'Iniciaron sesión'],
+  ['cupon_dado',       'Se guardaron el cupón'],
+  ['carrito_add',      'Pusieron algo en el carrito'],
+  ['checkout_abierto', 'Llegaron a los datos de envío'],
+  ['pedido_ok',        'Confirmaron el pedido'],
+];
+
+function pintarEmbudo(){
+  const m = {}; (EMB || []).forEach(e => { m[e.tipo] = e.n; });
+  const tope = Math.max(1, m.visita || 0);
+  const filas = PASOS.map(([k, txt]) => {
+    const n = m[k] || 0;
+    const pct = Math.round((n / tope) * 100);
+    return `<div class="paso-f">
+      <span class="et">${txt}</span>
+      <span class="barra"><i class="${n ? '' : 'cero'}" style="width:${n ? Math.max(pct, 2) : 100}%"></i></span>
+      <span class="n"><b>${n}</b><span>${n ? pct + '%' : ''}</span></span>
+    </div>`;
+  }).join('');
+
+  const orig = (ORIG || []).map(o =>
+    `<div>${esc(o.ref)} <b>${o.n}</b></div>`).join('');
+
+  const vacio = !(m.visita);
+  document.getElementById('embudo').innerHTML =
+    '<h3>Embudo</h3>'
+    + '<p class="ayuda">Personas distintas que llegaron a cada paso, desde que empezamos a medir. '
+    + 'Cada una cuenta una sola vez.</p>'
+    + filas
+    + (orig ? '<div class="orig">' + orig + '</div>' : '')
+    + (vacio ? '<div class="nada"><b>Todavía no hay ni una visita registrada.</b><br>'
+      + 'Si ya mandaste la difusión y acá sigue en cero, es que el mensaje no le llegó a nadie: '
+      + 'no es que entraron y no tocaron. Probá mandándote el mensaje a vos mismo.</div>' : '');
 }
 
 function pintar() {

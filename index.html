@@ -1558,6 +1558,7 @@ function changeQtyAt(i, d) {
   const l = cart[i]; if (!l) return;
   l.qty = Math.max(minDe(l.id), l.qty + d);
   saveCart(); updateCartUI();
+  track('carrito_add');
 }
 function removeFromCartAt(i) {
   if (i < 0 || i >= cart.length) return;
@@ -1690,6 +1691,7 @@ async function placeOrder(ship) {
 
   // Pedido registrado en la base: vaciamos carrito y mostramos confirmación.
   cart = []; saveCart();
+  track('pedido_ok', { total: order && order.total, cupon: Number(order && order.descuento) > 0 });
   if (Number(order && order.descuento) > 0) miVoucher = null;  // el cupón se gastó
   updateCartUI(); closeCart(); closeShip();
   showOrderConfirm(order);
@@ -1753,6 +1755,7 @@ async function openShip() {
     }
   } catch (e) { /* si falla, se completa a mano */ }
   verRepetidos();   // depende del carrito, no de que /api/me responda
+  track('checkout_abierto');
 }
 
 function closeShip() {
@@ -1902,6 +1905,46 @@ let googleReady = false;
 let authEnabled = false; // se activa solo si el backend (Neon + Google) está configurado
 let promo = null;        // condiciones de la campaña de cupones (null = no hay campaña)
 let miVoucher = null;    // el cupón del usuario logueado, si tiene uno sin usar
+
+/* ============================================================
+   EMBUDO
+   Cada paso se manda a /api/track. El "sid" es un número al azar que vive en
+   este navegador: no identifica a nadie, sólo evita contar diez veces a la
+   misma persona. Si el registro falla, la página sigue andando igual.
+============================================================ */
+function visitorId() {
+  try {
+    let v = localStorage.getItem('rec4_sid');
+    if (!v) {
+      v = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('rec4_sid', v);
+    }
+    return v;
+  } catch { return null; }
+}
+
+// De dónde llegó: el ?d= que le ponemos al link de la difusión, o el sitio
+// que lo mandó. Sirve para saber si el link de WhatsApp se abrió o no.
+function origenVisita() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const d = q.get('d') || q.get('utm_source');
+    if (d) return String(d).slice(0, 40);
+    if (document.referrer) return new URL(document.referrer).hostname;
+    return 'directo';
+  } catch { return 'directo'; }
+}
+
+function track(tipo, meta) {
+  try {
+    const sid = visitorId();
+    if (!sid) return;
+    const body = JSON.stringify({ tipo, sid, ref: origenVisita(), meta: meta || null });
+    const headers = { 'Content-Type': 'application/json' };
+    if (session && session.token) headers['Authorization'] = 'Bearer ' + session.token;
+    fetch('/api/track', { method: 'POST', headers, body, keepalive: true }).catch(() => {});
+  } catch { /* nunca romper la página por una métrica */ }
+}
 
 async function bootAuth() {
   try {
@@ -2077,6 +2120,7 @@ async function openPromo() {
   document.getElementById('promoLead').style.display = '';
   document.getElementById('promoOv').classList.add('open');
   document.getElementById('promoModal').classList.add('open');
+  track('promo_vista');
 
   const ok = await initGoogle('promoMsg');
   const wrap = document.getElementById('gbtnPromo');
@@ -2086,6 +2130,7 @@ async function openPromo() {
 }
 
 function closePromo() {
+  if (!miVoucher) track('promo_cerrada');   // lo cerró sin quedarse el cupón
   if (promo) localStorage.setItem(PROMO_VISTA, String(promo.vence));
   document.getElementById('promoOv').classList.remove('open');
   document.getElementById('promoModal').classList.remove('open');
@@ -2148,6 +2193,8 @@ async function onCredential(resp) {
     // el servidor ya se lo asignó a este usuario (sea cuenta nueva o vieja).
     miVoucher = data.voucher || null;
     if (data.promo) promo = data.promo;
+    track('login_ok', { nueva: !!data.cuentaNueva });
+    if (miVoucher) track('cupon_dado');
     updateCartUI();
 
     if (desdePromo && miVoucher) { promoConfirmado(); return; }
@@ -2224,6 +2271,7 @@ function closeOrders() {
   document.getElementById('ordersModal').classList.remove('open');
 }
 
+track('visita');
 bootAuth();
 
 /* ============================================================
