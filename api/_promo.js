@@ -7,6 +7,9 @@
 //  PARA CAMBIAR LA PROMO (monto, mínimo o fechas) SE TOCA SOLO ESTE BLOQUE
 //  y se vuelve a subir con SUBIR-A-PRODUCCION.bat. Nada más.
 //
+//  Hay DOS fechas: hasta cuándo se puede reclamar el cupón (vence) y hasta
+//  cuándo se puede usar el que ya está entregado (venceUso).
+//
 //  Ojo con las fechas: van en UTC. Argentina es UTC-3, así que la medianoche
 //  de acá se escribe como las 03:00 del día siguiente en UTC.
 // ============================================================================
@@ -17,8 +20,13 @@ const PROMO = {
 
   // Se entrega desde el lunes 31/8/2026 a las 00:00 de Argentina...
   desde:  new Date('2026-08-31T03:00:00Z'),
-  // ...y se puede reclamar Y usar hasta el lunes 7/9/2026 a las 23:59 de Argentina.
+  // ...y se puede reclamar hasta el lunes 7/9/2026 a las 23:59 de Argentina.
   vence:  new Date('2026-09-08T02:59:59Z'),
+
+  // El que ya se lo llevó tiene tiempo de usarlo hasta fin de septiembre:
+  // martes 30/9/2026 a las 23:59 de Argentina. Esta es la fecha que queda
+  // guardada en cada cupón y la que se le muestra al cliente.
+  venceUso: new Date('2026-10-01T02:59:59Z'),
 };
 
 // El acceso a la base se pide recién cuando hace falta, para que /api/config
@@ -40,7 +48,7 @@ async function otorgar(userId) {
   const sql = db();
   await sql`
     INSERT INTO vouchers (user_id, codigo, monto, minimo, vence)
-    VALUES (${userId}, ${PROMO.codigo}, ${PROMO.monto}, ${PROMO.minimo}, ${PROMO.vence.toISOString()})
+    VALUES (${userId}, ${PROMO.codigo}, ${PROMO.monto}, ${PROMO.minimo}, ${PROMO.venceUso.toISOString()})
     ON CONFLICT (user_id, codigo) DO NOTHING`;
   return vigente(userId);
 }

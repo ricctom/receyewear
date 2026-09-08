@@ -2164,7 +2164,8 @@ function promoConfirmado() {
   document.querySelector('#promoModal .promo-no').textContent = 'Listo, seguir mirando';
   box.style.display = '';
   box.innerHTML = '✅ <b>Listo, tu cupón de ' + fmtR(miVoucher.monto) + ' quedó guardado.</b><br>'
-    + 'Se descuenta solo del total cuando hagas el pedido.';
+    + 'Se descuenta solo del total cuando hagas el pedido. Lo podés usar hasta el '
+    + fmtVence(miVoucher.vence) + '.';
 }
 
 function saveSession(s) {

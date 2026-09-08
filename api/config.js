@@ -7,7 +7,7 @@ module.exports = (req, res) => {
   res.status(200).json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     promo: promoActiva()
-      ? { monto: PROMO.monto, minimo: PROMO.minimo, vence: PROMO.vence }
+      ? { monto: PROMO.monto, minimo: PROMO.minimo, vence: PROMO.venceUso }
       : null,
   });
 };

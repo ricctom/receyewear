@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
     res.status(200).json({
       voucher: v,
       descuento: descuentoDe(subtotal, v),
-      promo: promoActiva() ? { monto: PROMO.monto, minimo: PROMO.minimo, vence: PROMO.vence } : null,
+      promo: promoActiva() ? { monto: PROMO.monto, minimo: PROMO.minimo, vence: PROMO.venceUso } : null,
     });
   } catch (e) {
     res.status(500).json({ error: 'server', detail: String((e && e.message) || e) });

@@ -35,7 +35,7 @@ module.exports = async (req, res) => {
       user: { id: uid, email: g.email, name: g.name, picture: g.picture, admin },
       cuentaNueva,
       voucher,
-      promo: promoActiva() ? { monto: PROMO.monto, minimo: PROMO.minimo, vence: PROMO.vence } : null,
+      promo: promoActiva() ? { monto: PROMO.monto, minimo: PROMO.minimo, vence: PROMO.venceUso } : null,
     });
   } catch (e) {
     res.status(500).json({ error: 'server', detail: String(e && e.message || e) });

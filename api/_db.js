@@ -2,6 +2,7 @@
 // Todo se crea/migra solo: no hay que correr ningún SQL a mano.
 const { neon } = require('@neondatabase/serverless');
 const SEED = require('./_seed');
+const { PROMO } = require('./_promo');
 
 const sql = neon(process.env.DATABASE_URL);
 
@@ -89,6 +90,14 @@ function ensureTables() {
     )`;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS vouchers_user_codigo
       ON vouchers (user_id, codigo)`;
+    // La campaña cierra para reclamarlo, pero al que ya se lo llevó le
+    // estiramos la vigencia hasta PROMO.venceUso (fin de septiembre). Se
+    // corrige la fecha de los cupones que se guardaron con la vieja. Es
+    // idempotente: solo toca los que vencen antes y siguen sin usar.
+    await sql`UPDATE vouchers SET vence = ${PROMO.venceUso.toISOString()}
+       WHERE codigo = ${PROMO.codigo}
+         AND used_at IS NULL
+         AND vence < ${PROMO.venceUso.toISOString()}`;
 
     // Cobros del pedido (permite pagos parciales).
     await sql`CREATE TABLE IF NOT EXISTS order_payments (
