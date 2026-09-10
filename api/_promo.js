@@ -20,13 +20,15 @@ const PROMO = {
 
   // Se entrega desde el lunes 31/8/2026 a las 00:00 de Argentina...
   desde:  new Date('2026-08-31T03:00:00Z'),
-  // ...y se puede reclamar hasta el lunes 7/9/2026 a las 23:59 de Argentina.
-  vence:  new Date('2026-09-08T02:59:59Z'),
+  // ...y se puede reclamar hasta el miércoles 30/9/2026 a las 23:59 de Argentina.
+  // (Reflotada el 10/9: la campaña original cerraba el 7/9.)
+  vence:  new Date('2026-10-01T02:59:59Z'),
 
-  // El que ya se lo llevó tiene tiempo de usarlo hasta fin de septiembre:
-  // martes 30/9/2026 a las 23:59 de Argentina. Esta es la fecha que queda
+  // El que ya se lo llevó tiene tiempo de usarlo hasta fin de octubre:
+  // sábado 31/10/2026 a las 23:59 de Argentina. Así el que lo reclama el
+  // último día igual tiene un mes para usarlo. Esta es la fecha que queda
   // guardada en cada cupón y la que se le muestra al cliente.
-  venceUso: new Date('2026-10-01T02:59:59Z'),
+  venceUso: new Date('2026-11-01T02:59:59Z'),
 };
 
 // El acceso a la base se pide recién cuando hace falta, para que /api/config
