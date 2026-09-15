@@ -11,6 +11,11 @@ module.exports = async (req, res) => {
     if (!g) return res.status(401).json({ error: 'Token de Google inválido' });
 
     await ensureTables();
+    // Si Tomás le cargó una venta antes de que tuviera cuenta, el usuario se
+    // creó con su mail: al entrar con Google por primera vez queda enganchado.
+    await sql`UPDATE users SET google_sub = ${g.sub}
+      WHERE lower(email) = ${g.email} AND google_sub LIKE 'pendiente:%'
+        AND NOT EXISTS (SELECT 1 FROM users x WHERE x.google_sub = ${g.sub})`;
     // xmax = 0 significa que la fila se INSERTó recién: sirve para saber si la
     // cuenta es nueva o si ya existía (lo usa el reporte de la campaña).
     const rows = await sql`

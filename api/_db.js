@@ -214,6 +214,33 @@ function ensureTables() {
     )`;
     await sql`ALTER TABLE supplier_consign ADD COLUMN IF NOT EXISTS precio NUMERIC`;
     await sql`UPDATE supplier_consign SET precio = precio_usd WHERE precio IS NULL`;
+
+    // Ventas de la mercadería en consignación (consignacion.html). Cada venta
+    // baja el stock y suma a la deuda, pero queda "privado": Tomás lo ve en su
+    // cuenta y el proveedor no, hasta que se la rinde.
+    await sql`ALTER TABLE supplier_moves ADD COLUMN IF NOT EXISTS privado BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE supplier_moves ADD COLUMN IF NOT EXISTS sale_id INTEGER`;
+    await sql`ALTER TABLE supplier_consign ADD COLUMN IF NOT EXISTS privado BOOLEAN DEFAULT false`;
+    await sql`ALTER TABLE supplier_consign ADD COLUMN IF NOT EXISTS sale_id INTEGER`;
+    await sql`CREATE TABLE IF NOT EXISTS consign_sales (
+      id SERIAL PRIMARY KEY,
+      supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      user_id INTEGER REFERENCES users(id),
+      email TEXT,
+      cliente TEXT,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      total_venta INTEGER NOT NULL DEFAULT 0,
+      costo NUMERIC NOT NULL DEFAULT 0,
+      order_id INTEGER,
+      move_id INTEGER,
+      rendida_at TIMESTAMPTZ,
+      nota TEXT,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    // Cuándo se le pagó al proveedor y con qué movimiento de pago.
+    await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pagada_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pago_move_id INTEGER`;
     // Qué artículo del proveedor corresponde a cada línea de la web.
     await sql`CREATE TABLE IF NOT EXISTS cost_map (
       id SERIAL PRIMARY KEY,
@@ -235,6 +262,11 @@ function ensureTables() {
       await seedOnce();
     } catch (e) {
       console.error('No se pudo cargar la migración inicial:', (e && e.message) || e);
+    }
+    try {
+      await seedConsignVendida();
+    } catch (e) {
+      console.error('No se pudo cargar la consignación vendida de la planilla:', (e && e.message) || e);
     }
   })().catch((e) => { ready = null; throw e; });
   return ready;
@@ -357,6 +389,53 @@ async function seedOnce() {
       SELECT c.id, COALESCE(e.fecha, CURRENT_DATE), e.texto
       FROM jsonb_to_recordset(${JSON.stringify(eventos)}::jsonb) AS e(nombre text, fecha date, texto text)
       JOIN crm_clients c ON lower(c.nombre) = lower(e.nombre)`;
+  }
+}
+
+// Lo vendido de la consignación que figuraba en la pestaña oculta de la
+// planilla. Corre UNA sola vez en la vida: queda marcado en settings, así que
+// si Tomás después borra alguna de estas ventas no vuelve a aparecer.
+async function seedConsignVendida() {
+  const [martin] = await sql`SELECT id FROM suppliers WHERE lower(nombre) LIKE 'mart%' ORDER BY id LIMIT 1`;
+  if (!martin) return;                              // todavía no corrió el seed inicial
+  // Se toma la marca ANTES de cargar: dos arranques a la vez no la duplican.
+  const tomada = await sql`INSERT INTO settings (key, value, updated_at)
+    VALUES ('seed_consign_vendida', ${new Date().toISOString()}, now())
+    ON CONFLICT (key) DO NOTHING RETURNING key`;
+  if (!tomada.length) return;
+  try {
+    for (const v of SEED.CONSIGN_VENDIDA) {
+      const items = v.items.map(([articulo, cantidad, costo]) => ({ articulo, cantidad, precio: 0, costo }));
+      const costo = Math.round(items.reduce((a, it) => a + it.costo * it.cantidad, 0) * 100) / 100;
+      const [venta] = await sql`
+        INSERT INTO consign_sales (supplier_id, fecha, items, total_venta, costo, nota)
+        VALUES (${martin.id}, ${v.fecha}, ${JSON.stringify(items)}::jsonb, 0, ${costo},
+                'De la planilla (pestaña oculta)')
+        RETURNING id`;
+      for (const it of items) {
+        await sql`INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, precio, nota, privado, sale_id)
+          VALUES (${martin.id}, ${v.fecha}, ${it.articulo}, ${-it.cantidad}, ${it.costo}, ${it.costo},
+                  'Vendido (planilla)', true, ${venta.id})`;
+      }
+      const [mov] = await sql`
+        INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, monto, detalle, items, privado, sale_id)
+        VALUES (${martin.id}, ${v.fecha}, 'PEDIDO', ${costo}, ${costo}, 'Consignación vendida (planilla)',
+                ${JSON.stringify(items.map((it) => ({ articulo: it.articulo, cantidad: it.cantidad, precio: it.costo })))}::jsonb,
+                true, ${venta.id})
+        RETURNING id`;
+      await sql`UPDATE consign_sales SET move_id = ${mov.id} WHERE id = ${venta.id}`;
+    }
+  } catch (e) {
+    // Si se cortó a la mitad se borra lo que llegó a entrar y se suelta la
+    // marca, así el próximo arranque la carga entera de nuevo.
+    try {
+      const nota = 'De la planilla (pestaña oculta)';
+      await sql`DELETE FROM supplier_consign WHERE sale_id IN (SELECT id FROM consign_sales WHERE nota = ${nota})`;
+      await sql`DELETE FROM supplier_moves WHERE sale_id IN (SELECT id FROM consign_sales WHERE nota = ${nota})`;
+      await sql`DELETE FROM consign_sales WHERE nota = ${nota}`;
+      await sql`DELETE FROM settings WHERE key = 'seed_consign_vendida'`;
+    } catch { /* si tampoco se puede limpiar, queda el error original */ }
+    throw e;
   }
 }
 

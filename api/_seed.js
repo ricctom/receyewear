@@ -78,6 +78,16 @@ const CONSIGNACION = [
   ['2026-07-31', 'DEPORTIVO 5 PLACAS', -10, 14.00, 'Muestras devueltas'],
 ];
 
+// Pestaña oculta de la planilla: lo que Tomás vendió de la consignación y todavía
+// no le pagó a Martín. Se carga como ventas privadas (Martín no las ve), sin
+// cliente porque la planilla no lo tenía. [articulo, cantidad, costo en dólares]
+const CONSIGN_VENDIDA = [
+  { fecha: '2026-04-20', items: [
+    ['CLIPON', 10, 12.00], ['METAL FINO', 5, 8.00], ['LAVANETT', 4, 8.50], ['ACETATO DISEÑO', 7, 12.00] ] },
+  { fecha: '2026-07-20', items: [
+    ['DEPORTIVO 5 PLACAS', 1, 14.00] ] },
+];
+
 // Mapa: línea de la web -> artículo del proveedor. El "factor" son las unidades
 // que trae ese ítem (los packs de económicos vienen de a 50, 100 o 500).
 const COSTOS = [
@@ -101,4 +111,4 @@ const COSTOS = [
   ['pack x50 metalicos surtidos', 'ECONOMICOS METAL', 50],
 ];
 
-module.exports = { PRECIOS, MOVIMIENTOS, CONSIGNACION, COSTOS };
+module.exports = { PRECIOS, MOVIMIENTOS, CONSIGNACION, CONSIGN_VENDIDA, COSTOS };

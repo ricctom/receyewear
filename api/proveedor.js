@@ -48,10 +48,13 @@ function limpiarItems(items) {
 const totalItems = (items) =>
   Math.round(items.reduce((a, it) => a + it.cantidad * it.precio, 0) * 100) / 100;
 
-// Saldo de cada proveedor, para el resumen de arriba.
-async function saldos() {
+// Saldo de cada proveedor, para el resumen de arriba. El proveedor no ve lo
+// privado (las ventas de consignación que todavía no se le rindieron).
+async function saldos(soloVisible) {
   const rows = await sql`SELECT supplier_id, COALESCE(sum(monto), 0) AS saldo
-    FROM supplier_moves GROUP BY supplier_id`;
+    FROM supplier_moves
+    WHERE NOT (${!!soloVisible}::boolean AND COALESCE(privado, false))
+    GROUP BY supplier_id`;
   const m = new Map(rows.map((r) => [r.supplier_id, Math.round(Number(r.saldo) * 100) / 100]));
   return m;
 }
@@ -113,14 +116,18 @@ module.exports = async (req, res) => {
       }
 
       const [movs, consign, precios, usd, saldoDe] = await Promise.all([
-        sql`SELECT id, fecha, tipo, monto, detalle, items, order_id FROM supplier_moves
-            WHERE supplier_id = ${prov.id} ORDER BY fecha, id`,
-        sql`SELECT id, fecha, articulo, cantidad, precio, nota FROM supplier_consign
-            WHERE supplier_id = ${prov.id} ORDER BY fecha, id`,
+        sql`SELECT id, fecha, tipo, monto, detalle, items, order_id, COALESCE(privado, false) AS privado
+            FROM supplier_moves
+            WHERE supplier_id = ${prov.id} AND NOT (${soloLectura}::boolean AND COALESCE(privado, false))
+            ORDER BY fecha, id`,
+        sql`SELECT id, fecha, articulo, cantidad, precio, nota, COALESCE(privado, false) AS privado
+            FROM supplier_consign
+            WHERE supplier_id = ${prov.id} AND NOT (${soloLectura}::boolean AND COALESCE(privado, false))
+            ORDER BY fecha, id`,
         sql`SELECT id, articulo, precio, activo FROM supplier_prices
             WHERE supplier_id = ${prov.id} ORDER BY articulo`,
         usdRate(),
-        saldos(),
+        saldos(soloLectura),
       ]);
 
       let saldo = 0;

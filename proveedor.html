@@ -60,6 +60,7 @@
     <a href="carritos.html">Carritos</a>
     <a href="crm.html">Clientes</a>
     <a href="proveedor.html" class="on">Proveedores</a>
+    <a href="consignacion.html">Consignación</a>
     <a href="cupones.html">Cupones</a>
   </nav>
   <div class="who" id="who"></div>
@@ -178,7 +179,8 @@ function pintar(){
       <div class="cabe"><h3>Movimientos de consignación</h3></div>
       ${verMovCons ? D.consignacion.map(c => `<div class="mov">
         <div class="izq"><p class="q">${esc(c.articulo)}</p>
-          <p class="f">${fechaCorta(c.fecha)}${c.nota ? ' · ' + esc(c.nota) : ''}</p></div>
+          <p class="f">${fechaCorta(c.fecha)}${c.nota ? ' · ' + esc(c.nota) : ''}${
+            c.privado && !ro ? ' · <b>' + esc(P.nombre) + ' no lo ve</b>' : ''}</p></div>
         <div style="display:flex;align-items:center">
           <div class="der">
             <div class="mm ${c.cantidad > 0 ? 'sube' : 'baja'}">${c.cantidad > 0 ? '+' : ''}${c.cantidad} u.</div>
@@ -218,7 +220,8 @@ function renderMov(m, ro, moneda){
   return `<div class="mov">
     <div class="izq">
       <p class="q">${que}</p>
-      <p class="f">${fechaCorta(m.fecha)}${m.detalle ? ' · ' + esc(m.detalle) : ''}</p>
+      <p class="f">${fechaCorta(m.fecha)}${m.detalle ? ' · ' + esc(m.detalle) : ''}${
+        m.privado && !ro ? ' · <b>' + esc(D.proveedor.nombre) + ' no lo ve</b>' : ''}</p>
       ${items ? `<p class="d">${esc(items)}</p>` : ''}
     </div>
     <div style="display:flex;align-items:center">
