@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
         return { ...o, costo: c.detalle, sin_costo: c.sinCosto };
       });
 
-      const [precios, mapa, provs, cupones, embudo, origenes] = await Promise.all([
+      const [precios, mapa, provs, cupones, embudo, origenes, carritos] = await Promise.all([
         sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo ORDER BY articulo`,
         sql`SELECT patron, articulo, factor, supplier_id FROM cost_map ORDER BY patron`,
         sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
@@ -83,18 +83,77 @@ module.exports = async (req, res) => {
         sql`SELECT COALESCE(ref, 'directo') AS ref, count(DISTINCT sid)::int AS n
               FROM events WHERE tipo = 'visita'
              GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
+        // Carritos armados. Si el carrito no quedó enganchado a un usuario, se
+        // busca quién inició sesión alguna vez desde ese mismo navegador.
+        sql`SELECT c.sid, c.items, c.total, c.unidades, c.estado, c.order_id,
+                   c.created_at, c.updated_at,
+                   u.id AS user_id, u.email, u.name, u.razon_social, u.telefono
+              FROM carts c
+              LEFT JOIN users u ON u.id = COALESCE(c.user_id,
+                (SELECT e.user_id FROM events e
+                  WHERE e.sid = c.sid AND e.user_id IS NOT NULL
+                  ORDER BY e.id DESC LIMIT 1))
+             ORDER BY c.updated_at DESC LIMIT 300`,
       ]);
       return res.status(200).json({
         orders, usd, proveedores: provs,
         articulos: precios,
         cost_map: mapa,
         sin_mapear: [...sinMapear.values()],
-        cupones, embudo, origenes,
+        cupones, embudo, origenes, carritos,
       });
     }
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
     const b = req.body || {};
+
+    /* ----- Carritos armados: pasarlo a pedido o descartarlo ----- */
+    if (b.carrito) {
+      const sid = String(b.carrito.sid || '');
+      const [c] = await sql`SELECT c.*, COALESCE(c.user_id,
+            (SELECT e.user_id FROM events e WHERE e.sid = c.sid AND e.user_id IS NOT NULL
+              ORDER BY e.id DESC LIMIT 1)) AS uid
+          FROM carts c WHERE c.sid = ${sid}`;
+      if (!c) return res.status(404).json({ error: 'No existe ese carrito' });
+
+      if (b.carrito.accion === 'descartar') {
+        await sql`UPDATE carts SET estado = 'descartado', updated_at = now() WHERE sid = ${sid}`;
+        return res.status(200).json({ ok: true });
+      }
+
+      if (b.carrito.accion === 'pedido') {
+        if (c.estado === 'pedido') {
+          return res.status(400).json({ error: 'Ese carrito ya es el pedido #' + c.order_id });
+        }
+        if (!c.uid) {
+          return res.status(400).json({ error: 'No sabemos de quién es: nunca inició sesión desde ese navegador.' });
+        }
+        const items = Array.isArray(c.items) ? c.items : [];
+        if (!items.length) return res.status(400).json({ error: 'El carrito está vacío' });
+
+        // Mismo pedido que armaría /api/orders, con los datos de envío que el
+        // cliente tenga guardados (pueden faltar: se completan después).
+        const [u] = await sql`SELECT dni_cuit, razon_social, telefono, direccion, faltante, faltante_detalle
+          FROM users WHERE id = ${c.uid}`;
+        const ship = u || {};
+        const faltante = ship.faltante || 'consultar';
+        const total = Math.round(items.reduce((a, it) => a + (Number(it.price) || 0) * (parseInt(it.qty, 10) || 1), 0));
+        let rate = null;
+        try { rate = (await usdRate()).valor || null; } catch { rate = null; }
+
+        const [o] = await sql`
+          INSERT INTO orders (user_id, items, total, descuento, ship, faltante, usd_rate, nota)
+          VALUES (${c.uid}, ${JSON.stringify(items)}::jsonb, ${total}, 0,
+                  ${JSON.stringify({ ...ship, faltante })}::jsonb, ${faltante}, ${rate},
+                  'Creado desde un carrito armado: el cliente no llegó a confirmarlo')
+          RETURNING id`;
+        await sql`UPDATE carts SET estado = 'pedido', order_id = ${o.id}, user_id = ${c.uid}, updated_at = now()
+          WHERE sid = ${sid}`;
+        return res.status(200).json({ ok: true, order_id: o.id });
+      }
+
+      return res.status(400).json({ error: 'Acción inválida' });
+    }
 
     /* ----- Cotización ----- */
     if (b.usd) {

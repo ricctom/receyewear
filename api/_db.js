@@ -73,6 +73,24 @@ function ensureTables() {
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS events_sid_tipo ON events (sid, tipo)`;
     await sql`CREATE INDEX IF NOT EXISTS events_tipo_fecha ON events (tipo, created_at)`;
 
+    /* ---------- Carritos armados ---------- */
+    // Una fila por navegador (el mismo sid del embudo). Se guarda mientras la
+    // persona arma el carrito, así un pedido que no llegó a confirmarse no se
+    // pierde: se ve en carritos.html y se puede pasar a pedido desde ahí.
+    // estado: abierto | pedido | vaciado | descartado
+    await sql`CREATE TABLE IF NOT EXISTS carts (
+      sid TEXT PRIMARY KEY,
+      user_id INTEGER,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      total INTEGER NOT NULL DEFAULT 0,
+      unidades INTEGER NOT NULL DEFAULT 0,
+      estado TEXT NOT NULL DEFAULT 'abierto',
+      order_id INTEGER,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`CREATE INDEX IF NOT EXISTS carts_actualizado ON carts (updated_at DESC)`;
+
     /* ---------- Cupones de campaña ---------- */
     // Un cupón por usuario por campaña (lo garantiza el índice único de abajo).
     // "total" del pedido ya viene con el descuento restado; "descuento" queda

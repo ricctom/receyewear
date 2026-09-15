@@ -1582,7 +1582,29 @@ function removeFromCartAt(i) {
   cart.splice(i, 1);
   saveCart(); updateCartUI();
 }
-function saveCart() { localStorage.setItem('rec4_cart', JSON.stringify(cart)); }
+function saveCart() { localStorage.setItem('rec4_cart', JSON.stringify(cart)); syncCart(); }
+
+/* El carrito también se guarda en el servidor mientras se arma (/api/cart):
+   si el pedido no llega a confirmarse, Tomás lo ve en carritos.html y lo puede
+   pasar a pedido sin que el cliente lo tenga que armar de nuevo. */
+let cartSyncT = null;
+function syncCart() { clearTimeout(cartSyncT); cartSyncT = setTimeout(enviarCarrito, 1200); }
+function enviarCarrito() {
+  cartSyncT = null;
+  try {
+    const sid = visitorId();
+    if (!sid) return;
+    const items = cart.map(l => {
+      const p = PRODUCTS.find(x => x.id === l.id);
+      return p ? { sku: p.sku, name: p.name, color: l.color || null, qty: l.qty, price: p.price } : null;
+    }).filter(Boolean);
+    const headers = { 'Content-Type': 'application/json' };
+    if (session && session.token) headers['Authorization'] = 'Bearer ' + session.token;
+    fetch('/api/cart', { method: 'POST', headers, body: JSON.stringify({ sid, items }), keepalive: true }).catch(() => {});
+  } catch { /* nunca romper la página por esto */ }
+}
+// Si cierra la página antes de que salga el guardado, se manda en el momento.
+window.addEventListener('pagehide', () => { if (cartSyncT) { clearTimeout(cartSyncT); enviarCarrito(); } });
 
 window.addEventListener('storage', e => {
   if (e.key === 'rec4_cart') {
@@ -1694,7 +1716,7 @@ async function placeOrder(ship) {
   let order = null;
   try {
     const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({
-      items, total, ship, faltante: ship && ship.faltante }) });
+      items, total, ship, faltante: ship && ship.faltante, sid: visitorId() }) });
     order = r.order;
   } catch (e) {
     if (String(e.message).includes('sesión')) { // sesión vencida
@@ -1971,6 +1993,8 @@ async function bootAuth() {
     promo = cfg.promo || null;
   } catch { authEnabled = false; promo = null; }
   renderAcct();
+  // El carrito que ya estaba armado de antes se guarda apenas abre la página.
+  if (cart.length) enviarCarrito();
   if (session) await loadVoucher();   // ya logueado: traemos su cupón
   updateCartUI();
   maybeShowPromo();
@@ -2208,6 +2232,7 @@ async function onCredential(resp) {
   try {
     const data = await api('/api/auth', { method: 'POST', body: JSON.stringify({ credential: resp.credential }) });
     saveSession(data); renderAcct(); closeLogin();
+    if (cart.length) enviarCarrito();   // el carrito queda a nombre de este usuario
     // El cupón viene en la misma respuesta del login: si la campaña está viva,
     // el servidor ya se lo asignó a este usuario (sea cuenta nueva o vieja).
     miVoucher = data.voucher || null;

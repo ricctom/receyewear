@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Carritos · REC Eyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="panel.css"/>
+<style>
+  .cup-tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+  .cup-tbl th{text-align:left;font-weight:500;color:var(--mt);font-size:12px;
+    padding:0 14px 10px 0;border-bottom:1px solid var(--ln);white-space:nowrap}
+  .cup-tbl td{padding:13px 14px 13px 0;border-bottom:1px solid var(--ln);vertical-align:top}
+  .cup-tbl tr:hover td{background:#faf9f6}
+  .cup-nom{font-weight:600}
+  .cup-mail{color:var(--mt);font-size:12.5px}
+  .cup-scroll{overflow-x:auto}
+  .tag{display:inline-block;font-size:11px;border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .tag.abierto{background:#fdf3e3;color:#8a6413}
+  .tag.pedido{background:#eaf4ec;color:#256b33}
+  .tag.vaciado,.tag.descartado{background:#f0efe9;color:var(--mt)}
+  .acc{display:flex;gap:6px;flex-wrap:wrap}
+  .it-l{font-size:13px;padding:7px 0;border-bottom:1px solid var(--ln);display:flex;justify-content:space-between;gap:12px}
+  .it-l:last-child{border-bottom:none}
+  .it-l small{color:var(--mt)}
+</style>
+</head>
+<body>
+<header>
+  <h1>REC</h1>
+  <nav class="tabs">
+    <a href="admin.html">Pedidos</a>
+    <a href="carritos.html" class="on">Carritos</a>
+    <a href="crm.html">Clientes</a>
+    <a href="proveedor.html">Proveedores</a>
+    <a href="cupones.html">Cupones</a>
+  </nav>
+  <div class="who" id="who"></div>
+</header>
+
+<div class="wrap" id="gate">
+  <div class="gate">
+    <h2>Carritos</h2>
+    <p>Entrá con la cuenta de Google de siempre.</p>
+    <div id="gbtn"></div>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</div>
+
+<div class="wrap" id="panel" style="display:none">
+  <div class="top">
+    <div>
+      <h2>Carritos armados</h2>
+      <div class="sub">Lo que la gente tiene en el carrito, aunque no haya confirmado el pedido.</div>
+    </div>
+    <div class="der">
+      <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
+    </div>
+  </div>
+  <div class="resumen" id="resumen"></div>
+  <div class="filtros" id="filtros"></div>
+  <div class="cup-scroll" id="lista"></div>
+</div>
+
+<div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+
+<script src="panel.js"></script>
+<script>
+/* Lo alimenta el bloque "carritos" de GET /api/admin. Cada carrito es un
+   navegador: se guarda solo mientras el cliente lo arma (api/cart.js). */
+let CARR = [];
+let filtro = 'abiertos';
+
+const ESTADO_TXT = { abierto: 'Sin confirmar', pedido: 'Ya es pedido', vaciado: 'Lo vació', descartado: 'Descartado' };
+const FILTROS = {
+  abiertos: { txt: 'Sin confirmar', test: (c) => c.estado === 'abierto' },
+  pedidos:  { txt: 'Ya son pedido', test: (c) => c.estado === 'pedido' },
+  todos:    { txt: 'Todos',         test: () => true },
+};
+
+async function cargar() {
+  document.getElementById('lista').innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const d = await api('/api/admin');
+    CARR = d.carritos || [];
+    pintar();
+  } catch (e) {
+    if (esSesion(e)) return logout();
+    document.getElementById('lista').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+function fechaHora(f) {
+  if (!f) return '—';
+  const d = new Date(f);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+       + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function quien(c) {
+  if (!c.user_id) return '<div class="cup-nom">Visitante sin identificar</div><div class="cup-mail">Nunca inició sesión en ese navegador</div>';
+  return `<div class="cup-nom">${esc(c.razon_social || c.name || c.email)}</div><div class="cup-mail">${esc(c.email || '')}</div>`;
+}
+
+function pintar() {
+  const abiertos = CARR.filter(FILTROS.abiertos.test);
+  document.getElementById('resumen').innerHTML = [
+    ['Sin confirmar', abiertos.length],
+    ['Plata en carritos sin confirmar', fmt(abiertos.reduce((s, c) => s + (Number(c.total) || 0), 0))],
+    ['De clientes identificados', abiertos.filter(c => c.user_id).length],
+  ].map(([t, v]) => `<div><p class="r1">${t}</p><p class="r2">${v}</p></div>`).join('');
+
+  document.getElementById('filtros').innerHTML = Object.entries(FILTROS).map(([k, f]) =>
+    `<button class="chip ${k === filtro ? 'on' : ''}" onclick="setFiltro('${k}')">${f.txt}<b>${CARR.filter(f.test).length}</b></button>`
+  ).join('');
+
+  const rows = CARR.filter(FILTROS[filtro].test);
+  const box = document.getElementById('lista');
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty">No hay carritos acá.<br>Apenas alguien ponga algo en el carrito va a aparecer.</div>';
+    return;
+  }
+  box.innerHTML = `<table class="cup-tbl"><thead><tr>
+      <th>Cliente</th><th>Teléfono</th><th>Última vez que lo tocó</th>
+      <th>Productos</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>`
+    + rows.map(c => {
+        const i = CARR.indexOf(c);
+        const acciones = [`<button class="b sm q" onclick="ver(${i})">Ver</button>`];
+        if (c.estado === 'abierto' && c.user_id) acciones.push(`<button class="b sm" onclick="aPedido(${i})">Crear pedido</button>`);
+        if (c.estado === 'abierto') acciones.push(`<button class="b sm q" onclick="descartar(${i})">Descartar</button>`);
+        return `<tr>
+          <td>${quien(c)}</td>
+          <td>${esc(c.telefono || '—')}</td>
+          <td>${fechaHora(c.updated_at)}</td>
+          <td>${Number(c.unidades) || 0} u. · ${(c.items || []).length} modelos</td>
+          <td>${fmt(c.total)}</td>
+          <td><span class="tag ${esc(c.estado)}">${ESTADO_TXT[c.estado] || esc(c.estado)}${c.order_id ? ' #' + c.order_id : ''}</span></td>
+          <td><div class="acc">${acciones.join('')}</div></td>
+        </tr>`;
+      }).join('')
+    + '</tbody></table>';
+}
+
+function setFiltro(k) { filtro = k; pintar(); }
+
+function ver(i) {
+  const c = CARR[i]; if (!c) return;
+  const items = (c.items || []).map(it => `<div class="it-l">
+      <span>${esc(it.name)}${it.color ? ' — <b>' + esc(it.color) + '</b>' : ''} <small>× ${Number(it.qty) || 1}</small></span>
+      <span>${fmt((Number(it.price) || 0) * (Number(it.qty) || 1))}</span></div>`).join('');
+  abrirModal(`<h3 style="margin:0 0 4px">${c.user_id ? esc(c.razon_social || c.name || c.email) : 'Visitante sin identificar'}</h3>
+    <p style="color:var(--mt);margin:0 0 14px;font-size:13px">Armado el ${fechaHora(c.created_at)} · tocado por última vez el ${fechaHora(c.updated_at)}</p>
+    ${items || '<div class="empty">Vacío</div>'}
+    <p style="font-weight:700;margin:14px 0 0">Total: ${fmt(c.total)}</p>
+    <div style="margin-top:16px;text-align:right"><button class="b sm q" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+
+async function aPedido(i) {
+  const c = CARR[i]; if (!c) return;
+  if (!confirm('¿Crear el pedido con este carrito (' + fmt(c.total) + ') a nombre de ' + (c.razon_social || c.name || c.email) + '?')) return;
+  try {
+    const r = await api('/api/admin', { method: 'POST', body: JSON.stringify({ carrito: { sid: c.sid, accion: 'pedido' } }) });
+    showToast('Listo: pedido #' + r.order_id + ' creado');
+    cargar();
+  } catch (e) { alert(e.message); }
+}
+
+async function descartar(i) {
+  const c = CARR[i]; if (!c) return;
+  if (!confirm('¿Descartar este carrito? Deja de aparecer en "Sin confirmar".')) return;
+  try {
+    await api('/api/admin', { method: 'POST', body: JSON.stringify({ carrito: { sid: c.sid, accion: 'descartar' } }) });
+    cargar();
+  } catch (e) { alert(e.message); }
+}
+
+bootPanel(cargar);
+</script>
+</body>
+</html>

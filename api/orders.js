@@ -90,6 +90,13 @@ module.exports = async (req, res) => {
       }
       if (usado) await asociar(usado, order.id).catch(() => {});
 
+      // El carrito guardado de este navegador ya se convirtió en pedido.
+      const sid = String(body.sid || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+      if (sid.length >= 8) {
+        await sql`UPDATE carts SET estado = 'pedido', order_id = ${order.id}, user_id = ${s.uid}, updated_at = now()
+          WHERE sid = ${sid}`.catch(() => {});
+      }
+
       await notifyOrder(order, { name: s.name, email: s.email }, clean, { ...ship, faltante });
       return res.status(200).json({ order: { ...order, subtotal } });
     }
