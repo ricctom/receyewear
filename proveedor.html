@@ -85,6 +85,7 @@
     <div class="der" id="acciones"></div>
   </div>
   <div class="provs" id="provs"></div>
+  <div class="filtros" id="pestanas"></div>
   <div id="cuerpo"></div>
 </div>
 
@@ -94,6 +95,7 @@
 <script src="panel.js"></script>
 <script>
 let D = null, filas = [], verTodo = false, verConsig = false, verMovCons = false, verPrecios = false;
+let pestana = 'cc';   // 'cc' = cuenta corriente, 'consig' = consignación
 let elegido = null;   // qué proveedor se está mirando
 const INVITACION = new URLSearchParams(location.search).get('invitacion') || '';
 
@@ -136,7 +138,9 @@ function pintar(){
     : D.proveedores.length + (D.proveedores.length === 1 ? ' proveedor' : ' proveedores') +
       ' · mirando la cuenta de ' + P.nombre;
 
-  document.getElementById('acciones').innerHTML = ro ? '' : `
+  document.getElementById('acciones').innerHTML = ro ? '' : pestana === 'consig'
+    ? `<a class="b sm" href="consignacion.html" style="text-decoration:none">Cargar en Consignación →</a>`
+    : `
     <button class="b sm" onclick="modalPago()">Le pagué</button>
     <button class="b sm q" onclick="modalEntrega()">Cargar entrega</button>
     <button class="b sm q ico" onclick="masOpciones()" title="Más">⋯</button>`;
@@ -153,6 +157,12 @@ function pintar(){
     + (ro ? '' : `<button class="prov" style="min-width:auto;flex:0 0 auto;color:var(--md)" onclick="modalNuevoProv()">
         <p class="pn">+ Proveedor</p><p class="pe">agregar otro</p></button>`);
 
+  // La cuenta está dividida en dos: cuenta corriente y consignación.
+  document.getElementById('pestanas').innerHTML = `
+    <button class="chip ${pestana === 'cc' ? 'on' : ''}" onclick="pestana='cc';pintar()">Cuenta corriente</button>
+    <button class="chip ${pestana === 'consig' ? 'on' : ''}" onclick="pestana='consig';pintar()">Consignación</button>`;
+  if(pestana === 'consig'){ document.getElementById('cuerpo').innerHTML = pintarConsig(ro, P); return; }
+
   const movs = verTodo ? D.movimientos : D.movimientos.slice(0, 8);
   document.getElementById('cuerpo').innerHTML = `
     <div class="caja">
@@ -165,34 +175,6 @@ function pintar(){
         ${verTodo ? 'Ver solo los últimos' : 'Ver los ' + D.movimientos.length + ' movimientos'}</button>` : ''}
     </div>
 
-    ${D.stock_consignacion.length ? `<div class="caja">
-      <div class="cabe"><h3>${ro ? 'Mercadería tuya en consignación' : 'En consignación'}</h3>
-        <span class="n">${plata(D.consign_total, P.moneda)}</span></div>
-      ${verConsig ? D.stock_consignacion.map(a => `<div class="stk">
-        <span>${esc(a.articulo)} <span class="g">${a.cantidad} u.</span></span>
-        <span class="num">${plata(a.total, P.moneda)}</span></div>`).join('') : ''}
-      <button class="plegar" onclick="verConsig=!verConsig;pintar()">
-        ${verConsig ? 'Ocultar' : (ro ? 'Ver qué le dejaste' : 'Ver qué tenés de él')}</button>
-    </div>` : ''}
-
-    ${D.consignacion.length ? `<div class="caja">
-      <div class="cabe"><h3>Movimientos de consignación</h3></div>
-      ${verMovCons ? D.consignacion.map(c => `<div class="mov">
-        <div class="izq"><p class="q">${esc(c.articulo)}</p>
-          <p class="f">${fechaCorta(c.fecha)}${c.nota ? ' · ' + esc(c.nota) : ''}${
-            c.privado && !ro ? ' · <b>' + esc(P.nombre) + ' no lo ve</b>' : ''}</p></div>
-        <div style="display:flex;align-items:center">
-          <div class="der">
-            <div class="mm ${c.cantidad > 0 ? 'sube' : 'baja'}">${c.cantidad > 0 ? '+' : ''}${c.cantidad} u.</div>
-            <div class="ss num">${plata(c.cantidad * Number(c.precio), P.moneda)}</div>
-          </div>
-          ${ro ? '' : `<button class="x ed" title="Corregir" onclick="modalEditarConsign(${c.id})">✎</button>
-            <button class="x" title="Borrar" onclick="borrar('borrarConsign',${c.id},'esta línea de consignación')">×</button>`}
-        </div></div>`).join('') : ''}
-      <button class="plegar" onclick="verMovCons=!verMovCons;pintar()">
-        ${verMovCons ? 'Ocultar' : 'Ver los ' + D.consignacion.length + ' movimientos'}</button>
-    </div>` : ''}
-
     <div class="caja">
       <div class="cabe"><h3>Lista de precios</h3>
         ${ro ? '' : '<button class="b sm q" onclick="modalPrecios()">Editar</button>'}</div>
@@ -203,6 +185,49 @@ function pintar(){
       <button class="plegar" onclick="verPrecios=!verPrecios;pintar()">
         ${verPrecios ? 'Ocultar' : (D.precios.length ? 'Ver los ' + D.precios.length + ' artículos' : 'Cargar precios')}</button>
     </div>`;
+}
+
+/* Pestaña Consignación: lo que dejó, lo que salió y lo que se le pagó de
+   consignación. Es lo mismo que ve el proveedor; las ventas no aparecen. */
+function pintarConsig(ro, P){
+  const R = D.consign_resumen || { dejado:0, salio:0, pagado:0, saldo:0 };
+  const mon = P.moneda;
+  const movs = D.consignacion.slice().reverse();   // lo más nuevo arriba
+  const pagos = D.consign_pagos || [];
+
+  const resumen = `<div class="caja">
+      <div class="cabe"><h3>Cuenta de consignación</h3><span class="n">${plata(R.saldo, mon)}</span></div>
+      <div class="stk"><span>${ro ? 'Mercadería que le dejaste' : 'Mercadería que te dejó'}</span><span class="num">${plata(R.dejado, mon)}</span></div>
+      ${R.salio ? `<div class="stk"><span>${ro ? 'Te devolvió' : 'Le devolviste'}</span><span class="num">− ${plata(R.salio, mon)}</span></div>` : ''}
+      <div class="stk"><span>${ro ? 'Te pagó de consignación' : 'Le pagaste de consignación'}</span><span class="num">− ${plata(R.pagado, mon)}</span></div>
+      <div class="stk"><b>Queda en consignación</b><b class="num">${plata(R.saldo, mon)}</b></div>
+    </div>`;
+
+  const mercaderia = `<div class="caja">
+      <div class="cabe"><h3>${ro ? 'Lo que le dejaste' : 'Lo que te dejó'}</h3></div>
+      ${movs.length ? movs.map(c => `<div class="mov">
+        <div class="izq"><p class="q">${esc(c.articulo)}</p>
+          <p class="f">${fechaCorta(c.fecha)}${c.nota ? ' · ' + esc(c.nota) : ''}</p></div>
+        <div style="display:flex;align-items:center">
+          <div class="der">
+            <div class="mm">${c.cantidad > 0 ? '' : 'Salieron '}${Math.abs(c.cantidad)} u.</div>
+            <div class="ss num">${Math.abs(c.cantidad)} × ${plata(Number(c.precio), mon)} = ${plata(Math.abs(c.cantidad) * Number(c.precio), mon)}</div>
+          </div>
+          ${ro ? '' : `<button class="x ed" title="Corregir" onclick="modalEditarConsign(${c.id})">✎</button>
+            <button class="x" title="Borrar" onclick="borrar('borrarConsign',${c.id},'esta línea de consignación')">×</button>`}
+        </div></div>`).join('') : '<div class="empty">Todavía no hay mercadería en consignación.</div>'}
+    </div>`;
+
+  const listaPagos = `<div class="caja">
+      <div class="cabe"><h3>Pagos de consignación</h3>${pagos.length ? `<span class="n">${plata(R.pagado, mon)}</span>` : ''}</div>
+      ${pagos.length ? pagos.map(p => `<div class="mov">
+        <div class="izq"><p class="q">${ro ? 'Te pagó' : 'Le pagaste'}</p>
+          <p class="f">${fechaCorta(p.fecha)}${p.nota ? ' · ' + esc(p.nota) : ''}</p></div>
+        <div class="der"><div class="mm baja">${plata(p.monto, mon)}</div></div>
+      </div>`).join('') : '<div class="empty">Todavía no hay pagos de consignación.</div>'}
+    </div>`;
+
+  return resumen + mercaderia + listaPagos;
 }
 
 function verProveedor(id){
@@ -220,8 +245,7 @@ function renderMov(m, ro, moneda){
   return `<div class="mov">
     <div class="izq">
       <p class="q">${que}</p>
-      <p class="f">${fechaCorta(m.fecha)}${m.detalle ? ' · ' + esc(m.detalle) : ''}${
-        m.privado && !ro ? ' · <b>' + esc(D.proveedor.nombre) + ' no lo ve</b>' : ''}</p>
+      <p class="f">${fechaCorta(m.fecha)}${m.detalle ? ' · ' + esc(m.detalle) : ''}</p>
       ${items ? `<p class="d">${esc(items)}</p>` : ''}
     </div>
     <div style="display:flex;align-items:center">

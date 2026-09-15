@@ -241,6 +241,34 @@ function ensureTables() {
     // Cuándo se le pagó al proveedor y con qué movimiento de pago.
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pagada_at TIMESTAMPTZ`;
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pago_move_id INTEGER`;
+
+    // La consignación lleva su propia cuenta, separada de la cuenta corriente.
+    // Lo que se le paga por lo vendido de consignación va acá.
+    await sql`CREATE TABLE IF NOT EXISTS consign_payments (
+      id SERIAL PRIMARY KEY,
+      supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      monto NUMERIC NOT NULL,
+      nota TEXT,
+      move_id INTEGER,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pago_id INTEGER`;
+    // Arreglo de la primera versión, que cargaba las ventas de consignación y
+    // sus pagos en la cuenta corriente: los pagos se pasan a consign_payments y
+    // todo eso sale de supplier_moves. Si ya no queda nada para mover, no hace nada.
+    await sql`INSERT INTO consign_payments (supplier_id, fecha, monto, nota, move_id)
+      SELECT m.supplier_id, m.fecha, -m.monto, m.detalle, m.id FROM supplier_moves m
+       WHERE m.id IN (SELECT pago_move_id FROM consign_sales WHERE pago_move_id IS NOT NULL)
+         AND NOT EXISTS (SELECT 1 FROM consign_payments p WHERE p.move_id = m.id)`;
+    await sql`UPDATE consign_sales v SET pago_id = p.id FROM consign_payments p
+      WHERE p.move_id = v.pago_move_id AND v.pago_id IS NULL`;
+    await sql`UPDATE orders SET supplier_move_id = NULL
+      WHERE supplier_move_id IN (SELECT id FROM supplier_moves WHERE sale_id IS NOT NULL)`;
+    await sql`DELETE FROM supplier_moves WHERE sale_id IS NOT NULL
+      OR id IN (SELECT pago_move_id FROM consign_sales WHERE pago_move_id IS NOT NULL)`;
+    await sql`UPDATE consign_sales SET move_id = NULL, pago_move_id = NULL
+      WHERE move_id IS NOT NULL OR pago_move_id IS NOT NULL`;
     // Qué artículo del proveedor corresponde a cada línea de la web.
     await sql`CREATE TABLE IF NOT EXISTS cost_map (
       id SERIAL PRIMARY KEY,
@@ -412,18 +440,13 @@ async function seedConsignVendida() {
         VALUES (${martin.id}, ${v.fecha}, ${JSON.stringify(items)}::jsonb, 0, ${costo},
                 'De la planilla (pestaña oculta)')
         RETURNING id`;
+      // Baja el stock. La deuda queda en la venta misma (cuenta de consignación),
+      // no en la cuenta corriente.
       for (const it of items) {
         await sql`INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, precio, nota, privado, sale_id)
           VALUES (${martin.id}, ${v.fecha}, ${it.articulo}, ${-it.cantidad}, ${it.costo}, ${it.costo},
                   'Vendido (planilla)', true, ${venta.id})`;
       }
-      const [mov] = await sql`
-        INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, monto, detalle, items, privado, sale_id)
-        VALUES (${martin.id}, ${v.fecha}, 'PEDIDO', ${costo}, ${costo}, 'Consignación vendida (planilla)',
-                ${JSON.stringify(items.map((it) => ({ articulo: it.articulo, cantidad: it.cantidad, precio: it.costo })))}::jsonb,
-                true, ${venta.id})
-        RETURNING id`;
-      await sql`UPDATE consign_sales SET move_id = ${mov.id} WHERE id = ${venta.id}`;
     }
   } catch (e) {
     // Si se cortó a la mitad se borra lo que llegó a entrar y se suelta la

@@ -115,19 +115,23 @@ module.exports = async (req, res) => {
         return res.status(200).json({ pedido: ped.id, items, sin_mapear: [...sinMapear] });
       }
 
-      const [movs, consign, precios, usd, saldoDe] = await Promise.all([
+      const [movs, consign, precios, usd, saldoDe, pagosConsig] = await Promise.all([
         sql`SELECT id, fecha, tipo, monto, detalle, items, order_id, COALESCE(privado, false) AS privado
             FROM supplier_moves
             WHERE supplier_id = ${prov.id} AND NOT (${soloLectura}::boolean AND COALESCE(privado, false))
             ORDER BY fecha, id`,
-        sql`SELECT id, fecha, articulo, cantidad, precio, nota, COALESCE(privado, false) AS privado
+        // La consignación como la ve el proveedor: lo que dejó y lo que salió.
+        // Las ventas de Tomás (con sale_id) son de consignacion.html y acá no van.
+        sql`SELECT id, fecha, articulo, cantidad, precio, nota
             FROM supplier_consign
-            WHERE supplier_id = ${prov.id} AND NOT (${soloLectura}::boolean AND COALESCE(privado, false))
+            WHERE supplier_id = ${prov.id} AND sale_id IS NULL
             ORDER BY fecha, id`,
         sql`SELECT id, articulo, precio, activo FROM supplier_prices
             WHERE supplier_id = ${prov.id} ORDER BY articulo`,
         usdRate(),
         saldos(soloLectura),
+        sql`SELECT id, fecha, monto, nota FROM consign_payments
+            WHERE supplier_id = ${prov.id} ORDER BY fecha DESC, id DESC`,
       ]);
 
       let saldo = 0;
@@ -146,6 +150,15 @@ module.exports = async (req, res) => {
       const stockConsign = [...porArticulo.values()].filter((a) => a.cantidad || a.total);
       const consignTotal = Math.round(stockConsign.reduce((a, x) => a + x.total, 0) * 100) / 100;
 
+      // La cuenta de consignación, aparte de la corriente: lo que dejó, lo que
+      // salió (devuelto) y lo que se le pagó de consignación.
+      const cent = (n) => Math.round(n * 100) / 100;
+      const valorDe = (c) => Math.abs(c.cantidad) * Number(c.precio);
+      const dejado = cent(consign.filter((c) => c.cantidad > 0).reduce((a, c) => a + valorDe(c), 0));
+      const salio = cent(consign.filter((c) => c.cantidad < 0).reduce((a, c) => a + valorDe(c), 0));
+      const pagado = cent(pagosConsig.reduce((a, p) => a + Number(p.monto), 0));
+      const consignResumen = { dejado, salio, pagado, saldo: cent(dejado - salio - pagado) };
+
       return res.status(200).json({
         proveedor: { id: prov.id, nombre: prov.nombre, email: prov.email, moneda,
                      invitacion: s.admin ? prov.invite_token : undefined },
@@ -157,6 +170,8 @@ module.exports = async (req, res) => {
         soloLectura, reciénEntró,
         deuda: saldo,
         consign_total: consignTotal,
+        consign_resumen: consignResumen,
+        consign_pagos: pagosConsig.map((p) => ({ ...p, monto: Number(p.monto) })),
         movimientos,
         consignacion: consign.slice().reverse(),
         stock_consignacion: stockConsign,

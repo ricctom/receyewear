@@ -1,14 +1,13 @@
-// /api/consignacion — la mercadería que el proveedor deja en consignación.
+// /api/consignacion — la cuenta de consignación, aparte de la cuenta corriente.
 // Todo va por línea (el artículo del proveedor), sin modelos ni colores.
-//   GET  ?proveedor=ID  -> stock en mano, entradas, ventas y lo que se debe
-//   POST { agrega:{ fecha, nota, items:[{ articulo, cantidad, precio }] } }
-//          -> entra mercadería (el proveedor lo ve: es lo que él dejó)
+// El proveedor ve lo que dejó y lo que se le pagó (en proveedor.html); las
+// ventas son solo de Tomás.
+//   GET  ?proveedor=ID  -> stock en mano, entradas, ventas, pagos y lo que se debe
+//   POST { agrega:{ fecha, nota, items:[{ articulo, cantidad, precio }] } }  -> entra mercadería
 //   POST { venta:{ fecha, email, cliente, nota, items:[{ articulo, cantidad, precio }] } }
-//          -> baja el stock, suma a la deuda (privado) y, con mail, le crea el pedido al cliente
-//   POST { paga:{ fecha, nota, ventas:[id] } }
-//          -> le pago esas ventas: pasan a verse en su cuenta junto con el pago
-//   POST { rendir: id | 'todas' }  -> que las vea sin pagarlas todavía
-//   POST { borrarVenta: id } / { borrarEntrada: id }
+//          -> baja el stock y queda debiéndose; con mail, le crea el pedido al cliente
+//   POST { paga:{ fecha, nota, ventas:[id] } }  -> le pago esas ventas
+//   POST { borrarVenta: id } / { borrarEntrada: id } / { borrarPago: id }
 const { sql, ensureTables, norm, usdRate } = require('./_db');
 const { getSession } = require('./_auth');
 
@@ -37,11 +36,11 @@ module.exports = async (req, res) => {
     prov = { ...prov, moneda: prov.moneda || 'USD' };
 
     if (req.method === 'GET') {
-      const [consign, precios, ventas, entradas, clientes, usd] = await Promise.all([
-        sql`SELECT articulo, cantidad, privado FROM supplier_consign WHERE supplier_id = ${prov.id}`,
+      const [consign, precios, ventas, entradas, pagos, clientes, usd, mapa] = await Promise.all([
+        sql`SELECT articulo, cantidad FROM supplier_consign WHERE supplier_id = ${prov.id}`,
         sql`SELECT articulo, precio FROM supplier_prices WHERE supplier_id = ${prov.id} AND activo ORDER BY articulo`,
         sql`SELECT v.id, v.fecha, v.email, v.cliente, v.items, v.total_venta, v.costo, v.order_id,
-                   v.rendida_at, v.pagada_at, v.nota, u.name, u.razon_social,
+                   v.pagada_at, v.nota, u.name, u.razon_social,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = v.order_id), 0) AS cobrado
               FROM consign_sales v LEFT JOIN users u ON u.id = v.user_id
              WHERE v.supplier_id = ${prov.id}
@@ -50,47 +49,51 @@ module.exports = async (req, res) => {
         sql`SELECT id, fecha, articulo, cantidad, precio, nota FROM supplier_consign
              WHERE supplier_id = ${prov.id} AND sale_id IS NULL
              ORDER BY fecha DESC, id DESC LIMIT 100`,
+        sql`SELECT id, fecha, monto, nota FROM consign_payments
+             WHERE supplier_id = ${prov.id} ORDER BY fecha DESC, id DESC`,
         sql`SELECT email, COALESCE(razon_social, name) AS nombre FROM users ORDER BY created_at DESC LIMIT 1000`,
         usdRate(),
+        // Qué línea de la web es cada artículo: con esto la página saca el
+        // precio de venta de la tienda, en vez de pedirlo a mano.
+        sql`SELECT patron, articulo, factor FROM cost_map
+             WHERE (supplier_id = ${prov.id} OR supplier_id IS NULL) AND NOT COALESCE(ignorar, false)`,
       ]);
 
       const precioDe = (art) => {
         const p = precios.find((x) => x.articulo.toUpperCase() === String(art).toUpperCase());
         return p ? Number(p.precio) : 0;
       };
-      // En mano = todo lo que dejó menos lo devuelto, pagado y vendido.
+      // En mano = todo lo que dejó menos lo devuelto y lo vendido.
       const m = new Map();
       consign.forEach((c) => {
         const k = c.articulo.toUpperCase();
-        const a = m.get(k) || { articulo: c.articulo, en_mano: 0, sin_rendir: 0 };
+        const a = m.get(k) || { articulo: c.articulo, en_mano: 0 };
         a.en_mano += c.cantidad;
-        if (c.privado) a.sin_rendir -= c.cantidad;
         m.set(k, a);
       });
       const stock = [...m.values()]
-        .filter((a) => a.en_mano || a.sin_rendir)
+        .filter((a) => a.en_mano)
         .map((a) => ({ ...a, precio: precioDe(a.articulo) }))
         .sort((x, y) => x.articulo.localeCompare(y.articulo));
 
       const lista = ventas.map((v) => ({ ...v, costo: Number(v.costo) }));
       const unidades = (v) => (v.items || []).reduce((a, it) => a + (Number(it.cantidad) || 0), 0);
       const impagas = lista.filter((v) => !v.pagada_at);
+      const listaPagos = pagos.map((p) => ({ ...p, monto: Number(p.monto) }));
       const resumen = {
-        en_mano: stock.reduce((a, x) => a + x.en_mano, 0),
         vendido_u: lista.reduce((a, v) => a + unidades(v), 0),
-        vendido_venta: lista.reduce((a, v) => a + v.total_venta, 0),
         por_cobrar: lista.filter((v) => v.order_id)
           .reduce((a, v) => a + Math.max(0, v.total_venta - v.cobrado), 0),
         debo: r2(impagas.reduce((a, v) => a + v.costo, 0)),
         u_debo: impagas.reduce((a, v) => a + unidades(v), 0),
         ventas_impagas: impagas.length,
-        ventas_sin_rendir: lista.filter((v) => !v.rendida_at).length,
+        pagado: r2(listaPagos.reduce((a, p) => a + p.monto, 0)),
       };
 
       return res.status(200).json({
         proveedores: provs, proveedor: prov, stock, precios, ventas: lista,
         entradas: entradas.map((e) => ({ ...e, precio: Number(e.precio) })),
-        clientes, resumen, usd,
+        pagos: listaPagos, clientes, resumen, usd, mapa,
       });
     }
 
@@ -169,24 +172,20 @@ module.exports = async (req, res) => {
       }
       const quien = cliente || (u && u.razon_social) || email || 'sin cliente';
 
+      // La deuda queda en la venta misma (cuenta de consignación): no toca la
+      // cuenta corriente del proveedor.
       const [venta] = await sql`
         INSERT INTO consign_sales (supplier_id, fecha, user_id, email, cliente, items, total_venta, costo, nota)
         VALUES (${prov.id}, COALESCE(${dia}::date, CURRENT_DATE), ${u ? u.id : null}, ${email || null}, ${cliente},
                 ${JSON.stringify(items)}::jsonb, ${totalVenta}, ${costo}, ${nota})
         RETURNING id, fecha`;
 
-      // Baja el stock y sube la deuda, las dos cosas en privado.
+      // Baja el stock. El proveedor no ve estas líneas (van con sale_id).
       for (const it of items) {
         await sql`INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, precio, nota, privado, sale_id)
           VALUES (${prov.id}, ${venta.fecha}, ${it.articulo}, ${-it.cantidad}, ${it.costo}, ${it.costo},
                   ${'Vendido a ' + quien}, true, ${venta.id})`;
       }
-      const [mov] = await sql`
-        INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, monto, detalle, items, privado, sale_id)
-        VALUES (${prov.id}, ${venta.fecha}, 'PEDIDO', ${costo}, ${costo}, ${'Consignación vendida a ' + quien},
-                ${JSON.stringify(items.map((it) => ({ articulo: it.articulo, cantidad: it.cantidad, precio: it.costo })))}::jsonb,
-                true, ${venta.id})
-        RETURNING id`;
 
       // Para que el panel de Pedidos calcule la ganancia, cada línea tiene que
       // estar mapeada a su artículo. Si ya había un mapeo con ese nombre, se respeta.
@@ -196,13 +195,10 @@ module.exports = async (req, res) => {
           ON CONFLICT (patron) DO NOTHING`;
       }
 
-      if (!u) {
-        await sql`UPDATE consign_sales SET move_id = ${mov.id} WHERE id = ${venta.id}`;
-        return res.status(200).json({ ok: true, id: venta.id, order_id: null });
-      }
+      if (!u) return res.status(200).json({ ok: true, id: venta.id, order_id: null });
 
       // El pedido del cliente: lo ve en "Mis pedidos" y en Pedidos queda para
-      // cobrar. Ya está entregado y ya está cargado a la cuenta del proveedor.
+      // cobrar. Ya está entregado, así que no pasa por "Pasar a Martín".
       let rate = null;
       try { rate = (await usdRate()).valor || null; } catch { rate = null; }
       const ship = {
@@ -211,22 +207,22 @@ module.exports = async (req, res) => {
       };
       const [o] = await sql`
         INSERT INTO orders (user_id, items, total, descuento, ship, faltante, usd_rate, nota,
-                            etapa, status, supplier_move_id, created_at)
+                            etapa, status, created_at)
         VALUES (${u.id},
                 ${JSON.stringify(items.map((it) => ({ sku: '', name: it.articulo, color: null, qty: it.cantidad, price: it.precio })))}::jsonb,
                 ${totalVenta}, 0, ${JSON.stringify(ship)}::jsonb, ${ship.faltante}, ${rate},
                 ${'Venta de consignación' + (nota ? ': ' + nota : '')},
-                'despachado', 'enviado', ${mov.id},
+                'despachado', 'enviado',
                 COALESCE((${dia}::date + interval '15 hours')::timestamptz, now()))
         RETURNING id`;
-      await sql`UPDATE consign_sales SET order_id = ${o.id}, move_id = ${mov.id} WHERE id = ${venta.id}`;
+      await sql`UPDATE consign_sales SET order_id = ${o.id} WHERE id = ${venta.id}`;
 
       return res.status(200).json({ ok: true, id: venta.id, order_id: o.id });
     }
 
     /* ----- Le pagué ventas de consignación ----- */
-    // Las ventas pagadas pasan a verse en su cuenta (la deuda) y al lado entra
-    // el pago por el mismo monto: para él el saldo no se mueve, para Tomás baja.
+    // El pago va a la cuenta de consignación: el proveedor lo ve como pago de
+    // consignación, sin saber de qué ventas. La cuenta corriente no se toca.
     if (b.paga) {
       const ids = (Array.isArray(b.paga.ventas) ? b.paga.ventas : []).map((x) => parseInt(x, 10)).filter(Boolean);
       if (!ids.length) return res.status(400).json({ error: 'Elegí qué ventas le pagaste' });
@@ -239,39 +235,21 @@ module.exports = async (req, res) => {
       const monto = r2(elegidas.reduce((a, v) => a + Number(v.costo), 0));
       const lasIds = elegidas.map((v) => v.id);
 
-      await sql`UPDATE supplier_moves SET privado = false WHERE sale_id = ANY(${lasIds}::int[])`;
-      await sql`UPDATE supplier_consign SET privado = false WHERE sale_id = ANY(${lasIds}::int[])`;
-      let pagoId = null;
-      if (monto > 0) {
-        const [pago] = await sql`
-          INSERT INTO supplier_moves (supplier_id, fecha, tipo, monto_usd, monto, detalle)
-          VALUES (${prov.id}, COALESCE(${dia}::date, CURRENT_DATE), 'PAGO', ${-monto}, ${-monto},
-                  ${'Pago de consignación vendida' + (nota ? ' · ' + nota : '')})
-          RETURNING id`;
-        pagoId = pago.id;
-      }
-      await sql`UPDATE consign_sales SET rendida_at = COALESCE(rendida_at, now()),
-          pagada_at = now(), pago_move_id = ${pagoId}
+      const [pago] = await sql`
+        INSERT INTO consign_payments (supplier_id, fecha, monto, nota)
+        VALUES (${prov.id}, COALESCE(${dia}::date, CURRENT_DATE), ${monto}, ${nota})
+        RETURNING id`;
+      await sql`UPDATE consign_sales SET pagada_at = now(), pago_id = ${pago.id}
         WHERE id = ANY(${lasIds}::int[])`;
       return res.status(200).json({ ok: true, monto, ventas: lasIds.length });
     }
 
-    /* ----- Que las vea sin pagarlas todavía ----- */
-    if (b.rendir) {
-      if (b.rendir === 'todas') {
-        await sql`UPDATE supplier_moves SET privado = false WHERE supplier_id = ${prov.id}
-          AND sale_id IN (SELECT id FROM consign_sales WHERE supplier_id = ${prov.id} AND rendida_at IS NULL)`;
-        await sql`UPDATE supplier_consign SET privado = false WHERE supplier_id = ${prov.id}
-          AND sale_id IN (SELECT id FROM consign_sales WHERE supplier_id = ${prov.id} AND rendida_at IS NULL)`;
-        await sql`UPDATE consign_sales SET rendida_at = now() WHERE supplier_id = ${prov.id} AND rendida_at IS NULL`;
-        return res.status(200).json({ ok: true });
-      }
-      const id = parseInt(b.rendir, 10);
-      const [v] = await sql`SELECT id FROM consign_sales WHERE id = ${id} AND supplier_id = ${prov.id}`;
-      if (!v) return res.status(404).json({ error: 'No existe esa venta' });
-      await sql`UPDATE supplier_moves SET privado = false WHERE sale_id = ${id}`;
-      await sql`UPDATE supplier_consign SET privado = false WHERE sale_id = ${id}`;
-      await sql`UPDATE consign_sales SET rendida_at = COALESCE(rendida_at, now()) WHERE id = ${id}`;
+    /* ----- Borrar un pago: esas ventas vuelven a quedar sin pagar ----- */
+    if (b.borrarPago) {
+      const id = parseInt(b.borrarPago, 10);
+      const [row] = await sql`DELETE FROM consign_payments WHERE id = ${id} AND supplier_id = ${prov.id} RETURNING id`;
+      if (!row) return res.status(404).json({ error: 'No existe ese pago' });
+      await sql`UPDATE consign_sales SET pagada_at = NULL, pago_id = NULL WHERE pago_id = ${id}`;
       return res.status(200).json({ ok: true });
     }
 
@@ -281,10 +259,9 @@ module.exports = async (req, res) => {
       const [v] = await sql`SELECT id, order_id, pagada_at FROM consign_sales WHERE id = ${id} AND supplier_id = ${prov.id}`;
       if (!v) return res.status(404).json({ error: 'No existe esa venta' });
       if (v.pagada_at) {
-        return res.status(400).json({ error: 'Esa venta ya se la pagaste: si hay que corregirla, borrá primero el pago en Proveedores.' });
+        return res.status(400).json({ error: 'Esa venta ya se la pagaste: si hay que corregirla, borrá primero el pago (abajo, en Pagos).' });
       }
       await sql`DELETE FROM supplier_consign WHERE sale_id = ${id}`;
-      await sql`DELETE FROM supplier_moves WHERE sale_id = ${id}`;
       if (v.order_id) {
         await sql`DELETE FROM order_payments WHERE order_id = ${v.order_id}`;
         await sql`DELETE FROM orders WHERE id = ${v.order_id}`;

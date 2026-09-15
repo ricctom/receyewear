@@ -9,40 +9,85 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="panel.css"/>
 <style>
-  .mov{display:flex;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--ln)}
-  .mov:last-child{border-bottom:none}
-  .mov .izq{min-width:0}
-  .mov .q{font-size:14.5px;font-weight:500;margin:0}
-  .mov .f{font-size:12.5px;color:var(--mt);margin:3px 0 0}
-  .mov .d{font-size:12.5px;color:var(--md);margin:5px 0 0;line-height:1.55}
-  .mov .der{text-align:right;white-space:nowrap}
-  .mov .mm{font-size:15.5px;font-weight:600}
-  .mov .mm.sube{color:var(--ok)} .mov .mm.baja{color:var(--no)}
-  .mov .ss{font-size:12.5px;color:var(--mt);margin-top:2px}
-  .mov .x{background:none;border:none;color:var(--ln2);font-size:16px;padding:0 0 0 8px;align-self:center}
+  /* ---------- los tres números de arriba ---------- */
+  .heroes{display:grid;grid-template-columns:1.25fr 1.25fr 1fr;gap:18px;margin:6px 0 34px}
+  .hero{border-radius:20px;padding:24px 28px 22px;border:1px solid transparent}
+  .hero .et{font-size:12px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;margin:0 0 12px}
+  .hero .big{font-size:40px;font-weight:700;letter-spacing:-1px;margin:0;line-height:1.05}
+  .hero .ch{font-size:14px;margin:10px 0 0;line-height:1.55}
+  .hero.debe{background:var(--nobg);border-color:#f0d2ce}
+  .hero.debe .et,.hero.debe .big{color:var(--no)}
+  .hero.debe .ch{color:#8c4a44}
+  .hero.stock{background:var(--azbg);border-color:#d3e0ee}
+  .hero.stock .et,.hero.stock .big{color:var(--az)}
+  .hero.stock .ch{color:#4d6b8c}
+  .hero.cobrar{background:var(--cd);border-color:var(--ln)}
+  .hero.cobrar .et{color:var(--al)}
+  .hero.cobrar .big{color:var(--tx);font-size:32px}
+  .hero.cobrar .ch{color:var(--mt)}
+
+  /* ---------- botones de acción ---------- */
+  .b.azul{border-color:#bcd0e6;color:var(--az)}
+  .b.azul:hover{background:var(--azbg);border-color:var(--az)}
+  .b.verde{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+  .b.verde:hover{background:#256443;border-color:#256443}
+  .top .der .b{height:44px;padding:0 20px}
+
+  /* ---------- dos columnas ---------- */
+  .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:22px;align-items:start}
+  .caja{background:var(--cd);border:1px solid var(--ln);border-radius:20px;padding:8px 30px 14px}
+  .cabe{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:20px 0 14px;flex-wrap:wrap}
+  .cabe h3{margin:0;font-size:17px;font-weight:600}
+  .cabe .g{font-size:13.5px;color:var(--mt)}
+
+  /* stock en tabla */
+  .tabla{width:100%;border-collapse:collapse;font-size:14.5px}
+  .tabla th{text-align:right;font-size:12px;font-weight:500;color:var(--mt);padding:0 0 10px 12px;border-bottom:1px solid var(--ln)}
+  .tabla th:first-child,.tabla td:first-child{text-align:left;padding-left:0}
+  .tabla td{text-align:right;padding:13px 0 13px 12px;border-bottom:1px solid var(--ln);white-space:nowrap}
+  .tabla td:first-child{white-space:normal;font-weight:500}
+  .tabla td .g{display:block;font-size:12px;color:var(--mt);font-weight:400;margin-top:2px}
+  .tabla tfoot td{border-bottom:none;font-weight:600;padding-top:15px}
+  .tabla .neg{color:var(--no)}
+  .tabla .az{color:var(--az)}
+
+  /* ventas */
+  .venta{display:flex;justify-content:space-between;gap:20px;padding:18px 0;border-top:1px solid var(--ln)}
+  .venta .quien{font-size:15.5px;font-weight:600;margin:0}
+  .venta .f{font-size:13px;color:var(--mt);margin:4px 0 0}
+  .venta .items{font-size:14px;color:var(--md);margin:9px 0 0;line-height:1.6}
+  .venta .tags{margin-top:10px}
+  .venta .plata{text-align:right;white-space:nowrap}
+  .venta .plata .l{font-size:12px;color:var(--mt);margin:0}
+  .venta .plata .v{font-size:17px;font-weight:600;margin:1px 0 10px}
+  .venta .plata .v.rojo{color:var(--no)}
+  .venta .plata .v.gris{color:var(--mt);font-weight:500}
+  .venta .x{background:none;border:none;color:var(--ln2);font-size:17px;padding:0 0 0 10px;align-self:flex-start}
+  .venta .x:hover{color:var(--no)}
+  .tag{display:inline-block;font-size:12px;border-radius:999px;padding:4px 10px;white-space:nowrap;margin:0 5px 4px 0;font-weight:500}
+  .tag.ok{background:var(--okbg);color:var(--ok)}
+  .tag.no{background:var(--nobg);color:var(--no)}
+  .tag.al{background:var(--albg);color:var(--al)}
+  .tag.gris{background:#f0efe9;color:var(--md)}
+
+  .mov{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-top:1px solid var(--ln);font-size:14px}
+  .mov .f{font-size:12.5px;color:var(--mt);margin:2px 0 0}
+  .mov .x{background:none;border:none;color:var(--ln2);font-size:16px;padding:0 0 0 8px}
   .mov .x:hover{color:var(--no)}
-  .caja{background:var(--cd);border:1px solid var(--ln);border-radius:18px;padding:6px 24px;margin-bottom:14px}
-  .cabe{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0 11px;
-    border-bottom:1px solid var(--ln);margin-bottom:2px;flex-wrap:wrap}
-  .cabe h3{margin:0;font-size:15.5px;font-weight:600}
-  .cabe .n{font-size:16px;font-weight:600}
-  .stk{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--ln);font-size:14px}
-  .stk:last-child{border-bottom:none}
-  .stk .g{color:var(--mt);font-size:13px}
-  .plegar{background:none;border:none;color:var(--md);font-size:13.5px;padding:13px 0;width:100%;text-align:left}
+  .plegar{background:none;border:none;color:var(--md);font-size:13.5px;padding:14px 0 6px;width:100%;text-align:left}
   .plegar:hover{color:var(--tx)}
-  .tag{display:inline-block;font-size:11px;border-radius:999px;padding:3px 9px;white-space:nowrap;margin-right:4px}
-  .tag.ok{background:#eaf4ec;color:#256b33}
-  .tag.no{background:#fdf3e3;color:#8a6413}
-  .tag.gris{background:#f0efe9;color:var(--mt)}
-  .aviso-c{font-size:12.5px;color:#8a6413;margin-top:6px}
-  .tres{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
-  .tres button{padding:14px 10px;font-size:14px}
-  .pagar-l{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--ln);font-size:13.5px;font-weight:400;cursor:pointer}
+
+  /* modales */
+  .aviso-c{font-size:12.5px;color:var(--al);margin-top:6px}
+  .precio-web{font-size:14px;text-align:right;color:var(--md);white-space:nowrap}
+  .pagar-l{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--ln);font-size:14px;font-weight:400;cursor:pointer;margin:0}
   .pagar-l input{width:auto;margin:3px 0 0;flex:none}
-  .pagar-l .g{color:var(--mt);font-size:12.5px;display:block}
-  .pagar-l .m{margin-left:auto;white-space:nowrap;font-weight:600}
-  @media (max-width:600px){ .caja{padding:4px 14px} .mov{flex-direction:column} .mov .der{text-align:left} .tres{grid-template-columns:1fr} }
+  .pagar-l .g{color:var(--mt);font-size:12.5px;display:block;margin-top:2px}
+  .pagar-l .m{margin-left:auto;white-space:nowrap;font-weight:600;color:var(--no)}
+
+  @media (max-width:1050px){ .heroes{grid-template-columns:1fr 1fr} .hero.cobrar{grid-column:1/-1} .cols{grid-template-columns:1fr} }
+  @media (max-width:640px){ .heroes{grid-template-columns:1fr} .hero .big{font-size:30px} .caja{padding:4px 16px 10px}
+    .venta{flex-direction:column} .venta .plata{text-align:left} .top .der{width:100%} .top .der .b{flex:1} }
 </style>
 </head>
 <body>
@@ -74,15 +119,15 @@
       <h2 id="titulo">Consignación</h2>
       <div class="sub" id="subtitulo"></div>
     </div>
-    <div class="der"><button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button></div>
+    <div class="der">
+      <button class="b azul" onclick="modalAgrega()">+ Agregué mercadería</button>
+      <button class="b p" style="flex:none" onclick="modalVenta()">Vendí</button>
+      <button class="b verde" onclick="modalPaga()">Le pagué</button>
+      <button class="b q ico" onclick="cargar()" title="Actualizar">↻</button>
+    </div>
   </div>
   <div class="filtros" id="provs"></div>
-  <div class="tres">
-    <button class="b" onclick="modalAgrega()">+ Agregué mercadería</button>
-    <button class="b p" onclick="modalVenta()">Vendí</button>
-    <button class="b" onclick="modalPaga()">Le pagué</button>
-  </div>
-  <div class="resumen" id="resumen"></div>
+  <div class="heroes" id="heroes"></div>
   <div id="cuerpo"><div class="empty">Cargando…</div></div>
 </div>
 
@@ -93,22 +138,65 @@
 <script>
 /* La mercadería que me dejó el proveedor en consignación (api/consignacion.js).
    - Agregué: entra stock (él lo ve, es lo que dejó).
-   - Vendí: baja el stock y suma a lo que le debo SIN que él lo vea; con mail,
-     al cliente le queda el pedido en su cuenta.
-   - Le pagué: esas ventas pasan a verse en su cuenta junto con el pago. */
+   - Vendí: baja el stock y queda debiéndose, en esta cuenta y no en la
+     corriente. Él no ve las ventas. El precio de venta sale de la tienda.
+   - Le pagué: él ve solo el pago, en su pestaña de consignación. */
 let D = null, elegido = null, filas = [], modo = 'venta', verEntradas = false;
+let PRODUCTOS_WEB = null;   // el catálogo de la tienda, para sacar los precios de venta
 
 const plata = (n, moneda) => moneda === 'USD' ? usd(n) : fmt(n);
 const P = () => D.proveedor;
-const enPesos = (n) => {
-  const rate = Number((D.usd && D.usd.valor) || 0);
-  return P().moneda === 'USD' && rate ? ' · ' + fmt(n * rate) : '';
-};
+const tasa = () => Number((D.usd && D.usd.valor) || 0);
+const aPesos = (n) => P().moneda === 'USD' ? (tasa() ? fmt(n * tasa()) : '') : fmt(n);
+const normTxt = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Lee el catálogo directamente de la tienda: es la misma lista de precios que
+// ven los clientes, así que no hay que mantener otra.
+async function cargarCatalogo(){
+  if(PRODUCTOS_WEB) return;
+  try{
+    const html = await (await fetch('/', { cache:'no-store' })).text();
+    const ini = html.indexOf('const PRODUCTS = [');
+    const desde = html.indexOf('[', ini);
+    const hasta = html.indexOf('\n];', desde);
+    PRODUCTOS_WEB = ini < 0 || hasta < 0 ? [] : new Function('return ' + html.slice(desde, hasta + 2))();
+  }catch(e){ PRODUCTOS_WEB = []; }
+}
+
+// Precio de venta de cada línea del proveedor: el que más se repite en la
+// tienda entre los productos de esa línea (dividido por las unidades del pack).
+let PRECIO_WEB = new Map();
+function armarPreciosWeb(){
+  const mapa = new Map((D.mapa || []).map(m => [m.patron, m]));
+  const cuenta = new Map();
+  (PRODUCTOS_WEB || []).forEach(p => {
+    const m = mapa.get(normTxt(splitNombre(p.name).linea));
+    if(!m) return;
+    const k = m.articulo.toUpperCase();
+    const precio = Math.round((Number(p.price) || 0) / (m.factor || 1));
+    if(!precio) return;
+    const c = cuenta.get(k) || {};
+    c[precio] = (c[precio] || 0) + 1;
+    cuenta.set(k, c);
+  });
+  PRECIO_WEB = new Map([...cuenta].map(([k, c]) =>
+    [k, Number(Object.entries(c).sort((a, b) => b[1] - a[1])[0][0])]));
+}
+const precioWeb = (art) => PRECIO_WEB.get(String(art || '').toUpperCase()) || 0;
+// Lo que se cobró (o se va a cobrar) por una venta. Las viejas no tenían
+// precio cargado: se valúan con el precio de la tienda.
+const ventaDe = (v) => Number(v.total_venta) > 0 ? Number(v.total_venta)
+  : (v.items || []).reduce((a, it) => a + (Number(it.cantidad) || 0) * precioWeb(it.articulo), 0);
 
 async function cargar(){
   try{
-    D = await api('/api/consignacion' + (elegido ? '?proveedor=' + elegido : ''));
+    const [d] = await Promise.all([
+      api('/api/consignacion' + (elegido ? '?proveedor=' + elegido : '')),
+      cargarCatalogo(),
+    ]);
+    D = d;
     elegido = D.proveedor && D.proveedor.id;
+    armarPreciosWeb();
     pintar();
   }catch(e){
     if(esSesion(e)) return logout();
@@ -122,54 +210,83 @@ function pintar(){
 
   document.getElementById('titulo').textContent = 'Consignación de ' + Pr.nombre;
   document.getElementById('subtitulo').textContent =
-    Pr.nombre + ' ve lo que te dejó y lo que le pagás. Lo que vendiste y todavía no le pagaste, no.';
+    'Cuenta aparte de la cuenta corriente. ' + Pr.nombre + ' ve lo que te dejó y lo que le pagás de consignación; lo que vendés, no.';
 
   document.getElementById('provs').innerHTML = D.proveedores.length > 1
     ? D.proveedores.map(p => `<button class="chip ${p.id === Pr.id ? 'on' : ''}" onclick="elegido=${p.id};cargar()">${esc(p.nombre)}</button>`).join('')
     : '';
 
-  document.getElementById('resumen').innerHTML = [
-    ['Tenés en mano', R.en_mano + ' u.'],
-    ['Vendiste', R.vendido_u + ' u. · ' + fmt(R.vendido_venta)],
-    ['Le debés de lo vendido', plata(R.debo, Pr.moneda) + enPesos(R.debo)],
-    ['Te falta cobrar', fmt(R.por_cobrar)],
-  ].map(([t, v]) => `<div><p class="r1">${t}</p><p class="r2">${v}</p></div>`).join('');
+  // Lo que tengo en mano, valuado a lo que le costaría a él y a precio de venta.
+  const conStock = D.stock.filter(a => a.en_mano > 0);
+  const valorCosto = conStock.reduce((s, a) => s + a.en_mano * a.precio, 0);
+  const valorVenta = conStock.reduce((s, a) => s + a.en_mano * precioWeb(a.articulo), 0);
+  const unidades = conStock.reduce((s, a) => s + a.en_mano, 0);
 
-  const stock = D.stock.length
-    ? D.stock.map(a => `<div class="stk">
-        <span>${esc(a.articulo)} <span class="g">· ${plata(a.precio, Pr.moneda)} c/u</span></span>
-        <span><b>${a.en_mano} u.</b></span>
-      </div>`).join('')
+  document.getElementById('heroes').innerHTML = `
+    <div class="hero debe">
+      <p class="et">Le debés a ${esc(Pr.nombre)} de lo vendido</p>
+      <p class="big num">${plata(R.debo, Pr.moneda)}</p>
+      <p class="ch">${aPesos(R.debo) && Pr.moneda === 'USD' ? aPesos(R.debo) + ' · ' : ''}${R.u_debo} u. en ${R.ventas_impagas} ${R.ventas_impagas === 1 ? 'venta' : 'ventas'} sin pagarle${
+        R.pagado ? '<br>Ya le pagaste ' + plata(R.pagado, Pr.moneda) + ' de consignación' : ''}</p>
+    </div>
+    <div class="hero stock">
+      <p class="et">Tenés en consignación</p>
+      <p class="big num">${plata(valorCosto, Pr.moneda)}</p>
+      <p class="ch">${Pr.moneda === 'USD' && aPesos(valorCosto) ? aPesos(valorCosto) + ' · ' : ''}${unidades} u.${valorVenta ? ' · a precio de venta ' + fmt(valorVenta) : ''}</p>
+    </div>
+    <div class="hero cobrar">
+      <p class="et">Te falta cobrar a clientes</p>
+      <p class="big num">${fmt(R.por_cobrar)}</p>
+      <p class="ch">De las ventas con pedido a su nombre</p>
+    </div>`;
+
+  /* ----- stock ----- */
+  const filasStock = D.stock.map(a => `<tr>
+      <td>${esc(a.articulo)}<span class="g">${plata(a.precio, Pr.moneda)} c/u${precioWeb(a.articulo) ? ' · venta ' + fmt(precioWeb(a.articulo)) : ''}</span></td>
+      <td class="${a.en_mano < 0 ? 'neg' : ''}">${a.en_mano} u.</td>
+      <td class="az">${a.en_mano > 0 ? plata(a.en_mano * a.precio, Pr.moneda) : '—'}</td>
+      <td>${a.en_mano > 0 && precioWeb(a.articulo) ? fmt(a.en_mano * precioWeb(a.articulo)) : '—'}</td>
+    </tr>`).join('');
+  const stockHtml = D.stock.length
+    ? `<table class="tabla num">
+        <thead><tr><th>Línea</th><th>En mano</th><th>Valor ${esc(Pr.nombre)}</th><th>Valor venta</th></tr></thead>
+        <tbody>${filasStock}</tbody>
+        <tfoot><tr><td>Total</td><td>${unidades} u.</td><td class="az">${plata(valorCosto, Pr.moneda)}</td><td>${valorVenta ? fmt(valorVenta) : '—'}</td></tr></tfoot>
+      </table>`
     : '<div class="empty">No tenés mercadería de ' + esc(Pr.nombre) + ' en consignación.</div>';
 
   const entradas = D.entradas.map(e => `<div class="mov">
-      <div class="izq"><p class="q">${esc(e.articulo)}</p>
+      <div><div>${esc(e.articulo)} <b class="${e.cantidad > 0 ? '' : 'neg'}">${e.cantidad > 0 ? '+' : ''}${e.cantidad} u.</b></div>
         <p class="f">${fechaCorta(e.fecha)}${e.nota ? ' · ' + esc(e.nota) : ''}</p></div>
       <div style="display:flex;align-items:center">
-        <div class="der"><div class="mm ${e.cantidad > 0 ? 'sube' : 'baja'}">${e.cantidad > 0 ? '+' : ''}${e.cantidad} u.</div>
-          <div class="ss num">${plata(Math.abs(e.cantidad) * e.precio, Pr.moneda)}</div></div>
+        <span class="num">${plata(Math.abs(e.cantidad) * e.precio, Pr.moneda)}</span>
         <button class="x" title="Borrar" onclick="borrarEntrada(${e.id})">×</button>
       </div></div>`).join('');
 
-  const ventas = D.ventas.length
+  /* ----- ventas ----- */
+  const totalVendido = D.ventas.reduce((s, v) => s + ventaDe(v), 0);
+  const ventasHtml = D.ventas.length
     ? D.ventas.map(v => {
         const items = (v.items || []).map(i => `${i.cantidad}× ${i.articulo}`).join(' · ');
-        const debe = Math.max(0, v.total_venta - (Number(v.cobrado) || 0));
-        const estado = v.pagada_at
-          ? '<span class="tag ok">Le pagaste el ' + fechaCorta(v.pagada_at) + '</span>'
-          : '<span class="tag no">Sin pagarle</span>' + (v.rendida_at ? '' : '<span class="tag gris">' + esc(Pr.nombre) + ' no la ve</span>');
-        const cobro = !v.order_id ? '' : debe > 0 ? '<span class="tag no">Te debe ' + fmt(debe) + '</span>' : '<span class="tag ok">Cobrada</span>';
-        return `<div class="mov">
-          <div class="izq">
-            <p class="q">${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}</p>
+        const venta = ventaDe(v);
+        const debe = v.order_id ? Math.max(0, venta - (Number(v.cobrado) || 0)) : 0;
+        const tags = (v.pagada_at
+            ? '<span class="tag ok">Le pagaste el ' + fechaCorta(v.pagada_at) + '</span>'
+            : '<span class="tag no">Sin pagarle</span>')
+          + (!v.order_id ? '' : debe > 0 ? '<span class="tag al">Te debe ' + fmt(debe) + '</span>' : '<span class="tag ok">Cobrada</span>');
+        return `<div class="venta">
+          <div>
+            <p class="quien">${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}</p>
             <p class="f">${fechaCorta(v.fecha)}${v.email ? ' · ' + esc(v.email) : ''}${v.order_id ? ' · pedido #' + v.order_id : ''}${v.nota ? ' · ' + esc(v.nota) : ''}</p>
-            <p class="d">${esc(items)}</p>
-            <p class="d">${estado}${cobro}</p>
+            <p class="items">${esc(items)}</p>
+            <div class="tags">${tags}</div>
           </div>
-          <div style="display:flex;align-items:center">
-            <div class="der">
-              <div class="mm">${v.total_venta ? fmt(v.total_venta) : '—'}</div>
-              <div class="ss num">a ${esc(Pr.nombre)}: ${plata(v.costo, Pr.moneda)}</div>
+          <div style="display:flex">
+            <div class="plata num">
+              <p class="l">A ${esc(Pr.nombre)}</p>
+              <p class="v ${v.pagada_at ? 'gris' : 'rojo'}">${plata(v.costo, Pr.moneda)}</p>
+              <p class="l">Venta</p>
+              <p class="v gris">${venta ? fmt(venta) : '—'}</p>
             </div>
             ${v.pagada_at ? '' : `<button class="x" title="Borrar" onclick="borrarVenta(${v.id})">×</button>`}
           </div>
@@ -178,21 +295,32 @@ function pintar(){
     : '<div class="empty">Todavía no cargaste ventas. Tocá "Vendí".</div>';
 
   document.getElementById('cuerpo').innerHTML = `
-    <div class="caja">
-      <div class="cabe"><h3>Lo que tenés en mano</h3><span class="n">${R.en_mano} u.</span></div>
-      ${stock}
-      ${D.entradas.length ? `${verEntradas ? entradas : ''}
-        <button class="plegar" onclick="verEntradas=!verEntradas;pintar()">
-          ${verEntradas ? 'Ocultar entradas' : 'Ver lo que te dejó y devolviste (' + D.entradas.length + ')'}</button>` : ''}
-    </div>
-    <div class="caja">
-      <div class="cabe"><h3>Ventas</h3>
-        ${R.ventas_impagas ? `<span class="n">${plata(R.debo, Pr.moneda)} sin pagar</span>` : ''}</div>
-      ${ventas}
+    <div class="cols">
+      <div class="caja">
+        <div class="cabe"><h3>Lo que tenés en mano</h3><span class="g">valuado a precio de ${esc(Pr.nombre)} y de venta</span></div>
+        ${stockHtml}
+        ${D.entradas.length ? `${verEntradas ? entradas : ''}
+          <button class="plegar" onclick="verEntradas=!verEntradas;pintar()">
+            ${verEntradas ? 'Ocultar movimientos' : 'Ver lo que te dejó y devolviste (' + D.entradas.length + ')'}</button>` : ''}
+      </div>
+      <div class="caja" style="margin-top:22px">
+        <div class="cabe"><h3>Pagos de consignación</h3>
+          <span class="g">${D.pagos.length ? 'Total ' + plata(D.resumen.pagado, Pr.moneda) : ''}</span></div>
+        ${D.pagos.length ? D.pagos.map(p => `<div class="mov">
+            <div><div>Le pagaste <b>${plata(p.monto, Pr.moneda)}</b></div>
+              <p class="f">${fechaCorta(p.fecha)}${p.nota ? ' · ' + esc(p.nota) : ''}</p></div>
+            <button class="x" title="Borrar" onclick="borrarPago(${p.id})">×</button>
+          </div>`).join('') : '<div class="empty" style="padding:24px 0">Todavía no le pagaste nada de consignación.</div>'}
+      </div>
+      <div class="caja">
+        <div class="cabe"><h3>Ventas</h3>
+          <span class="g">${D.ventas.length ? 'Vendido ' + fmt(totalVendido) + ' · ' + R.vendido_u + ' u.' : ''}</span></div>
+        ${ventasHtml}
+      </div>
     </div>`;
 }
 
-/* ---------- filas de líneas (agregar y vender usan las mismas) ---------- */
+/* ---------- filas de líneas (agregar y vender) ---------- */
 function articulos(){
   const nombres = new Map();
   D.stock.forEach(a => nombres.set(a.articulo.toUpperCase(), a.articulo));
@@ -204,21 +332,28 @@ const costoDe = (art) => { const p = D.precios.find(x => x.articulo.toUpperCase(
 
 function renderFilas(){
   const esVenta = modo === 'venta';
-  document.getElementById('filas').innerHTML = filas.map((f, i) => `
-    <div class="qrow" style="grid-template-columns:1fr 70px 100px 26px">
+  document.getElementById('filas').innerHTML = filas.map((f, i) => {
+    const pw = precioWeb(f.articulo);
+    // En la venta el precio sale de la tienda. Solo se pide a mano si esa
+    // línea no está en la tienda.
+    const precio = esVenta
+      ? (!f.articulo ? '<span class="precio-web">—</span>'
+         : pw ? `<span class="precio-web">${fmt(pw)} c/u</span>`
+         : `<input type="number" min="0" placeholder="$ c/u" value="${f.precio || ''}" oninput="filas[${i}].precio=this.value;totalFilas()">`)
+      : `<input type="number" min="0" step="0.01" placeholder="${P().moneda === 'USD' ? 'US$ c/u' : '$ c/u'}" value="${f.precio || ''}" oninput="filas[${i}].precio=this.value;totalFilas()">`;
+    return `<div class="qrow" style="grid-template-columns:1fr 74px 104px 26px">
       ${esVenta
         ? `<select onchange="filas[${i}].articulo=this.value;renderFilas()">
             <option value="">— línea —</option>
             ${articulos().map(a => `<option value="${esc(a)}"${f.articulo === a ? ' selected' : ''}>${esc(a)} (quedan ${enMano(a)})</option>`).join('')}
           </select>`
-        : `<input type="text" list="artList" placeholder="Línea (ej. CLIPON)" value="${esc(f.articulo)}"
-             onchange="elegirArt(${i},this.value)">`}
+        : `<input type="text" list="artList" placeholder="Línea (ej. CLIPON)" value="${esc(f.articulo)}" onchange="elegirArt(${i},this.value)">`}
       <input type="number" min="1" placeholder="cant." value="${f.cantidad || ''}" oninput="filas[${i}].cantidad=this.value;totalFilas()">
-      <input type="number" min="0" step="${esVenta ? '1' : '0.01'}" placeholder="${esVenta ? '$ c/u' : (P().moneda === 'USD' ? 'US$ c/u' : '$ c/u')}"
-             value="${f.precio || ''}" oninput="filas[${i}].precio=this.value;totalFilas()">
+      ${precio}
       <button class="b q ico" style="height:32px;width:26px" onclick="filas.splice(${i},1);renderFilas()">×</button>
-    </div>`).join('')
-    + (esVenta ? '' : `<datalist id="artList">${articulos().map(a => `<option value="${esc(a)}">`).join('')}</datalist>`);
+    </div>`;
+  }).join('')
+  + (esVenta ? '' : `<datalist id="artList">${articulos().map(a => `<option value="${esc(a)}">`).join('')}</datalist>`);
   totalFilas();
 }
 function elegirArt(i, valor){
@@ -229,6 +364,7 @@ function elegirArt(i, valor){
   renderFilas();
 }
 function agregarFila(){ filas.push({ articulo:'', cantidad:'', precio:'' }); renderFilas(); }
+const precioVentaFila = (f) => precioWeb(f.articulo) || Number(f.precio) || 0;
 function totalFilas(){
   const Pr = P();
   const tot = document.getElementById('fTot');
@@ -239,11 +375,11 @@ function totalFilas(){
     if(tot) tot.textContent = u + ' u. · ' + plata(t, Pr.moneda);
     return;
   }
-  const venta = filas.reduce((a, f) => a + (Number(f.cantidad) || 0) * (Number(f.precio) || 0), 0);
+  const venta = filas.reduce((a, f) => a + (Number(f.cantidad) || 0) * precioVentaFila(f), 0);
   const costo = filas.reduce((a, f) => a + (Number(f.cantidad) || 0) * costoDe(f.articulo), 0);
   const pasados = filas.filter(f => f.articulo && Number(f.cantidad) > enMano(f.articulo)).map(f => f.articulo);
   if(tot) tot.textContent = fmt(venta);
-  if(c) c.innerHTML = 'Le vas a deber a ' + esc(Pr.nombre) + ': <b>' + plata(costo, Pr.moneda) + '</b>'
+  if(c) c.innerHTML = 'Le vas a deber a ' + esc(Pr.nombre) + ': <b style="color:var(--no)">' + plata(costo, Pr.moneda) + '</b>'
     + (pasados.length ? '<div class="aviso-c">Ojo: vendés más de lo que tenés de ' + esc(pasados.join(', ')) + '. Se guarda igual.</div>' : '');
 }
 
@@ -264,7 +400,7 @@ function modalAgrega(){
     <button class="b sm q" onclick="agregarFila()">+ Otra línea</button>
     <div class="qtot"><span>Total</span><span id="fTot"></span></div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
-    <button class="b p" style="flex:none" onclick="guardarAgrega()">Agregar al stock</button></div>`);
+    <button class="b azul" onclick="guardarAgrega()">Agregar al stock</button></div>`);
   renderFilas();
 }
 async function guardarAgrega(){
@@ -282,7 +418,7 @@ function modalVenta(){
   modo = 'venta';
   filas = [{ articulo:'', cantidad:'', precio:'' }];
   abrirModal(`<h3>Vendí mercadería de ${esc(Pr.nombre)}</h3>
-    <p class="sub">Baja del stock y suma a lo que le debés (sin que lo vea).
+    <p class="sub">Baja del stock y suma a lo que le debés (sin que lo vea). El precio de venta sale de la tienda.
       Si ponés el mail, al cliente le queda el pedido en su cuenta.</p>
     <div class="fila">
       <div><label>Mail del cliente <i>(opcional)</i></label><input type="email" id="vMail" list="vClientes" placeholder="optica@gmail.com" oninput="autoNombre()"></div>
@@ -293,11 +429,11 @@ function modalVenta(){
       <div><label>Cuándo</label><input type="date" id="vFecha" value="${hoyISO()}"></div>
       <div><label>Nota</label><input type="text" id="vNota" placeholder="Visita, pagó en efectivo…"></div>
     </div>
-    <label>Qué le vendiste (por línea, precio de venta c/u en pesos)</label>
+    <label>Qué le vendiste (por línea)</label>
     <div id="filas"></div>
     <button class="b sm q" onclick="agregarFila()">+ Otra línea</button>
     <div class="qtot"><span>Total de la venta</span><span id="fTot"></span></div>
-    <div class="sub" id="fCosto" style="text-align:right;margin-top:4px"></div>
+    <div class="sub" id="fCosto" style="text-align:right;margin-top:6px"></div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
     <button class="b p" style="flex:none" onclick="guardarVenta()">Guardar venta</button></div>`);
   renderFilas();
@@ -311,7 +447,8 @@ function autoNombre(){
 async function guardarVenta(){
   const email = document.getElementById('vMail').value.trim();
   if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return alert('Ese mail no parece válido.');
-  const items = filas.filter(f => f.articulo && Number(f.cantidad) > 0);
+  const items = filas.filter(f => f.articulo && Number(f.cantidad) > 0)
+    .map(f => ({ articulo: f.articulo, cantidad: f.cantidad, precio: precioVentaFila(f) }));
   if(!items.length) return alert('Cargá al menos una línea con cantidad.');
   try{
     const r = await post({ venta:{
@@ -327,8 +464,8 @@ function modalPaga(){
   const impagas = D.ventas.filter(v => !v.pagada_at);
   if(!impagas.length) return alert('No tenés ventas sin pagarle a ' + Pr.nombre + '.');
   abrirModal(`<h3>Le pagué a ${esc(Pr.nombre)}</h3>
-    <p class="sub">Marcá qué ventas le pagaste. Le van a aparecer en su cuenta junto con el pago,
-      así que su saldo no cambia; lo que le debés de consignación, sí baja.</p>
+    <p class="sub">Marcá qué ventas le pagaste. A ${esc(Pr.nombre)} le aparece solo el pago, en su
+      cuenta de consignación (sin qué vendiste). La cuenta corriente no cambia.</p>
     <div id="pLista">${impagas.map(v => `<label class="pagar-l">
         <input type="checkbox" value="${v.id}" checked onchange="totalPago()">
         <span>${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}
@@ -341,14 +478,14 @@ function modalPaga(){
     </div>
     <div class="qtot"><span>Le pagás</span><span id="pTot"></span></div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
-    <button class="b p" style="flex:none" onclick="guardarPago()">Registrar pago</button></div>`);
+    <button class="b verde" onclick="guardarPago()">Registrar pago</button></div>`);
   totalPago();
 }
 function marcadas(){ return [...document.querySelectorAll('#pLista input:checked')].map(x => parseInt(x.value, 10)); }
 function totalPago(){
   const ids = marcadas();
   const t = D.ventas.filter(v => ids.includes(v.id)).reduce((a, v) => a + Number(v.costo), 0);
-  document.getElementById('pTot').textContent = plata(t, P().moneda) + enPesos(t);
+  document.getElementById('pTot').textContent = plata(t, P().moneda) + (P().moneda === 'USD' && aPesos(t) ? ' · ' + aPesos(t) : '');
 }
 async function guardarPago(){
   const ids = marcadas();
@@ -365,9 +502,14 @@ async function borrarVenta(id){
   try{ await post({ borrarVenta: id }); showToast('Borrada'); await cargar(); }
   catch(e){ alert(e.message); }
 }
+async function borrarPago(id){
+  if(!confirm('¿Borrar este pago? Las ventas que cubría vuelven a quedar sin pagar.')) return;
+  try{ await post({ borrarPago: id }); showToast('Pago borrado'); await cargar(); }
+  catch(e){ alert(e.message); }
+}
 async function borrarEntrada(id){
-  if(!confirm('¿Borrar esta entrada de mercadería?')) return;
-  try{ await post({ borrarEntrada: id }); showToast('Borrada'); await cargar(); }
+  if(!confirm('¿Borrar este movimiento de mercadería?')) return;
+  try{ await post({ borrarEntrada: id }); showToast('Borrado'); await cargar(); }
   catch(e){ alert(e.message); }
 }
 
