@@ -3,7 +3,11 @@ const crypto = require('crypto');
 
 const SECRET = process.env.JWT_SECRET || 'dev-insecure-secret-cambiar-en-produccion';
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'ricciarditomas@gmail.com').toLowerCase();
-const SESSION_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
+const SESSION_MS = 1000 * 60 * 60 * 24 * 365; // 1 año
+// A los clientes no se les corta la sesión: que venza a mitad de un pedido les
+// vaciaba el formulario y los hacía volver a entrar. Una sesión vencida pero
+// bien firmada sigue siendo de esa persona. Solo el admin vence de verdad.
+const GRACIA_CLIENTE_MS = 1000 * 60 * 60 * 24 * 365 * 5;
 
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -20,7 +24,9 @@ function verify(token) {
     const b = Buffer.from(expect);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
     const p = JSON.parse(Buffer.from(body, 'base64url').toString());
-    if (!p.exp || Date.now() > p.exp) return null;
+    if (!p.exp) return null;
+    const limite = p.admin ? p.exp : p.exp + GRACIA_CLIENTE_MS;
+    if (Date.now() > limite) return null;
     return p;
   } catch { return null; }
 }

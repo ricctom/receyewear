@@ -19,27 +19,33 @@ module.exports = async (req, res) => {
       const items = Array.isArray(body.items) ? body.items : null;
       if (!items || !items.length) return res.status(400).json({ error: 'Carrito vacío' });
 
-      // Datos de envío: si vienen en el pedido se validan y se guardan en el
-      // usuario; si no vienen, se usan los que ya tenía guardados.
-      let ship = null;
+      // Datos de envío: son todos opcionales. El pedido sale igual aunque falten
+      // o estén mal; lo que falte se completa con lo que el usuario ya tenía
+      // guardado, y si tampoco hay, Tomás se lo pregunta después.
+      const rows = await sql`SELECT dni_cuit, razon_social, telefono, direccion, faltante, faltante_detalle
+        FROM users WHERE id = ${s.uid}`;
+      const guardado = rows[0] || {};
+      let ship = guardado;
       if (body.ship) {
         const { errores, datos } = validar(body.ship);
-        if (errores.length) return res.status(400).json({ error: errores[0], errores });
-        await sql`UPDATE users SET
-            dni_cuit = ${datos.dni_cuit}, razon_social = ${datos.razon_social},
-            telefono = ${datos.telefono}, direccion = ${JSON.stringify(datos.direccion)}::jsonb,
-            faltante = ${datos.faltante},
-            faltante_detalle = ${datos.faltante_detalle ? JSON.stringify(datos.faltante_detalle) : null}::jsonb
-          WHERE id = ${s.uid}`;
-        ship = datos;
-      } else {
-        const rows = await sql`SELECT dni_cuit, razon_social, telefono, direccion, faltante, faltante_detalle
-          FROM users WHERE id = ${s.uid}`;
-        const u = rows[0] || {};
-        if (!u.razon_social || !u.direccion) {
-          return res.status(400).json({ error: 'Faltan los datos de envío', needShip: true });
+        ship = {
+          dni_cuit: datos.dni_cuit || guardado.dni_cuit || null,
+          razon_social: datos.razon_social || guardado.razon_social || null,
+          telefono: datos.telefono || guardado.telefono || null,
+          direccion: datos.direccion || guardado.direccion || null,
+          faltante: datos.faltante || guardado.faltante || null,
+          faltante_detalle: datos.faltante_detalle || guardado.faltante_detalle || null,
+        };
+        // En el usuario solo se guarda lo que pasó la validación, para no pisar
+        // datos buenos de antes con datos incompletos.
+        if (!errores.length) {
+          await sql`UPDATE users SET
+              dni_cuit = ${datos.dni_cuit}, razon_social = ${datos.razon_social},
+              telefono = ${datos.telefono}, direccion = ${JSON.stringify(datos.direccion)}::jsonb,
+              faltante = ${datos.faltante},
+              faltante_detalle = ${datos.faltante_detalle ? JSON.stringify(datos.faltante_detalle) : null}::jsonb
+            WHERE id = ${s.uid}`;
         }
-        ship = u;
       }
 
       const faltante = ['cambiar', 'consultar', 'baja'].includes(body.faltante)

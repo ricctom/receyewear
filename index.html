@@ -738,21 +738,21 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <h3>Confirmá tu pedido</h3>
   <p>Necesitamos estos datos para despacharte. Quedan guardados para la próxima vez.</p>
 
-  <label class="sf-l">Nombre completo o razón social</label>
+  <label class="sf-l">Nombre completo o razón social <i>(opcional)</i></label>
   <input class="sf-i" id="shRazon" placeholder="Óptica Eiffel S.R.L." autocomplete="organization"/>
 
   <div class="sf-row">
     <div>
-      <label class="sf-l">DNI o CUIT</label>
+      <label class="sf-l">DNI o CUIT <i>(opcional)</i></label>
       <input class="sf-i" id="shDni" inputmode="numeric" placeholder="20123456789"/>
     </div>
     <div>
-      <label class="sf-l">Teléfono</label>
+      <label class="sf-l">Teléfono <i>(opcional)</i></label>
       <input class="sf-i" id="shTel" inputmode="tel" placeholder="11 5555 5555" autocomplete="tel"/>
     </div>
   </div>
 
-  <label class="sf-l">Dirección de entrega</label>
+  <label class="sf-l">Dirección de entrega <i>(opcional)</i></label>
   <div class="sf-ac">
     <input class="sf-i" id="shDir" autocomplete="off" placeholder="Escribí calle y altura…"
            oninput="buscarDir()" onblur="setTimeout(cerrarSug,180)"/>
@@ -1698,7 +1698,11 @@ async function placeOrder(ship) {
     order = r.order;
   } catch (e) {
     if (String(e.message).includes('sesión')) { // sesión vencida
-      logout(); pendingCheckout = true; closeCart(); closeShip(); openLogin(true); return;
+      // Se guardan los datos que ya cargó: apenas vuelve a entrar con Google,
+      // el pedido se manda solo, sin tocar nada más.
+      saveSession(null); renderAcct();
+      pendingOrderShip = ship; closeCart(); closeShip(); openLogin(true);
+      return;
     }
     const msg = document.getElementById('shMsg');
     if (msg) msg.textContent = 'No se pudo registrar el pedido: ' + e.message;
@@ -1802,7 +1806,7 @@ function marcarDir(ok) {
       (dirElegida.localidad ? ' · ' + dirElegida.localidad : '');
   } else {
     box.className = 'sf-ok warn';
-    box.textContent = 'Elegí una de las sugerencias para validar la dirección (o dejala escrita y la confirmamos por WhatsApp).';
+    box.textContent = 'Podés dejarla escrita así. Si hace falta, la confirmamos por WhatsApp.';
   }
 }
 
@@ -1896,13 +1900,9 @@ function datosEnvio() {
 
 async function confirmarPedido() {
   const ship = datosEnvio();
-  const msg = document.getElementById('shMsg');
-  const falta =
-    ship.razon_social.length < 3 ? 'Poné tu nombre completo o razón social.' :
-    ship.dni_cuit.replace(/\D/g, '').length < 7 ? 'Revisá el DNI o CUIT.' :
-    ship.telefono.replace(/\D/g, '').length < 8 ? 'Revisá el teléfono.' :
-    !ship.direccion ? 'Falta la dirección de entrega.' : '';
-  if (falta) { msg.textContent = falta; return; }
+  // Todos los datos son opcionales: el pedido sale igual y lo que falte se
+  // confirma después por WhatsApp.
+  document.getElementById('shMsg').textContent = '';
 
   const btn = document.getElementById('shBtn');
   btn.disabled = true; btn.textContent = 'Confirmando…';
@@ -1918,6 +1918,7 @@ async function confirmarPedido() {
 ============================================================ */
 let session = JSON.parse(localStorage.getItem('rec4_session') || 'null');
 let pendingCheckout = false;
+let pendingOrderShip = null; // pedido listo que quedó frenado por la sesión: se manda al volver a entrar
 let googleReady = false;
 let authEnabled = false; // se activa solo si el backend (Neon + Google) está configurado
 let promo = null;        // condiciones de la campaña de cupones (null = no hay campaña)
@@ -2215,6 +2216,13 @@ async function onCredential(resp) {
     if (miVoucher) track('cupon_dado');
     updateCartUI();
 
+    if (pendingOrderShip && cart.length) {
+      const ship = pendingOrderShip;
+      pendingOrderShip = null; pendingCheckout = false;
+      showToast('Enviando tu pedido…');
+      placeOrder(ship);
+      return;
+    }
     if (desdePromo && miVoucher) { promoConfirmado(); return; }
     showToast(miVoucher ? '🎁 Tu cupón de ' + fmtR(miVoucher.monto) + ' quedó guardado' : '✓ Sesión iniciada');
     if (pendingCheckout) { pendingCheckout = false; openShip(); }
