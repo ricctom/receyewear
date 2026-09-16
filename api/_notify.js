@@ -157,17 +157,24 @@ async function notifyOrder(order, user, items, ship) {
 // Mail al cliente de una venta de consignación (la "vista cliente" de
 // consignacion.html): el detalle por línea, el total y si ya quedó pagado.
 // Nada del proveedor ni de costos: es lo mismo que vio el cliente en la pantalla.
-async function notifyVentaCliente({ email, cliente, orderId, items, total, cobrado }) {
+async function notifyVentaCliente({ email, cliente, orderId, items, total, subtotal, descuento, cobrado, pagos }) {
   const key = process.env.RESEND_API_KEY;
   if (!key || !email) return false;
+  const desc = Number(descuento) || 0;
   const saldo = Math.max(0, total - (cobrado || 0));
   const estadoTxt = saldo <= 0 ? 'Pagado: ¡gracias!'
     : cobrado > 0 ? `Pagaste ${money(cobrado)} · Saldo pendiente: ${money(saldo)}`
     : `Saldo pendiente: ${money(saldo)}`;
+  const pagosTxt = (pagos || []).map((p) => `${p.medio || 'Pago'}: ${money(p.monto)}`);
   const text =
     `¡Hola${cliente ? ' ' + cliente : ''}! Este es el detalle de tu pedido${orderId ? ' #' + orderId : ''} en REC Eyewear.\n\n` +
     items.map((it) => `• ${it.nombre} × ${it.cantidad} (${money(it.precio)} c/u) = ${money(it.precio * it.cantidad)}`).join('\n') +
-    `\n\nTotal: ${money(total)}\n${estadoTxt}\n\nREC Eyewear · visionline.com.ar`;
+    (desc > 0 ? `\n\nSubtotal: ${money(subtotal)}\nDescuento: -${money(desc)}` : '') +
+    `\n\nTotal: ${money(total)}\n` + (pagosTxt.length ? pagosTxt.join('\n') + '\n' : '') +
+    `${estadoTxt}\n\nREC Eyewear · visionline.com.ar`;
+  const fila = (izq, der, estilo) =>
+    `<tr><td style="padding:3px 0;text-align:right;${estilo || ''}">${izq}</td>` +
+    `<td style="padding:3px 0 3px 18px;text-align:right;width:120px;${estilo || ''}">${der}</td></tr>`;
   const td = 'padding:9px 0;border-bottom:1px solid #eee';
   const html =
     `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:560px">` +
@@ -182,7 +189,11 @@ async function notifyVentaCliente({ email, cliente, orderId, items, total, cobra
       `<td style="${td};text-align:right;color:#666">${money(it.precio)}</td>` +
       `<td style="${td};text-align:right">${money(it.precio * it.cantidad)}</td></tr>`).join('') +
     `</table>` +
-    `<p style="font-size:18px;font-weight:700;margin:16px 0 8px;text-align:right">Total: ${money(total)}</p>` +
+    `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 10px">` +
+    (desc > 0 ? fila('Subtotal', money(subtotal), 'color:#666') + fila('Descuento', '-' + money(desc), 'color:#2f7a52') : '') +
+    fila('Total', money(total), 'font-size:18px;font-weight:700;padding-top:6px') +
+    (pagos || []).map((p) => fila(esc(p.medio || 'Pago'), money(p.monto), 'color:#666;font-size:13px')).join('') +
+    `</table>` +
     `<p style="margin:0 0 18px;text-align:right"><span style="display:inline-block;padding:6px 12px;border-radius:999px;font-size:13px;` +
     (saldo <= 0 ? 'background:#eaf3ed;color:#2f7a52' : 'background:#faf1e3;color:#a8712f') + `">${estadoTxt}</span></p>` +
     `<p style="color:#999;font-size:12px">REC Eyewear · visionline.com.ar</p></div>`;

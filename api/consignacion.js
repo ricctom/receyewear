@@ -6,7 +6,8 @@
 //   POST { agrega:{ fecha, nota, items:[{ articulo, cantidad, precio }] } }  -> entra mercadería
 //   POST { venta:{ fecha, email, cliente, nota, items:[{ articulo, cantidad, precio }] } }
 //          -> baja el stock y queda debiéndose; con mail, le crea el pedido al cliente
-//          + cobro:{ monto, medio }  -> lo que ya pagó (queda como cobro del pedido)
+//          + descuento: $            -> se resta del total
+//          + cobros:[{ monto, medio }] -> lo que ya pagó, uno por medio (quedan como cobros del pedido)
 //          + mandarMail:true         -> le llega el detalle por línea (items[].nombre)
 //   POST { paga:{ fecha, nota, ventas:[id] } }  -> le pago esas ventas
 //   POST { borrarVenta: id } / { borrarEntrada: id } / { borrarPago: id }
@@ -156,7 +157,10 @@ module.exports = async (req, res) => {
         };
       }).filter((it) => it.articulo && it.cantidad > 0);
       if (!items.length) return res.status(400).json({ error: 'Cargá al menos una línea con cantidad' });
-      const totalVenta = items.reduce((a, it) => a + it.precio * it.cantidad, 0);
+      const subtotal = items.reduce((a, it) => a + it.precio * it.cantidad, 0);
+      // Descuento en pesos sobre el total (la página lo pasa ya calculado si fue un %).
+      const descuento = Math.min(subtotal, Math.max(0, Math.round(Number(v.descuento) || 0)));
+      const totalVenta = subtotal - descuento;
       const costo = r2(items.reduce((a, it) => a + it.costo * it.cantidad, 0));
 
       // El cliente: si todavía no tiene cuenta se le crea una con ese mail, que
@@ -214,26 +218,32 @@ module.exports = async (req, res) => {
                             etapa, status, created_at)
         VALUES (${u.id},
                 ${JSON.stringify(items.map((it) => ({ sku: '', name: it.articulo, color: null, qty: it.cantidad, price: it.precio })))}::jsonb,
-                ${totalVenta}, 0, ${JSON.stringify(ship)}::jsonb, ${ship.faltante}, ${rate},
+                ${totalVenta}, ${descuento}, ${JSON.stringify(ship)}::jsonb, ${ship.faltante}, ${rate},
                 ${'Venta de consignación' + (nota ? ': ' + nota : '')},
                 'despachado', 'enviado',
                 COALESCE((${dia}::date + interval '15 hours')::timestamptz, now()))
         RETURNING id`;
       await sql`UPDATE consign_sales SET order_id = ${o.id} WHERE id = ${venta.id}`;
 
-      // Si ya pagó (todo o una parte), queda cobrado en el pedido.
-      const cobro = v.cobro || {};
-      const cobrado = Math.min(totalVenta, Math.max(0, Math.round(Number(cobro.monto) || 0)));
-      if (cobrado > 0) {
+      // Si ya pagó (todo o una parte, con uno o más medios), cada pago queda
+      // como un cobro del pedido. Lo que pase del total se recorta.
+      const lista = Array.isArray(v.cobros) ? v.cobros : v.cobro ? [v.cobro] : [];
+      const pagos = [];
+      let cobrado = 0;
+      for (const c of lista) {
+        const monto = Math.min(totalVenta - cobrado, Math.max(0, Math.round(Number(c && c.monto) || 0)));
+        if (monto <= 0) continue;
+        const medio = c.medio ? String(c.medio).slice(0, 40) : null;
         await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota)
-          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${cobrado},
-                  ${cobro.medio ? String(cobro.medio).slice(0, 40) : null}, 'Venta de consignación')`;
+          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${monto}, ${medio}, 'Venta de consignación')`;
+        pagos.push({ monto, medio });
+        cobrado += monto;
       }
 
       let mail = false;
       if (v.mandarMail) {
         mail = await notifyVentaCliente({
-          email, cliente, orderId: o.id, total: totalVenta, cobrado,
+          email, cliente, orderId: o.id, total: totalVenta, subtotal, descuento, cobrado, pagos,
           items: items.map((it) => ({ nombre: it.nombre, cantidad: it.cantidad, precio: it.precio })),
         });
       }

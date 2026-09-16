@@ -149,6 +149,27 @@
   .seg button.on{background:var(--tx);color:#fff;border-color:var(--tx)}
   .seg button.on.verde{background:var(--ok);border-color:var(--ok)}
   .seg button:disabled{opacity:.35}
+  .det-s{display:flex;justify-content:space-between;padding:12px 0 0;font-size:15px;color:var(--md)}
+  .det-s.verde{color:var(--ok);font-weight:500;padding-top:6px}
+  .det-s+.det-t{margin-top:10px;border-top:1px solid var(--ln)}
+  .add-l{background:none;border:none;color:var(--md);font-size:14.5px;font-weight:500;padding:14px 0 2px}
+  .add-l:hover{color:var(--tx)}
+  .x-d{background:none;border:none;color:var(--mt);font-size:22px;width:36px;height:36px;border-radius:9px;flex:none}
+  .x-d:hover{background:var(--pg);color:var(--no)}
+  .desc-box{padding:14px 0 4px}
+  .desc-in{display:flex;align-items:center;gap:10px}
+  .desc-in>span{font-size:15px;font-weight:500;margin-right:auto}
+  .vcaja .desc-in input{width:110px;padding:10px 12px;text-align:right}
+  .seg.mini{gap:6px;flex-wrap:wrap}
+  .seg.mini button{min-width:0;height:40px;padding:0 12px;font-size:14px;flex:1}
+  .desc-in .seg.mini button{width:44px;flex:none;padding:0}
+  .pg-row{border:1px solid var(--ln);border-radius:16px;padding:12px;margin-top:12px}
+  .pg-monto{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:18px;font-weight:600;color:var(--md)}
+  .vcaja .pg-monto input{flex:1;padding:11px 13px;font-size:18px;font-weight:600}
+  .pg-estado{margin-top:12px;padding:11px 14px;border-radius:12px;font-size:14.5px;font-weight:500}
+  .pg-estado.ok{background:var(--okbg);color:var(--ok)}
+  .pg-estado.al{background:var(--albg);color:var(--al)}
+  .pg-estado.mal{background:var(--nobg);color:var(--no)}
   .vcaja label.chk{display:flex;gap:10px;align-items:center;margin-top:20px;font-size:15px;color:var(--tx);cursor:pointer}
   .chk input{width:20px;height:20px;accent-color:var(--tx);margin:0}
   .nota-vc{font-size:13px;color:var(--mt);margin:10px 0 0;line-height:1.5}
@@ -604,12 +625,22 @@ let VC = null;
 const MAIL_OK = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const vcPrecio = (l) => { const p = VC.precio[l.art]; return p === undefined ? precioWeb(l.art) : (Number(p) || 0); };
 const vcElegidas = () => VC.lineas.filter(l => VC.cant[l.art] > 0);
-const vcTotal = () => vcElegidas().reduce((a, l) => a + VC.cant[l.art] * vcPrecio(l), 0);
+const vcBruto = () => vcElegidas().reduce((a, l) => a + VC.cant[l.art] * vcPrecio(l), 0);
+// Descuento en pesos: si es %, sobre el bruto. Nunca más que el total.
+const vcDescuento = () => {
+  const b = vcBruto(), x = Math.max(0, Number(VC.desc.valor) || 0);
+  return Math.min(b, Math.round(VC.desc.tipo === '%' ? b * Math.min(x, 100) / 100 : x));
+};
+const vcTotal = () => vcBruto() - vcDescuento();
+const MEDIOS = ['Efectivo', 'Transferencia', 'Tarjeta', 'Otro'];
 
 function abrirCliente(){
   if(!D || !D.proveedor) return;
   VC = {
-    paso: 'elegir', cant: {}, precio: {}, email: '', nombre: '', pago: 'no', parcial: '', medio: 'Efectivo', mail: true,
+    paso: 'elegir', cant: {}, precio: {}, email: '', nombre: '', mail: true,
+    desc: { abierto: false, tipo: '%', valor: '' },
+    // Pagos: uno por medio. El que tiene "auto" se completa solo con lo que falta.
+    pago: 'no', pagos: [{ medio: 'Efectivo', monto: '', auto: true }],
     lineas: articulos().map(a => ({ art: a, nombre: nombreWeb(a) })).sort((x, y) => x.nombre.localeCompare(y.nombre)),
   };
   document.getElementById('vcFecha').textContent =
@@ -725,7 +756,20 @@ function vcPintarConfirmar(){
         ${vcElegidas().map(l => `<div class="det-l">
             <div><b>${esc(l.nombre)}</b><span class="g">${VC.cant[l.art]} × ${fmt(vcPrecio(l))}</span></div>
             <div class="num">${fmt(VC.cant[l.art] * vcPrecio(l))}</div></div>`).join('')}
-        <div class="det-t"><span>Total</span><b class="num">${fmt(vcTotal())}</b></div>
+        ${VC.desc.abierto ? `
+          <div class="desc-box">
+            <div class="desc-in">
+              <span>Descuento</span>
+              <div class="seg mini">
+                <button class="${VC.desc.tipo === '%' ? 'on' : ''}" onclick="vcDescTipo('%')">%</button>
+                <button class="${VC.desc.tipo === '$' ? 'on' : ''}" onclick="vcDescTipo('$')">$</button>
+              </div>
+              <input type="number" min="0" inputmode="numeric" id="vcDescVal" placeholder="${VC.desc.tipo === '%' ? '10' : '5000'}"
+                value="${esc(VC.desc.valor)}" oninput="VC.desc.valor=this.value;vcTotales()">
+              <button class="x-d" title="Sacar descuento" onclick="VC.desc={abierto:false,tipo:'%',valor:''};vcPintarConfirmar();vcPintarBarra()">×</button>
+            </div>
+          </div>` : `<button class="add-l" onclick="VC.desc.abierto=true;vcPintarConfirmar();document.getElementById('vcDescVal').focus()">+ Descuento</button>`}
+        <div id="vcTotales">${vcTotalesHtml()}</div>
       </div>
       <div class="vcaja">
         <label class="pri">Mail</label>
@@ -737,20 +781,81 @@ function vcPintarConfirmar(){
         <div id="vcPagoBox">${vcPagoHtml(hayMail)}</div>
       </div>
     </div>`;
+  vcPagosRecalc();
 }
+function vcTotalesHtml(){
+  const d = vcDescuento();
+  return (d ? `<div class="det-s"><span>Subtotal</span><span class="num">${fmt(vcBruto())}</span></div>
+      <div class="det-s verde"><span>Descuento${VC.desc.tipo === '%' ? ' ' + esc(VC.desc.valor) + '%' : ''}</span><span class="num">−${fmt(d)}</span></div>` : '')
+    + `<div class="det-t"><span>Total</span><b class="num">${fmt(vcTotal())}</b></div>`;
+}
+// Cambió el descuento: totales, barra y lo que se completa solo en los pagos.
+function vcTotales(){
+  document.getElementById('vcTotales').innerHTML = vcTotalesHtml();
+  vcPintarBarra();
+  vcPagosRecalc();
+}
+function vcDescTipo(t){ VC.desc.tipo = t; VC.desc.valor = ''; vcPintarConfirmar(); vcPintarBarra(); document.getElementById('vcDescVal').focus(); }
+
+/* pagos: uno o más medios */
+const vcPagado = () => VC.pagos.reduce((a, p) => a + (Math.round(Number(p.monto) || 0)), 0);
+function vcPagosRecalc(){
+  if(VC.pago !== 'si') return;
+  const auto = VC.pagos.findIndex(p => p.auto);
+  if(auto >= 0){
+    const otros = VC.pagos.reduce((a, p, j) => a + (j === auto ? 0 : Math.round(Number(p.monto) || 0)), 0);
+    VC.pagos[auto].monto = String(Math.max(0, vcTotal() - otros));
+    const inp = document.getElementById('vcPm' + auto);
+    if(inp) inp.value = VC.pagos[auto].monto;
+  }
+  const est = document.getElementById('vcPagoEstado');
+  if(est) est.outerHTML = vcPagoEstadoHtml();
+}
+function vcPagoEstadoHtml(){
+  const t = vcTotal(), p = vcPagado();
+  const [cls, txt] = p === t ? ['ok', '✓ Pagó todo: ' + fmt(t)]
+    : p > t ? ['mal', 'Se pasa por ' + fmt(p - t)]
+    : ['al', 'Pagó ' + fmt(p) + ' · queda debiendo ' + fmt(t - p)];
+  return `<div class="pg-estado ${cls}" id="vcPagoEstado">${txt}</div>`;
+}
+function vcPagoMonto(j, v){
+  VC.pagos[j].monto = v;
+  VC.pagos[j].auto = false;
+  vcPagosRecalc();
+}
+function vcPagoMedio(j, m){ VC.pagos[j].medio = m; vcRepintarPago(); }
+function vcPagoOtro(){
+  const usados = VC.pagos.map(p => p.medio);
+  VC.pagos.push({ medio: MEDIOS.find(m => !usados.includes(m)) || 'Otro', monto: '', auto: false });
+  vcRepintarPago();
+  const inp = document.getElementById('vcPm' + (VC.pagos.length - 1));
+  if(inp) inp.focus();
+}
+function vcPagoSacar(j){
+  VC.pagos.splice(j, 1);
+  if(!VC.pagos.some(p => p.auto)) VC.pagos[0].auto = true;   // el que queda absorbe lo que falta
+  vcRepintarPago();
+}
+
 function vcPagoHtml(hayMail){
   return `
     <label>¿Ya lo pagó?</label>
     <div class="seg">
       <button class="${VC.pago === 'no' ? 'on' : ''}" onclick="vcPago('no')">Todavía no</button>
-      <button class="${VC.pago === 'todo' ? 'on verde' : ''}" onclick="vcPago('todo')" ${hayMail ? '' : 'disabled'}>Pagó todo</button>
-      <button class="${VC.pago === 'parte' ? 'on' : ''}" onclick="vcPago('parte')" ${hayMail ? '' : 'disabled'}>Una parte</button>
+      <button class="${VC.pago === 'si' ? 'on verde' : ''}" onclick="vcPago('si')" ${hayMail ? '' : 'disabled'}>Sí, pagó</button>
     </div>
-    ${VC.pago === 'parte' ? `<label>¿Cuánto pagó?</label>
-      <input type="number" min="0" inputmode="numeric" placeholder="$" value="${esc(VC.parcial)}" oninput="VC.parcial=this.value">` : ''}
-    ${VC.pago !== 'no' ? `<label>¿Cómo?</label><div class="seg">
-      ${['Efectivo', 'Transferencia', 'Otro'].map(m => `<button class="${VC.medio === m ? 'on' : ''}" onclick="VC.medio='${m}';vcRepintarPago()">${m}</button>`).join('')}
-    </div>` : ''}
+    ${VC.pago === 'si' ? VC.pagos.map((p, j) => `
+      <div class="pg-row">
+        <div class="seg mini">${MEDIOS.map(m => `<button class="${p.medio === m ? 'on' : ''}" onclick="vcPagoMedio(${j},'${m}')">${m}</button>`).join('')}</div>
+        <div class="pg-monto">
+          <span>$</span>
+          <input type="number" min="0" inputmode="numeric" id="vcPm${j}" value="${esc(p.monto)}" placeholder="monto"
+            onfocus="this.select()" oninput="vcPagoMonto(${j},this.value)">
+          ${VC.pagos.length > 1 ? `<button class="x-d" title="Sacar este pago" onclick="vcPagoSacar(${j})">×</button>` : ''}
+        </div>
+      </div>`).join('')
+      + (VC.pagos.length < 3 ? `<button class="add-l" onclick="vcPagoOtro()">+ Otro medio de pago</button>` : '')
+      + vcPagoEstadoHtml() : ''}
     <label class="chk"><input type="checkbox" ${VC.mail && hayMail ? 'checked' : ''} ${hayMail ? '' : 'disabled'}
       onchange="VC.mail=this.checked"> Mandarle el detalle por mail</label>
     ${hayMail ? '' : '<p class="nota-vc">Con el mail le llega el detalle y queda registrado lo que pagó.</p>'}`;
@@ -759,6 +864,7 @@ function vcRepintarPago(){
   const hayMail = MAIL_OK.test(VC.email.trim());
   if(!hayMail) VC.pago = 'no';
   document.getElementById('vcPagoBox').innerHTML = vcPagoHtml(hayMail);
+  vcPagosRecalc();
 }
 function vcPago(p){ VC.pago = p; vcRepintarPago(); }
 function vcMail(v){
@@ -773,24 +879,25 @@ async function vcGuardar(){
   const email = VC.email.trim();
   const hayMail = MAIL_OK.test(email);
   if(email && !hayMail) return alert('Ese mail no parece válido.');
-  const total = vcTotal();
-  let monto = 0;
-  if(hayMail && VC.pago === 'todo') monto = total;
-  if(hayMail && VC.pago === 'parte'){
-    monto = Math.round(Number(VC.parcial) || 0);
+  const total = vcTotal(), descuento = vcDescuento();
+  const cobros = hayMail && VC.pago === 'si'
+    ? VC.pagos.map(p => ({ medio: p.medio, monto: Math.round(Number(p.monto) || 0) })).filter(p => p.monto > 0)
+    : [];
+  const monto = cobros.reduce((a, p) => a + p.monto, 0);
+  if(hayMail && VC.pago === 'si'){
     if(monto <= 0) return alert('Poné cuánto pagó.');
-    if(monto > total) return alert('Pagó más que el total (' + fmt(total) + ').');
+    if(monto > total) return alert('Los pagos suman ' + fmt(monto) + ' y el total es ' + fmt(total) + '.');
   }
   const items = vcElegidas().map(l => ({ articulo: l.art, nombre: l.nombre, cantidad: VC.cant[l.art], precio: vcPrecio(l) }));
   const btn = document.getElementById('vcOk');
   if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
   try{
     const r = await post({ venta:{
-      email, cliente: VC.nombre, fecha: hoyISO(), nota: '', items,
-      cobro: monto ? { monto, medio: VC.medio } : null,
+      email, cliente: VC.nombre, fecha: hoyISO(), nota: '', items, descuento, cobros,
       mandarMail: hayMail && VC.mail } });
-    const partes = [(r.order_id ? 'Pedido #' + r.order_id + ' · ' : '') + fmt(total)];
-    if(monto) partes.push(monto >= total ? 'Pagado' : 'Pagó ' + fmt(monto) + ' · quedan ' + fmt(total - monto));
+    const partes = [(r.order_id ? 'Pedido #' + r.order_id + ' · ' : '') + fmt(total) + (descuento ? ' (con ' + fmt(descuento) + ' de descuento)' : '')];
+    if(monto) partes.push((monto >= total ? 'Pagado' : 'Pagó ' + fmt(monto) + ' · quedan ' + fmt(total - monto))
+      + (cobros.length > 1 ? ': ' + cobros.map(p => esc(p.medio) + ' ' + fmt(p.monto)).join(' + ') : ' en ' + esc(cobros[0].medio).toLowerCase()));
     if(hayMail && VC.mail) partes.push(r.mail ? 'Te mandamos el detalle a ' + esc(email) : 'No se pudo mandar el mail');
     VC.resultado = partes.join('<br>');
     VC.paso = 'listo';
