@@ -39,8 +39,11 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const [rows, usd, tablas] = await Promise.all([
-        sql`SELECT o.id, o.items, o.recibido, o.total, o.etapa, o.created_at, o.ship, o.faltante,
+        sql`SELECT o.id, o.items, o.recibido, o.total, COALESCE(o.descuento, 0) AS descuento,
+                   o.etapa, o.created_at, o.ship, o.faltante,
                    o.supplier_move_id,
+                   -- Venta de consignación: su deuda con el proveedor va en consignacion.html.
+                   EXISTS (SELECT 1 FROM consign_sales cs WHERE cs.order_id = o.id) AS consignacion,
                    o.usd_rate, o.nota, u.email, u.name,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = o.id), 0) AS cobrado,
                    COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota) ORDER BY p.id)
@@ -201,6 +204,10 @@ module.exports = async (req, res) => {
       const [ped] = await sql`SELECT id, items, etapa, supplier_move_id, ship FROM orders WHERE id = ${id}`;
       if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
       if (ped.supplier_move_id) return res.status(400).json({ error: 'Este pedido ya se cargó en la cuenta de Martín' });
+      const [consig] = await sql`SELECT id FROM consign_sales WHERE order_id = ${id} LIMIT 1`;
+      if (consig) {
+        return res.status(400).json({ error: 'Este pedido es una venta de consignación: lo que se le debe va en Consignación, no en la cuenta corriente.' });
+      }
 
       // Si no mandó las líneas, es "llegó tal cual": se usa lo que pidió el cliente.
       const pedidas = porLinea(ped.items);

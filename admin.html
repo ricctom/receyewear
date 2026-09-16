@@ -127,6 +127,12 @@ async function cargar(){
 /* ---------- cuentas ---------- */
 const cobrado = o => Number(o.cobrado) || 0;
 const debe    = o => Math.max(0, o.total - cobrado(o));
+// El total del pedido ya viene con el cupón restado; esto es lo que se descontó.
+const cupon   = o => Number(o.descuento) || 0;
+const cuponTxt = o => cupon(o) ? ' · cupón −' + fmt(cupon(o)) : '';
+// Los pedidos de consignación no se cargan a la cuenta corriente de Martín:
+// su deuda se lleva en consignacion.html. Para el panel cuentan como resueltos.
+const cargadoMartin = o => !!o.supplier_move_id || !!o.consignacion;
 const dolar   = o => Number(o.usd_rate) || Number(USD.valor) || 0;
 // El costo viene repartido por proveedor, cada uno en su moneda.
 const costo   = o => Math.round((o.costo || []).reduce((a,d) =>
@@ -175,7 +181,7 @@ function pintar(){
 
   // Pedidos que ya despachaste pero que nunca se le cargaron a Martín
   // (los que venían de antes y se migraron salteando ese paso).
-  const sinCargar = ORDERS.filter(o => !o.supplier_move_id &&
+  const sinCargar = ORDERS.filter(o => !cargadoMartin(o) &&
     ['recibido','despachado','saldado'].includes(paso(o)));
   document.getElementById('avisoMartin').innerHTML = sinCargar.length
     ? `<div class="aviso">${sinCargar.length === 1 ? 'Hay 1 pedido que ya retiraste y' : 'Hay ' + sinCargar.length + ' pedidos que ya retiraste y'}
@@ -207,7 +213,7 @@ function porLinea(items){
     const g = m.get(linea);
     const q = Math.max(1, parseInt(it.qty,10)||1);
     g.qty += q; g.total += q * (Number(it.price)||0);
-    g.modelos.push({ modelo: it.sku || modelo, color: it.color || '', qty:q });
+    g.modelos.push({ modelo: it.sku || modelo, color: it.color || '', qty:q, price: Number(it.price)||0 });
   });
   return [...m.values()].sort((a,b) => b.total - a.total);
 }
@@ -225,8 +231,8 @@ function tarjeta(o){
   // La plata de la derecha: mientras no despachaste, el total. Después, lo que te deben.
   const plata = (p === 'despachado' || p === 'saldado')
     ? `<span class="big ${debe(o)>0?'debe':''}">${debe(o) > 0 ? fmt(debe(o)) : fmt(o.total)}</span>
-       <span class="chico">${debe(o) > 0 ? 'te debe · de ' + fmt(o.total) : 'cobrado'}</span>`
-    : `<span class="big">${fmt(o.total)}</span><span class="chico">${uTxt}</span>`;
+       <span class="chico">${debe(o) > 0 ? 'te debe · de ' + fmt(o.total) : 'cobrado'}${cuponTxt(o)}</span>`
+    : `<span class="big">${fmt(o.total)}</span><span class="chico">${uTxt}${cuponTxt(o)}</span>`;
 
   return `<div class="card ${p==='cancelado'||p==='saldado'?'mudo':''}" id="c${o.id}">
     <div class="chead">
@@ -265,7 +271,7 @@ function accionPrincipal(o, p){
 
 function menu(o, p){
   const atras = { pedido:'nuevo', recibido:'pedido', despachado:'recibido' }[p];
-  const faltaCargar = !o.supplier_move_id && p !== 'nuevo' && p !== 'cancelado';
+  const faltaCargar = !cargadoMartin(o) && p !== 'nuevo' && p !== 'cancelado';
   return `
     ${faltaCargar ? `<button onclick="modalRecibir(${o.id})"><b>Cargar a la cuenta de Martín</b></button><hr>` : ''}
     <button onclick="pdfProveedor(${o.id})">PDF para Martín</button>
@@ -310,11 +316,14 @@ function detalle(o){
     ${lineas.map(l => `<div class="ln"><span><b>${esc(l.linea)}</b> <span class="g">${l.qty} u.</span></span>
       <span class="num">${fmt(l.total)}</span></div>
       <div class="mod">${l.modelos.map(m => esc(m.modelo||'—') + (m.color?' '+esc(m.color):'') + ' ×' + m.qty).join(' · ')}</div>`).join('')}
-    <div class="ln" style="border-top:1px solid var(--ln);margin-top:6px;padding-top:9px">
+    ${cupon(o) ? `<div class="ln" style="border-top:1px solid var(--ln);margin-top:6px;padding-top:9px">
+      <span>Subtotal</span><span class="num">${fmt(o.total + cupon(o))}</span></div>
+    <div class="ln"><span style="color:var(--ok)">Cupón de descuento</span><span class="num" style="color:var(--ok)">−${fmt(cupon(o))}</span></div>` : ''}
+    <div class="ln" style="${cupon(o) ? '' : 'border-top:1px solid var(--ln);margin-top:6px;padding-top:9px'}">
       <span><b>Total</b></span><span class="num"><b>${fmt(o.total)}</b></span></div></div>`;
 
   const guita = `<div class="det"><h4>Números</h4>
-    <div class="dato"><span>Te van a pagar</span><span class="num">${fmt(o.total)}</span></div>
+    <div class="dato"><span>Te van a pagar${cupon(o) ? ' <span style="color:var(--mt);font-size:12.5px">(ya con el cupón de ' + fmt(cupon(o)) + ' descontado)</span>' : ''}</span><span class="num">${fmt(o.total)}</span></div>
     <div class="dato"><span>Te cuesta</span><span class="num">${costo(o) ? fmt(costo(o)) : '—'}</span></div>
     ${(o.costo||[]).map(d => `<div class="dato"><span style="padding-left:12px">${esc(d.nombre)}</span>
       <span class="num">${d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) + ' · ' + fmt(d.monto * dolar(o)) : fmt(d.monto)}</span></div>`).join('')}
@@ -370,7 +379,7 @@ async function llegoTalCual(id){
 
 // Va cargando de a uno los pedidos que quedaron sin pasar a Martín.
 function cargarPendientesMartin(){
-  const pend = ORDERS.filter(o => !o.supplier_move_id &&
+  const pend = ORDERS.filter(o => !cargadoMartin(o) &&
     ['recibido','despachado','saldado'].includes(paso(o)));
   if(!pend.length) return;
   window._enTanda = true;
@@ -413,7 +422,7 @@ async function guardarRecibido(id){
     cerrarModal(); await cargar();
     showToast(textoCargado(r));
     // Si venía de la carga en tanda, sigue con el que falte.
-    const pend = ORDERS.filter(o => !o.supplier_move_id && ['recibido','despachado','saldado'].includes(paso(o)));
+    const pend = ORDERS.filter(o => !cargadoMartin(o) && ['recibido','despachado','saldado'].includes(paso(o)));
     if(window._enTanda && pend.length) return modalRecibir(pend[0].id, pend.length);
     window._enTanda = false;
   }catch(e){ alert(e.message); }
@@ -650,10 +659,12 @@ function pdfCliente(id){
 <div class="cli"><b>${esc(sh.razon_social || o.name || '—')}</b>${sh.dni_cuit?' · DNI/CUIT '+esc(sh.dni_cuit):''}<br>
 ${esc(dir.texto||'')}${dir.piso?' · '+esc(dir.piso):''}<br>${esc(sh.telefono||'')} ${esc(o.email||'')}</div>
 ${lineas.map(l => `<h2><span>${esc(l.linea)}</span><span>${fmt(l.total)}</span></h2>
-<table><thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th><th class="m">Subtotal</th></tr></thead><tbody>
-${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'—')}</td><td class="q">${m.qty}</td><td class="m"></td></tr>`).join('')}
+<table><thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th><th class="m">Precio u.</th><th class="m">Subtotal</th></tr></thead><tbody>
+${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'—')}</td><td class="q">${m.qty}</td><td class="m">${fmt(m.price)}</td><td class="m">${fmt(m.price * m.qty)}</td></tr>`).join('')}
 </tbody></table>`).join('')}
-<div class="tot"><span>Total</span><span>${fmt(o.total)}</span></div>
+${cupon(o) ? `<div class="tot" style="font-size:13px;font-weight:400"><span>Subtotal</span><span>${fmt(o.total + cupon(o))}</span></div>
+<div class="tot" style="border-top:none;margin-top:4px;padding-top:0;font-size:13px;font-weight:400"><span>Cupón de descuento</span><span>−${fmt(cupon(o))}</span></div>
+<div class="tot" style="border-top:1px solid #111;margin-top:8px"><span>Total</span><span>${fmt(o.total)}</span></div>` : `<div class="tot"><span>Total</span><span>${fmt(o.total)}</span></div>`}
 ${cobrado(o) ? `<div class="tot" style="border-top:none;font-size:13px"><span>Cobrado</span><span>${fmt(cobrado(o))}</span></div>
 <div class="tot" style="border-top:none;font-size:13px"><span>Saldo</span><span>${fmt(debe(o))}</span></div>` : ''}
 <p style="margin-top:24px;font-size:10px;color:#888;text-align:center">Precios en pesos. Este comprobante no es factura.</p>
