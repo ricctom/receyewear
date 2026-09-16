@@ -85,6 +85,86 @@
   .pagar-l .g{color:var(--mt);font-size:12.5px;display:block;margin-top:2px}
   .pagar-l .m{margin-left:auto;white-space:nowrap;font-weight:600;color:var(--no)}
 
+  /* ---------- vista cliente: pantalla completa, sin números internos ---------- */
+  .b.cli{background:#fff;border-color:var(--tx);font-weight:600}
+  .vc{position:fixed;inset:0;z-index:45;background:var(--pg);display:none;flex-direction:column}
+  .vc.open{display:flex}
+  .vc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 28px;
+    background:var(--cd);border-bottom:1px solid var(--ln)}
+  .vc-top .marca{font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+  .vc-top .marca span{font-weight:500;letter-spacing:.3px;text-transform:none;color:var(--mt);margin-left:12px;font-size:14px}
+  .vc-body{flex:1;overflow-y:auto;padding:26px 28px 30px}
+  .vc-in{max-width:1180px;margin:0 auto}
+  .vc h2{font-size:26px;font-weight:600;letter-spacing:-.4px;margin:0 0 4px}
+  .vc .vsub{color:var(--mt);font-size:14.5px;margin:0 0 22px}
+  .lineas{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+  .ln-t{background:var(--cd);border:2px solid var(--ln);border-radius:22px;padding:20px 20px 16px;
+    display:flex;flex-direction:column;gap:14px;cursor:pointer;user-select:none;transition:border-color .12s,box-shadow .12s}
+  .ln-t:hover{border-color:var(--ln2)}
+  .ln-t.on{border-color:var(--tx);box-shadow:0 10px 30px rgba(28,27,25,.10)}
+  .ln-t .nom{font-size:18px;font-weight:600;letter-spacing:-.2px;line-height:1.25;margin:0;min-height:45px}
+  .ln-t .pre{display:flex;align-items:baseline;gap:4px;color:var(--md);font-size:20px;font-weight:600;cursor:text}
+  .ln-t .pre input{border:none;border-bottom:1px dashed var(--ln2);background:transparent;font:inherit;
+    font-size:22px;font-weight:600;color:var(--tx);width:120px;padding:0 0 2px;border-radius:0;-moz-appearance:textfield}
+  .ln-t .pre input:focus{outline:none;border-bottom-color:var(--tx)}
+  .ln-t .pre input.falta{border-bottom-color:var(--no)}
+  .ln-t input::-webkit-inner-spin-button,.ln-t input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .step{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--pg);border-radius:14px;padding:5px}
+  .step button{width:46px;height:46px;border-radius:11px;border:none;background:var(--cd);font-size:24px;
+    line-height:1;color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .step button:active{transform:scale(.95)}
+  .step button.mas-b{background:var(--tx);color:#fff}
+  .step button:disabled{opacity:.3}
+  .step input{width:60px;text-align:center;border:none;background:transparent;font:inherit;font-size:22px;
+    font-weight:600;color:var(--tx);-moz-appearance:textfield}
+  .step input:focus{outline:none}
+  .ln-t .sub-t{font-size:13.5px;color:var(--md);text-align:right;min-height:18px;margin:-4px 2px 0}
+
+  .vc-bar{background:var(--tx);color:#fff;padding:16px 28px}
+  .vc-bar .vc-in{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .vc-bar .res{flex:1;min-width:0;font-size:14px;color:#bdbab2;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vc-bar .tot{text-align:right}
+  .vc-bar .tot small{display:block;font-size:12px;color:#98958d;letter-spacing:.8px;text-transform:uppercase}
+  .vc-bar .tot b{font-size:34px;font-weight:700;letter-spacing:-1px}
+  .vc-bar .go{height:58px;padding:0 30px;border-radius:14px;border:none;background:#fff;color:var(--tx);font-size:16px;font-weight:600}
+  .vc-bar .go.sec{background:transparent;color:#fff;border:1px solid #55524b}
+  .vc-bar .go:disabled{opacity:.35}
+
+  /* paso 2: confirmar */
+  .conf{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px;align-items:start}
+  .vcaja{background:var(--cd);border:1px solid var(--ln);border-radius:22px;padding:22px 26px}
+  .det-l{display:flex;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid var(--ln);font-size:15.5px}
+  .det-l b{font-weight:600}
+  .det-l .g{color:var(--mt);font-size:13.5px;display:block;margin-top:2px}
+  .det-t{display:flex;justify-content:space-between;align-items:baseline;padding-top:16px;font-size:18px;font-weight:600}
+  .det-t b{font-size:30px;letter-spacing:-.8px}
+  .vcaja label{display:block;font-size:13px;color:var(--md);font-weight:500;margin:18px 0 7px}
+  .vcaja label.pri{margin-top:0}
+  .vcaja input[type=email],.vcaja input[type=text],.vcaja input[type=number]{width:100%;border:1px solid var(--ln2);border-radius:12px;
+    padding:14px 15px;font-size:16px;font-family:inherit;background:var(--cd);color:var(--tx)}
+  .vcaja input:focus{outline:none;border-color:var(--tx)}
+  .seg{display:flex;gap:8px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:100px;height:50px;border-radius:12px;border:1px solid var(--ln2);background:var(--cd);
+    font-size:15px;font-weight:500;color:var(--tx)}
+  .seg button.on{background:var(--tx);color:#fff;border-color:var(--tx)}
+  .seg button.on.verde{background:var(--ok);border-color:var(--ok)}
+  .seg button:disabled{opacity:.35}
+  .vcaja label.chk{display:flex;gap:10px;align-items:center;margin-top:20px;font-size:15px;color:var(--tx);cursor:pointer}
+  .chk input{width:20px;height:20px;accent-color:var(--tx);margin:0}
+  .nota-vc{font-size:13px;color:var(--mt);margin:10px 0 0;line-height:1.5}
+  .listo{text-align:center;padding:10vh 16px}
+  .listo .ok{width:84px;height:84px;border-radius:50%;background:var(--okbg);color:var(--ok);font-size:44px;
+    display:flex;align-items:center;justify-content:center;margin:0 auto 22px}
+  .listo h2{font-size:30px}
+  .listo p{color:var(--md);font-size:16px;line-height:1.7;margin:8px 0 28px}
+
+  @media (max-width:760px){ .conf{grid-template-columns:1fr} .vc-top,.vc-body,.vc-bar{padding-left:16px;padding-right:16px}
+    .lineas{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px} .ln-t{padding:16px 12px 12px}
+    .ln-t .nom{font-size:16px} .step button{width:38px;height:38px} .step input{width:44px}
+    .vc-bar{padding-top:12px;padding-bottom:12px} .vc-bar .vc-in{flex-wrap:nowrap;gap:10px} .vc-bar .res{display:none}
+    .vc-bar .tot{flex:1;text-align:left;min-width:0} .vc-bar .tot b{font-size:26px}
+    .vc-bar .go{height:52px;padding:0 16px;font-size:15px} .vc-bar .go.sec .tx{display:none} .vc-top .marca span{display:none} }
+
   @media (max-width:1050px){ .heroes{grid-template-columns:1fr 1fr} .hero.cobrar{grid-column:1/-1} .cols{grid-template-columns:1fr} }
   @media (max-width:640px){ .heroes{grid-template-columns:1fr} .hero .big{font-size:30px} .caja{padding:4px 16px 10px}
     .venta{flex-direction:column} .venta .plata{text-align:left} .top .der{width:100%} .top .der .b{flex:1} }
@@ -120,6 +200,7 @@
       <div class="sub" id="subtitulo"></div>
     </div>
     <div class="der">
+      <button class="b cli" onclick="abrirCliente()" title="Pantalla para armar el pedido delante del cliente">Vista cliente</button>
       <button class="b azul" onclick="modalAgrega()">+ Agregué mercadería</button>
       <button class="b p" style="flex:none" onclick="modalVenta()">Vendí</button>
       <button class="b verde" onclick="modalPaga()">Le pagué</button>
@@ -129,6 +210,16 @@
   <div class="filtros" id="provs"></div>
   <div class="heroes" id="heroes"></div>
   <div id="cuerpo"><div class="empty">Cargando…</div></div>
+</div>
+
+<!-- Vista cliente: tapa todo el panel, así no se ve lo que se le debe al proveedor -->
+<div class="vc" id="vc">
+  <div class="vc-top">
+    <div class="marca">REC Eyewear<span id="vcFecha"></span></div>
+    <button class="b q" onclick="salirCliente()">Salir</button>
+  </div>
+  <div class="vc-body" id="vcScroll"><div class="vc-in" id="vcBody"></div></div>
+  <div class="vc-bar" id="vcBar"></div>
 </div>
 
 <div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
@@ -165,24 +256,32 @@ async function cargarCatalogo(){
 
 // Precio de venta de cada línea del proveedor: el que más se repite en la
 // tienda entre los productos de esa línea (dividido por las unidades del pack).
-let PRECIO_WEB = new Map();
+let PRECIO_WEB = new Map(), NOMBRE_WEB = new Map();
 function armarPreciosWeb(){
   const mapa = new Map((D.mapa || []).map(m => [m.patron, m]));
-  const cuenta = new Map();
+  const cuenta = new Map(), nombres = new Map();
   (PRODUCTOS_WEB || []).forEach(p => {
-    const m = mapa.get(normTxt(splitNombre(p.name).linea));
+    const linea = splitNombre(p.name).linea;
+    const m = mapa.get(normTxt(linea));
     if(!m) return;
     const k = m.articulo.toUpperCase();
+    const n = nombres.get(k) || {};
+    n[linea] = (n[linea] || 0) + 1;
+    nombres.set(k, n);
     const precio = Math.round((Number(p.price) || 0) / (m.factor || 1));
     if(!precio) return;
     const c = cuenta.get(k) || {};
     c[precio] = (c[precio] || 0) + 1;
     cuenta.set(k, c);
   });
+  NOMBRE_WEB = new Map([...nombres].map(([k, c]) =>
+    [k, Object.entries(c).sort((a, b) => b[1] - a[1])[0][0]]));
   PRECIO_WEB = new Map([...cuenta].map(([k, c]) =>
     [k, Number(Object.entries(c).sort((a, b) => b[1] - a[1])[0][0])]));
 }
 const precioWeb = (art) => PRECIO_WEB.get(String(art || '').toUpperCase()) || 0;
+// Cómo se llama la línea en la tienda (lo que ve el cliente); si no está, el nombre del proveedor.
+const nombreWeb = (art) => NOMBRE_WEB.get(String(art || '').toUpperCase()) || art;
 // Lo que se cobró (o se va a cobrar) por una venta. Las viejas no tenían
 // precio cargado: se valúan con el precio de la tienda.
 const ventaDe = (v) => Number(v.total_venta) > 0 ? Number(v.total_venta)
@@ -494,6 +593,213 @@ async function guardarPago(){
     const r = await post({ paga:{ ventas: ids, fecha: document.getElementById('pFecha').value, nota: document.getElementById('pNota').value } });
     cerrarModal(); showToast('Pago registrado: ' + plata(r.monto, P().moneda)); await cargar();
   }catch(e){ alert(e.message); }
+}
+
+/* ---------- vista cliente ---------- */
+// Pantalla completa para armar el pedido delante del cliente: un botón por
+// línea con el precio de la tienda (se puede cambiar), cantidades y el total.
+// No muestra stock, costos ni lo que se le debe al proveedor. Al confirmar se
+// guarda igual que "Vendí", con el pago si ya lo hizo, y le llega el mail.
+let VC = null;
+const MAIL_OK = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const vcPrecio = (l) => { const p = VC.precio[l.art]; return p === undefined ? precioWeb(l.art) : (Number(p) || 0); };
+const vcElegidas = () => VC.lineas.filter(l => VC.cant[l.art] > 0);
+const vcTotal = () => vcElegidas().reduce((a, l) => a + VC.cant[l.art] * vcPrecio(l), 0);
+
+function abrirCliente(){
+  if(!D || !D.proveedor) return;
+  VC = {
+    paso: 'elegir', cant: {}, precio: {}, email: '', nombre: '', pago: 'no', parcial: '', medio: 'Efectivo', mail: true,
+    lineas: articulos().map(a => ({ art: a, nombre: nombreWeb(a) })).sort((x, y) => x.nombre.localeCompare(y.nombre)),
+  };
+  document.getElementById('vcFecha').textContent =
+    new Date().toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+  document.getElementById('vc').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  vcPintar();
+}
+function salirCliente(){
+  if(VC && VC.paso !== 'listo' && vcElegidas().length && !confirm('¿Salir? Se pierde el pedido que estás armando.')) return;
+  document.getElementById('vc').classList.remove('open');
+  document.body.style.overflow = '';
+  VC = null;
+}
+function vcIr(paso){ VC.paso = paso; vcPintar(); document.getElementById('vcScroll').scrollTop = 0; }
+
+function vcPintar(){
+  const bar = document.getElementById('vcBar');
+  if(VC.paso === 'listo'){
+    bar.style.display = 'none';
+    document.getElementById('vcBody').innerHTML = `<div class="listo">
+      <div class="ok">✓</div>
+      <h2>¡Listo${VC.nombre.trim() ? ', ' + esc(VC.nombre.trim()) : ''}!</h2>
+      <p>${VC.resultado}</p>
+      <button class="b p" style="flex:none;height:54px;padding:0 34px" onclick="abrirCliente()">Nuevo pedido</button>
+      <button class="b q" style="height:54px" onclick="salirCliente()">Volver al panel</button>
+    </div>`;
+    return;
+  }
+  bar.style.display = '';
+  if(VC.paso === 'elegir'){
+    document.getElementById('vcBody').innerHTML = `
+      <h2>¿Qué vas a llevar?</h2>
+      <p class="vsub">Tocá cada línea para sumar. Los precios son por unidad.</p>
+      <div class="lineas">${VC.lineas.map((l, i) => vcTile(i)).join('') || '<div class="empty">No hay líneas cargadas.</div>'}</div>`;
+  } else vcPintarConfirmar();
+  vcPintarBarra();
+}
+
+/* paso 1: elegir */
+function vcTile(i){
+  const l = VC.lineas[i], q = VC.cant[l.art] || 0, pr = vcPrecio(l);
+  return `<div class="ln-t ${q ? 'on' : ''}" id="vt${i}" onclick="vcSumar(${i},1,event)">
+    <p class="nom">${esc(l.nombre)}</p>
+    <label class="pre" onclick="event.stopPropagation()">$<input type="number" min="0" inputmode="numeric"
+      class="${q && !pr ? 'falta' : ''}" value="${pr || ''}" placeholder="precio"
+      oninput="vcSetPrecio(${i},this.value)"></label>
+    <div class="step" onclick="event.stopPropagation()">
+      <button onclick="vcSumar(${i},-1)" ${q ? '' : 'disabled'} aria-label="Uno menos">−</button>
+      <input type="number" min="0" inputmode="numeric" value="${q}" onfocus="this.select()" onchange="vcSetCant(${i},this.value)">
+      <button class="mas-b" onclick="vcSumar(${i},1)" aria-label="Uno más">+</button>
+    </div>
+    <div class="sub-t">${vcSubtotal(i)}</div>
+  </div>`;
+}
+function vcSubtotal(i){
+  const l = VC.lineas[i], q = VC.cant[l.art] || 0, pr = vcPrecio(l);
+  return q && pr ? q + ' × ' + fmt(pr) + ' = <b>' + fmt(q * pr) + '</b>' : q ? 'Poné el precio' : '';
+}
+function vcRepintarTile(i){
+  const el = document.getElementById('vt' + i);
+  if(el) el.outerHTML = vcTile(i);
+  vcPintarBarra();
+}
+function vcSumar(i, d, ev){
+  if(ev && ev.target.closest('input,button,label')) return;
+  const art = VC.lineas[i].art;
+  VC.cant[art] = Math.max(0, (VC.cant[art] || 0) + d);
+  vcRepintarTile(i);
+}
+function vcSetCant(i, v){
+  VC.cant[VC.lineas[i].art] = Math.max(0, parseInt(v, 10) || 0);
+  vcRepintarTile(i);
+}
+function vcSetPrecio(i, v){
+  // Sin repintar la tarjeta, para no perder el foco mientras escribe.
+  const l = VC.lineas[i];
+  VC.precio[l.art] = v;
+  const el = document.getElementById('vt' + i);
+  if(el){
+    el.querySelector('.sub-t').innerHTML = vcSubtotal(i);
+    el.querySelector('.pre input').classList.toggle('falta', !!VC.cant[l.art] && !vcPrecio(l));
+  }
+  vcPintarBarra();
+}
+
+function vcPintarBarra(){
+  const el = vcElegidas();
+  const u = el.reduce((a, l) => a + VC.cant[l.art], 0);
+  const sinPrecio = el.some(l => !vcPrecio(l));
+  const res = el.length
+    ? u + (u === 1 ? ' unidad' : ' unidades') + ' · ' + el.map(l => VC.cant[l.art] + '× ' + esc(l.nombre)).join(' · ')
+    : 'Todavía no elegiste nada';
+  const botones = VC.paso === 'elegir'
+    ? `<button class="go" onclick="vcIr('confirmar')" ${el.length && !sinPrecio ? '' : 'disabled'}>${sinPrecio ? 'Falta un precio' : 'Continuar →'}</button>`
+    : `<button class="go sec" onclick="vcIr('elegir')" title="Cambiar">←<span class="tx"> Cambiar</span></button>
+       <button class="go" id="vcOk" onclick="vcGuardar()">Confirmar pedido</button>`;
+  document.getElementById('vcBar').innerHTML = `<div class="vc-in">
+    <div class="res">${res}</div>
+    <div class="tot"><small>Total</small><b class="num">${fmt(vcTotal())}</b></div>
+    ${botones}</div>`;
+}
+
+/* paso 2: confirmar, mail y pago */
+function vcPintarConfirmar(){
+  const hayMail = MAIL_OK.test(VC.email.trim());
+  if(!hayMail && VC.pago !== 'no') VC.pago = 'no';
+  document.getElementById('vcBody').innerHTML = `
+    <h2>Tu pedido</h2>
+    <p class="vsub">Revisá que esté todo bien.</p>
+    <div class="conf">
+      <div class="vcaja">
+        ${vcElegidas().map(l => `<div class="det-l">
+            <div><b>${esc(l.nombre)}</b><span class="g">${VC.cant[l.art]} × ${fmt(vcPrecio(l))}</span></div>
+            <div class="num">${fmt(VC.cant[l.art] * vcPrecio(l))}</div></div>`).join('')}
+        <div class="det-t"><span>Total</span><b class="num">${fmt(vcTotal())}</b></div>
+      </div>
+      <div class="vcaja">
+        <label class="pri">Mail</label>
+        <input type="email" id="vcMail" list="vcClientes" placeholder="optica@gmail.com" autocomplete="off"
+          value="${esc(VC.email)}" oninput="vcMail(this.value)">
+        <datalist id="vcClientes">${(D.clientes || []).map(c => `<option value="${esc(c.email)}">${esc(c.nombre || '')}</option>`).join('')}</datalist>
+        <label>Nombre u óptica</label>
+        <input type="text" id="vcNom" placeholder="Óptica Matías" value="${esc(VC.nombre)}" oninput="VC.nombre=this.value">
+        <div id="vcPagoBox">${vcPagoHtml(hayMail)}</div>
+      </div>
+    </div>`;
+}
+function vcPagoHtml(hayMail){
+  return `
+    <label>¿Ya lo pagó?</label>
+    <div class="seg">
+      <button class="${VC.pago === 'no' ? 'on' : ''}" onclick="vcPago('no')">Todavía no</button>
+      <button class="${VC.pago === 'todo' ? 'on verde' : ''}" onclick="vcPago('todo')" ${hayMail ? '' : 'disabled'}>Pagó todo</button>
+      <button class="${VC.pago === 'parte' ? 'on' : ''}" onclick="vcPago('parte')" ${hayMail ? '' : 'disabled'}>Una parte</button>
+    </div>
+    ${VC.pago === 'parte' ? `<label>¿Cuánto pagó?</label>
+      <input type="number" min="0" inputmode="numeric" placeholder="$" value="${esc(VC.parcial)}" oninput="VC.parcial=this.value">` : ''}
+    ${VC.pago !== 'no' ? `<label>¿Cómo?</label><div class="seg">
+      ${['Efectivo', 'Transferencia', 'Otro'].map(m => `<button class="${VC.medio === m ? 'on' : ''}" onclick="VC.medio='${m}';vcRepintarPago()">${m}</button>`).join('')}
+    </div>` : ''}
+    <label class="chk"><input type="checkbox" ${VC.mail && hayMail ? 'checked' : ''} ${hayMail ? '' : 'disabled'}
+      onchange="VC.mail=this.checked"> Mandarle el detalle por mail</label>
+    ${hayMail ? '' : '<p class="nota-vc">Con el mail le llega el detalle y queda registrado lo que pagó.</p>'}`;
+}
+function vcRepintarPago(){
+  const hayMail = MAIL_OK.test(VC.email.trim());
+  if(!hayMail) VC.pago = 'no';
+  document.getElementById('vcPagoBox').innerHTML = vcPagoHtml(hayMail);
+}
+function vcPago(p){ VC.pago = p; vcRepintarPago(); }
+function vcMail(v){
+  const antes = MAIL_OK.test(VC.email.trim());
+  VC.email = v;
+  const c = (D.clientes || []).find(x => x.email && x.email.toLowerCase() === v.trim().toLowerCase());
+  if(c && c.nombre && !VC.nombre.trim()){ VC.nombre = c.nombre; document.getElementById('vcNom').value = c.nombre; }
+  if(antes !== MAIL_OK.test(v.trim())) vcRepintarPago();
+}
+
+async function vcGuardar(){
+  const email = VC.email.trim();
+  const hayMail = MAIL_OK.test(email);
+  if(email && !hayMail) return alert('Ese mail no parece válido.');
+  const total = vcTotal();
+  let monto = 0;
+  if(hayMail && VC.pago === 'todo') monto = total;
+  if(hayMail && VC.pago === 'parte'){
+    monto = Math.round(Number(VC.parcial) || 0);
+    if(monto <= 0) return alert('Poné cuánto pagó.');
+    if(monto > total) return alert('Pagó más que el total (' + fmt(total) + ').');
+  }
+  const items = vcElegidas().map(l => ({ articulo: l.art, nombre: l.nombre, cantidad: VC.cant[l.art], precio: vcPrecio(l) }));
+  const btn = document.getElementById('vcOk');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try{
+    const r = await post({ venta:{
+      email, cliente: VC.nombre, fecha: hoyISO(), nota: '', items,
+      cobro: monto ? { monto, medio: VC.medio } : null,
+      mandarMail: hayMail && VC.mail } });
+    const partes = [(r.order_id ? 'Pedido #' + r.order_id + ' · ' : '') + fmt(total)];
+    if(monto) partes.push(monto >= total ? 'Pagado' : 'Pagó ' + fmt(monto) + ' · quedan ' + fmt(total - monto));
+    if(hayMail && VC.mail) partes.push(r.mail ? 'Te mandamos el detalle a ' + esc(email) : 'No se pudo mandar el mail');
+    VC.resultado = partes.join('<br>');
+    VC.paso = 'listo';
+    vcPintar();
+    cargar();
+  }catch(e){
+    alert(e.message);
+    if(btn){ btn.disabled = false; btn.textContent = 'Confirmar pedido'; }
+  }
 }
 
 /* ---------- borrar ---------- */

@@ -6,10 +6,13 @@
 //   POST { agrega:{ fecha, nota, items:[{ articulo, cantidad, precio }] } }  -> entra mercadería
 //   POST { venta:{ fecha, email, cliente, nota, items:[{ articulo, cantidad, precio }] } }
 //          -> baja el stock y queda debiéndose; con mail, le crea el pedido al cliente
+//          + cobro:{ monto, medio }  -> lo que ya pagó (queda como cobro del pedido)
+//          + mandarMail:true         -> le llega el detalle por línea (items[].nombre)
 //   POST { paga:{ fecha, nota, ventas:[id] } }  -> le pago esas ventas
 //   POST { borrarVenta: id } / { borrarEntrada: id } / { borrarPago: id }
 const { sql, ensureTables, norm, usdRate } = require('./_db');
 const { getSession } = require('./_auth');
+const { notifyVentaCliente } = require('./_notify');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const MAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -146,6 +149,7 @@ module.exports = async (req, res) => {
         const articulo = String(it.articulo || '').trim().slice(0, 80);
         return {
           articulo,
+          nombre: String(it.nombre || '').trim().slice(0, 80) || articulo,   // cómo lo ve el cliente
           cantidad: parseInt(it.cantidad, 10) || 0,
           precio: Math.max(0, Math.round(Number(it.precio) || 0)),   // venta, en pesos
           costo: costoDe(articulo),                                  // lo que se le debe al proveedor
@@ -217,7 +221,24 @@ module.exports = async (req, res) => {
         RETURNING id`;
       await sql`UPDATE consign_sales SET order_id = ${o.id} WHERE id = ${venta.id}`;
 
-      return res.status(200).json({ ok: true, id: venta.id, order_id: o.id });
+      // Si ya pagó (todo o una parte), queda cobrado en el pedido.
+      const cobro = v.cobro || {};
+      const cobrado = Math.min(totalVenta, Math.max(0, Math.round(Number(cobro.monto) || 0)));
+      if (cobrado > 0) {
+        await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota)
+          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${cobrado},
+                  ${cobro.medio ? String(cobro.medio).slice(0, 40) : null}, 'Venta de consignación')`;
+      }
+
+      let mail = false;
+      if (v.mandarMail) {
+        mail = await notifyVentaCliente({
+          email, cliente, orderId: o.id, total: totalVenta, cobrado,
+          items: items.map((it) => ({ nombre: it.nombre, cantidad: it.cantidad, precio: it.precio })),
+        });
+      }
+
+      return res.status(200).json({ ok: true, id: venta.id, order_id: o.id, cobrado, mail });
     }
 
     /* ----- Le pagué ventas de consignación ----- */

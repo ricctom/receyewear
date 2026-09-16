@@ -154,4 +154,40 @@ async function notifyOrder(order, user, items, ship) {
   }
 }
 
-module.exports = { notifyOrder };
+// Mail al cliente de una venta de consignación (la "vista cliente" de
+// consignacion.html): el detalle por línea, el total y si ya quedó pagado.
+// Nada del proveedor ni de costos: es lo mismo que vio el cliente en la pantalla.
+async function notifyVentaCliente({ email, cliente, orderId, items, total, cobrado }) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key || !email) return false;
+  const saldo = Math.max(0, total - (cobrado || 0));
+  const estadoTxt = saldo <= 0 ? 'Pagado: ¡gracias!'
+    : cobrado > 0 ? `Pagaste ${money(cobrado)} · Saldo pendiente: ${money(saldo)}`
+    : `Saldo pendiente: ${money(saldo)}`;
+  const text =
+    `¡Hola${cliente ? ' ' + cliente : ''}! Este es el detalle de tu pedido${orderId ? ' #' + orderId : ''} en REC Eyewear.\n\n` +
+    items.map((it) => `• ${it.nombre} × ${it.cantidad} (${money(it.precio)} c/u) = ${money(it.precio * it.cantidad)}`).join('\n') +
+    `\n\nTotal: ${money(total)}\n${estadoTxt}\n\nREC Eyewear · visionline.com.ar`;
+  const td = 'padding:9px 0;border-bottom:1px solid #eee';
+  const html =
+    `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:560px">` +
+    `<h2 style="margin:0 0 4px">¡Gracias por tu compra! 🕶️</h2>` +
+    `<p style="color:#666;margin:0 0 16px">${cliente ? esc(cliente) + ', este' : 'Este'} es el detalle de tu pedido${orderId ? ' <b>#' + orderId + '</b>' : ''}:</p>` +
+    `<table style="width:100%;border-collapse:collapse;font-size:14px">` +
+    `<tr style="color:#888;font-size:12px;text-align:left"><th style="${td};font-weight:500">Línea</th>` +
+    `<th style="${td};font-weight:500;text-align:center">Cant.</th><th style="${td};font-weight:500;text-align:right">Precio</th>` +
+    `<th style="${td};font-weight:500;text-align:right">Subtotal</th></tr>` +
+    items.map((it) => `<tr><td style="${td}"><b>${esc(it.nombre)}</b></td>` +
+      `<td style="${td};text-align:center">${it.cantidad}</td>` +
+      `<td style="${td};text-align:right;color:#666">${money(it.precio)}</td>` +
+      `<td style="${td};text-align:right">${money(it.precio * it.cantidad)}</td></tr>`).join('') +
+    `</table>` +
+    `<p style="font-size:18px;font-weight:700;margin:16px 0 8px;text-align:right">Total: ${money(total)}</p>` +
+    `<p style="margin:0 0 18px;text-align:right"><span style="display:inline-block;padding:6px 12px;border-radius:999px;font-size:13px;` +
+    (saldo <= 0 ? 'background:#eaf3ed;color:#2f7a52' : 'background:#faf1e3;color:#a8712f') + `">${estadoTxt}</span></p>` +
+    `<p style="color:#999;font-size:12px">REC Eyewear · visionline.com.ar</p></div>`;
+  return sendEmail(key, email, `Tu pedido${orderId ? ' #' + orderId : ''} en REC Eyewear`, text, html);
+}
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+module.exports = { notifyOrder, notifyVentaCliente };
