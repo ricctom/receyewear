@@ -280,6 +280,7 @@ function menu(o, p){
     <hr>
     <button onclick="editarItems(${o.id})">Editar el pedido</button>
     <button onclick="editarNota(${o.id})">${o.nota ? 'Cambiar la nota' : 'Agregar una nota'}</button>
+    <button onclick="cambiarCuenta(${o.id})">Pasar a otra cuenta</button>
     ${cobrado(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
     ${atras ? `<button onclick="mover(${o.id},'${atras}')">Volver un paso atrás</button>` : ''}
     <hr>
@@ -494,6 +495,29 @@ function editarNota(id){
 async function guardarNota(id){
   try{ await post({ id, nota: document.getElementById('nTxt').value }); cerrarModal(); await cargar(); }
   catch(e){ alert(e.message); }
+}
+
+function cambiarCuenta(id){
+  const o = ORDERS.find(x => x.id === id);
+  abrirModal(`<h3>Pasar el pedido #${id} a otra cuenta</h3>
+    <p class="sub">Hoy está en la cuenta de <b>${esc(o.email||'')}</b>. El cliente lo va a ver en "Mis pedidos"
+      cuando entre con Google con este mail. Si todavía no tiene cuenta, se le crea.</p>
+    <label>Mail del cliente</label>
+    <input id="cMail" type="email" placeholder="cliente@gmail.com">
+    <label>Nombre o razón social <span style="font-weight:400">(si es cuenta nueva)</span></label>
+    <input id="cNom" type="text" placeholder="Óptica Ejemplo">
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="guardarCuenta(${id})">Pasar</button></div>`);
+  document.getElementById('cMail').focus();
+}
+async function guardarCuenta(id){
+  const email = document.getElementById('cMail').value.trim();
+  const nombre = document.getElementById('cNom').value.trim();
+  try{
+    const r = await post({ id, cuenta:{ email, nombre } });
+    cerrarModal(); await cargar();
+    if(r.nueva) alert('Listo. Se creó la cuenta de ' + email + ': va a ver el pedido cuando entre con Google con ese mail.');
+  }catch(e){ alert(e.message); }
 }
 
 /* ---------- dólar y costos ---------- */

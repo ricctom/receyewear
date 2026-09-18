@@ -292,6 +292,41 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, cobrado: row.cobrado + monto, total: row.total });
     }
 
+    /* ----- Pasarlo a otra cuenta (para que lo vea en "Mis pedidos") ----- */
+    // Si todavía no tiene cuenta se le crea una con ese mail, que se engancha
+    // sola la primera vez que entre con Google (api/auth.js).
+    if (b.cuenta !== undefined) {
+      const email = String(b.cuenta.email || '').trim().toLowerCase();
+      const nombre = String(b.cuenta.nombre || '').trim().slice(0, 120) || null;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'El mail no es válido' });
+      const [ped] = await sql`SELECT ship FROM orders WHERE id = ${id}`;
+      if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
+
+      let [u] = await sql`SELECT id, name, dni_cuit, razon_social, telefono, direccion
+        FROM users WHERE lower(email) = ${email} ORDER BY id LIMIT 1`;
+      const nueva = !u;
+      if (!u) {
+        [u] = await sql`INSERT INTO users (google_sub, email, name, razon_social)
+          VALUES (${'pendiente:' + email}, ${email}, ${nombre}, ${nombre})
+          RETURNING id, name, dni_cuit, razon_social, telefono, direccion`;
+      } else if (nombre && !u.razon_social) {
+        await sql`UPDATE users SET razon_social = ${nombre} WHERE id = ${u.id}`;
+        u.razon_social = nombre;
+      }
+
+      // Los datos de envío pasan a ser los de la cuenta nueva (lo que tenga cargado).
+      const ship = { ...(ped.ship || {}) };
+      ship.razon_social = u.razon_social || u.name || nombre || email;
+      if (u.dni_cuit) ship.dni_cuit = u.dni_cuit;
+      if (u.telefono) ship.telefono = u.telefono;
+      if (u.direccion) ship.direccion = u.direccion;
+
+      await sql`UPDATE orders SET user_id = ${u.id}, ship = ${JSON.stringify(ship)}::jsonb WHERE id = ${id}`;
+      await sql`UPDATE carts SET user_id = ${u.id} WHERE order_id = ${id}`;
+      await sql`UPDATE consign_sales SET user_id = ${u.id}, email = ${email} WHERE order_id = ${id}`;
+      return res.status(200).json({ ok: true, user_id: u.id, nueva });
+    }
+
     /* ----- Nota interna ----- */
     if (b.nota !== undefined && !b.items) {
       await sql`UPDATE orders SET nota = ${b.nota ? String(b.nota).slice(0, 500) : null} WHERE id = ${id}`;
