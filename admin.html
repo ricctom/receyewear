@@ -631,12 +631,43 @@ h2{font-size:13px;margin:16px 0 5px;padding-bottom:4px;border-bottom:1px solid #
 @media print{body{padding:0}.noprint{display:none}}
 .noprint{margin-bottom:14px}.noprint button{font-size:13px;padding:10px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:7px;cursor:pointer;width:100%}`;
 
+// Lo que el cliente contestó sobre faltantes, dicho para Martín (que es quien arma).
+const MARTIN_COLOR = {
+  mismo: 'mandar el mismo modelo en otro color',
+  parecido: 'mandar uno parecido',
+  consultar: 'NO mandar nada: consultarnos antes',
+  baja: 'no mandarlo (se da de baja)',
+};
+const MARTIN_MODELO = {
+  parecido: 'mandar uno parecido',
+  consultar: 'NO mandar nada: consultarnos antes',
+  baja: 'no mandarlo (se da de baja)',
+};
+const MARTIN_GENERAL = {
+  cambiar: 'cambiarlo por otro parecido',
+  consultar: 'NO mandar nada: consultarnos antes',
+  baja: 'no mandarlo (se da de baja)',
+};
+function faltanteMartinHtml(o){
+  const d = (o.ship && o.ship.faltante_detalle) || {};
+  const l = [];
+  if(MARTIN_COLOR[d.color]) l.push('<b>Si falta el color:</b> ' + MARTIN_COLOR[d.color]);
+  if(MARTIN_MODELO[d.modelo]) l.push('<b>Si falta el modelo:</b> ' + MARTIN_MODELO[d.modelo]);
+  if(!l.length && MARTIN_GENERAL[o.faltante]) l.push('<b>Si falta algo:</b> ' + MARTIN_GENERAL[o.faltante]);
+  if(d.sin_repetir) l.push('<b>NO repetir</b> colores ni modelos: pide de a uno para probar');
+  if(d.nota) l.push('<b>El cliente aclaró:</b> «' + esc(d.nota) + '»');
+  if(!l.length) return '';
+  return `<div class="falta"><div class="ft">Si falta alguno</div>${l.join('<br>')}</div>`;
+}
+
 function pdfProveedor(id){
   const o = ORDERS.find(x => x.id === id); if(!o) return;
   const lineas = porLinea(o.items);
   const total = lineas.reduce((a,l) => a + l.qty, 0);
   imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id} para Martín</title>
-<style>@page{size:105mm auto;margin:7mm 6mm}${HOJA}body{max-width:105mm}</style></head><body>
+<style>@page{size:105mm auto;margin:7mm 6mm}${HOJA}body{max-width:105mm}
+.falta{margin-top:16px;border:2px solid #111;border-radius:6px;padding:9px 11px;line-height:1.6;font-size:12px}
+.falta .ft{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}</style></head><body>
 <div class="noprint"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>
 <div class="head"><h1>Pedido #${o.id}</h1><div class="meta">REC Eyewear · ${new Date(o.created_at).toLocaleDateString('es-AR')}</div></div>
 ${lineas.map(l => `<h2><span>${esc(l.linea)}</span><span>${l.qty} u.</span></h2>
@@ -644,6 +675,7 @@ ${lineas.map(l => `<h2><span>${esc(l.linea)}</span><span>${l.qty} u.</span></h2>
 ${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'—')}</td><td class="q">${m.qty}</td></tr>`).join('')}
 </tbody></table>`).join('')}
 <div class="tot"><span>Total</span><span>${total} anteojos</span></div>
+${faltanteMartinHtml(o)}
 <script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
 }
 
