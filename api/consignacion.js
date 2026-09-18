@@ -9,8 +9,13 @@
 //          + descuento: $            -> se resta del total
 //          + cobros:[{ monto, medio }] -> lo que ya pagó, uno por medio (quedan como cobros del pedido)
 //          + mandarMail:true         -> le llega el detalle por línea (items[].nombre)
+//          + forzar:true             -> la guarda aunque venda más de lo que hay en mano
 //   POST { paga:{ fecha, nota, ventas:[id] } }  -> le pago esas ventas
 //   POST { borrarVenta: id } / { borrarEntrada: id } / { borrarPago: id }
+// Giras (de todos los proveedores juntos):
+//   POST { gira:{ id?, nombre, desde, hasta, nota } }  -> crea o cambia; engancha las ventas sueltas de esas fechas
+//   POST { giraVentas:{ id, ventas:[id] } }            -> qué ventas son de esa gira
+//   POST { gasto:{ gira_id, fecha, concepto, monto, medio } } / { borrarGasto: id } / { borrarGira: id }
 const { sql, ensureTables, norm, usdRate } = require('./_db');
 const { getSession } = require('./_auth');
 const { notifyVentaCliente } = require('./_notify');
@@ -40,17 +45,17 @@ module.exports = async (req, res) => {
     prov = { ...prov, moneda: prov.moneda || 'USD' };
 
     if (req.method === 'GET') {
-      const [consign, precios, ventas, entradas, pagos, clientes, usd, mapa] = await Promise.all([
-        sql`SELECT articulo, cantidad FROM supplier_consign WHERE supplier_id = ${prov.id}`,
+      const [consign, precios, ventas, entradas, pagos, clientes, usd, mapa, giras, ventasGira] = await Promise.all([
+        sql`SELECT articulo, cantidad, sale_id FROM supplier_consign WHERE supplier_id = ${prov.id}`,
         sql`SELECT articulo, precio FROM supplier_prices WHERE supplier_id = ${prov.id} AND activo ORDER BY articulo`,
         sql`SELECT v.id, v.fecha, v.email, v.cliente, v.items, v.total_venta, v.costo, v.order_id,
-                   v.pagada_at, v.nota, u.name, u.razon_social,
+                   v.pagada_at, v.nota, v.gira_id, u.name, u.razon_social,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = v.order_id), 0) AS cobrado
               FROM consign_sales v LEFT JOIN users u ON u.id = v.user_id
              WHERE v.supplier_id = ${prov.id}
              ORDER BY v.fecha DESC, v.id DESC`,
         // Lo que entró y salió que no es una venta: lo que dejó, devoluciones, etc.
-        sql`SELECT id, fecha, articulo, cantidad, precio, nota FROM supplier_consign
+        sql`SELECT id, fecha, articulo, cantidad, precio, nota, created_at FROM supplier_consign
              WHERE supplier_id = ${prov.id} AND sale_id IS NULL
              ORDER BY fecha DESC, id DESC LIMIT 100`,
         sql`SELECT id, fecha, monto, nota FROM consign_payments
@@ -61,18 +66,43 @@ module.exports = async (req, res) => {
         // precio de venta de la tienda, en vez de pedirlo a mano.
         sql`SELECT patron, articulo, factor FROM cost_map
              WHERE (supplier_id = ${prov.id} OR supplier_id IS NULL) AND NOT COALESCE(ignorar, false)`,
+        sql`SELECT g.id, g.nombre, g.desde, g.hasta, g.nota,
+                   COALESCE((SELECT json_agg(json_build_object('id', x.id, 'fecha', x.fecha, 'concepto', x.concepto,
+                                                               'monto', x.monto, 'medio', x.medio) ORDER BY x.fecha, x.id)
+                             FROM gira_gastos x WHERE x.gira_id = g.id), '[]'::json) AS gastos
+              FROM giras g ORDER BY g.desde DESC, g.id DESC`,
+        // Las ventas que pueden entrar en una gira, de cualquier proveedor: las
+        // que ya son de una y las sueltas desde la primera gira. Con lo que pagó
+        // el cliente y con qué (del pedido, o de la venta misma si no tiene).
+        sql`SELECT v.id, v.supplier_id, v.fecha, v.email, v.cliente, v.items, v.total_venta, v.costo,
+                   v.order_id, v.gira_id, s.nombre AS proveedor, COALESCE(s.moneda, 'USD') AS moneda,
+                   u.name, u.razon_social,
+                   COALESCE(o.descuento, 0) AS descuento,
+                   CASE WHEN v.order_id IS NULL THEN COALESCE(v.cobros, '[]'::jsonb)
+                        ELSE COALESCE((SELECT jsonb_agg(jsonb_build_object('monto', p.monto, 'medio', p.medio) ORDER BY p.id)
+                                       FROM order_payments p WHERE p.order_id = v.order_id), '[]'::jsonb) END AS cobros
+              FROM consign_sales v
+              JOIN suppliers s ON s.id = v.supplier_id
+              LEFT JOIN users u ON u.id = v.user_id
+              LEFT JOIN orders o ON o.id = v.order_id
+             WHERE v.gira_id IS NOT NULL OR v.fecha >= (SELECT min(desde) FROM giras)
+             ORDER BY v.fecha, v.id`,
       ]);
 
       const precioDe = (art) => {
         const p = precios.find((x) => x.articulo.toUpperCase() === String(art).toUpperCase());
         return p ? Number(p.precio) : 0;
       };
-      // En mano = todo lo que dejó menos lo devuelto y lo vendido.
+      // En mano = todo lo que dejó menos lo devuelto y lo vendido. Va también
+      // el desglose, para que un número raro (un negativo) se vea de dónde sale.
       const m = new Map();
       consign.forEach((c) => {
         const k = c.articulo.toUpperCase();
-        const a = m.get(k) || { articulo: c.articulo, en_mano: 0 };
+        const a = m.get(k) || { articulo: c.articulo, en_mano: 0, dejo: 0, devolvio: 0, vendio: 0 };
         a.en_mano += c.cantidad;
+        if (c.sale_id) a.vendio -= c.cantidad;
+        else if (c.cantidad > 0) a.dejo += c.cantidad;
+        else a.devolvio -= c.cantidad;
         m.set(k, a);
       });
       const stock = [...m.values()]
@@ -98,6 +128,7 @@ module.exports = async (req, res) => {
         proveedores: provs, proveedor: prov, stock, precios, ventas: lista,
         entradas: entradas.map((e) => ({ ...e, precio: Number(e.precio) })),
         pagos: listaPagos, clientes, resumen, usd, mapa,
+        giras, ventasGira: ventasGira.map((v) => ({ ...v, costo: Number(v.costo) })),
       });
     }
 
@@ -163,6 +194,39 @@ module.exports = async (req, res) => {
       const totalVenta = subtotal - descuento;
       const costo = r2(items.reduce((a, it) => a + it.costo * it.cantidad, 0));
 
+      // No se vende lo que no está en mano sin avisar: así fue como el Clipon
+      // Runflex quedó en negativo (se vendía una línea que nunca se cargó como
+      // entrada). Si de verdad se quiere guardar igual, la página manda forzar.
+      if (!v.forzar) {
+        const enMano = await sql`SELECT upper(articulo) AS k, sum(cantidad)::int AS n FROM supplier_consign
+          WHERE supplier_id = ${prov.id} GROUP BY upper(articulo)`;
+        const pide = new Map();
+        items.forEach((it) => pide.set(it.articulo.toUpperCase(),
+          { articulo: it.articulo, cantidad: (pide.get(it.articulo.toUpperCase()) || { cantidad: 0 }).cantidad + it.cantidad }));
+        const faltan = [...pide.entries()].map(([k, p]) => {
+          const hay = (enMano.find((x) => x.k === k) || { n: 0 }).n;
+          return { articulo: p.articulo, en_mano: hay, pide: p.cantidad };
+        }).filter((f) => f.pide > f.en_mano);
+        if (faltan.length) {
+          return res.status(409).json({
+            error: 'No te alcanza el stock de ' + faltan.map((f) => `${f.articulo} (tenés ${f.en_mano}, vendés ${f.pide})`).join(', '),
+            faltan,
+          });
+        }
+      }
+
+      // Lo que ya pagó (todo o una parte, con uno o más medios). Lo que pase
+      // del total se recorta.
+      const cobrosIn = Array.isArray(v.cobros) ? v.cobros : v.cobro ? [v.cobro] : [];
+      const pagos = [];
+      let cobrado = 0;
+      for (const c of cobrosIn) {
+        const monto = Math.min(totalVenta - cobrado, Math.max(0, Math.round(Number(c && c.monto) || 0)));
+        if (monto <= 0) continue;
+        pagos.push({ monto, medio: c.medio ? String(c.medio).slice(0, 40) : null });
+        cobrado += monto;
+      }
+
       // El cliente: si todavía no tiene cuenta se le crea una con ese mail, que
       // se engancha sola la primera vez que entre con Google (api/auth.js).
       let u = null;
@@ -181,12 +245,18 @@ module.exports = async (req, res) => {
       const quien = cliente || (u && u.razon_social) || email || 'sin cliente';
 
       // La deuda queda en la venta misma (cuenta de consignación): no toca la
-      // cuenta corriente del proveedor.
+      // cuenta corriente del proveedor. Entra sola a la gira de esas fechas.
+      // Sin pedido (no hay mail), lo que pagó queda en la venta.
       const [venta] = await sql`
-        INSERT INTO consign_sales (supplier_id, fecha, user_id, email, cliente, items, total_venta, costo, nota)
+        INSERT INTO consign_sales (supplier_id, fecha, user_id, email, cliente, items, total_venta, costo, nota, cobros, gira_id)
         VALUES (${prov.id}, COALESCE(${dia}::date, CURRENT_DATE), ${u ? u.id : null}, ${email || null}, ${cliente},
-                ${JSON.stringify(items)}::jsonb, ${totalVenta}, ${costo}, ${nota})
-        RETURNING id, fecha`;
+                ${JSON.stringify(items)}::jsonb, ${totalVenta}, ${costo}, ${nota},
+                ${u || !pagos.length ? null : JSON.stringify(pagos)}::jsonb,
+                (SELECT g.id FROM giras g
+                  WHERE g.desde <= COALESCE(${dia}::date, CURRENT_DATE)
+                    AND (g.hasta IS NULL OR g.hasta >= COALESCE(${dia}::date, CURRENT_DATE))
+                  ORDER BY g.desde DESC, g.id DESC LIMIT 1))
+        RETURNING id, fecha, gira_id`;
 
       // Baja el stock. El proveedor no ve estas líneas (van con sale_id).
       for (const it of items) {
@@ -203,7 +273,7 @@ module.exports = async (req, res) => {
           ON CONFLICT (patron) DO NOTHING`;
       }
 
-      if (!u) return res.status(200).json({ ok: true, id: venta.id, order_id: null });
+      if (!u) return res.status(200).json({ ok: true, id: venta.id, order_id: null, cobrado, gira_id: venta.gira_id });
 
       // El pedido del cliente: lo ve en "Mis pedidos" y en Pedidos queda para
       // cobrar. Ya está entregado, así que no pasa por "Pasar a Martín".
@@ -225,19 +295,10 @@ module.exports = async (req, res) => {
         RETURNING id`;
       await sql`UPDATE consign_sales SET order_id = ${o.id} WHERE id = ${venta.id}`;
 
-      // Si ya pagó (todo o una parte, con uno o más medios), cada pago queda
-      // como un cobro del pedido. Lo que pase del total se recorta.
-      const lista = Array.isArray(v.cobros) ? v.cobros : v.cobro ? [v.cobro] : [];
-      const pagos = [];
-      let cobrado = 0;
-      for (const c of lista) {
-        const monto = Math.min(totalVenta - cobrado, Math.max(0, Math.round(Number(c && c.monto) || 0)));
-        if (monto <= 0) continue;
-        const medio = c.medio ? String(c.medio).slice(0, 40) : null;
+      // Con pedido, cada pago queda como un cobro del pedido.
+      for (const p of pagos) {
         await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota)
-          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${monto}, ${medio}, 'Venta de consignación')`;
-        pagos.push({ monto, medio });
-        cobrado += monto;
+          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${p.monto}, ${p.medio}, 'Venta de consignación')`;
       }
 
       let mail = false;
@@ -248,7 +309,7 @@ module.exports = async (req, res) => {
         });
       }
 
-      return res.status(200).json({ ok: true, id: venta.id, order_id: o.id, cobrado, mail });
+      return res.status(200).json({ ok: true, id: venta.id, order_id: o.id, cobrado, mail, gira_id: venta.gira_id });
     }
 
     /* ----- Le pagué ventas de consignación ----- */
@@ -307,6 +368,74 @@ module.exports = async (req, res) => {
         WHERE id = ${parseInt(b.borrarEntrada, 10)} AND supplier_id = ${prov.id} AND sale_id IS NULL
         RETURNING id`;
       if (!row) return res.status(404).json({ error: 'No existe esa entrada' });
+      return res.status(200).json({ ok: true });
+    }
+
+    /* ----- Giras ----- */
+    // Crear o cambiar una gira. Las ventas sueltas (sin gira) de esas fechas
+    // entran solas; las que ya eran de otra gira no se tocan.
+    if (b.gira) {
+      const g = b.gira;
+      const nombre = String(g.nombre || '').trim().slice(0, 80);
+      const desde = diaValido(g.desde);
+      const hasta = diaValido(g.hasta);
+      const nota = g.nota ? String(g.nota).trim().slice(0, 200) || null : null;
+      if (!nombre) return res.status(400).json({ error: 'Ponele un nombre a la gira' });
+      if (!desde) return res.status(400).json({ error: 'Falta desde cuándo' });
+      if (hasta && hasta < desde) return res.status(400).json({ error: 'La gira termina antes de empezar' });
+      let id = parseInt(g.id, 10) || null;
+      if (id) {
+        const [row] = await sql`UPDATE giras SET nombre = ${nombre}, desde = ${desde}, hasta = ${hasta}, nota = ${nota}
+          WHERE id = ${id} RETURNING id`;
+        if (!row) return res.status(404).json({ error: 'No existe esa gira' });
+      } else {
+        [{ id }] = await sql`INSERT INTO giras (nombre, desde, hasta, nota)
+          VALUES (${nombre}, ${desde}, ${hasta}, ${nota}) RETURNING id`;
+      }
+      const sumadas = await sql`UPDATE consign_sales SET gira_id = ${id}
+        WHERE gira_id IS NULL AND fecha >= ${desde}::date AND (${hasta}::date IS NULL OR fecha <= ${hasta}::date)
+        RETURNING id`;
+      return res.status(200).json({ ok: true, id, sumadas: sumadas.length });
+    }
+
+    // Qué ventas son de la gira: las marcadas entran, las que estaban y no, salen.
+    if (b.giraVentas) {
+      const id = parseInt(b.giraVentas.id, 10);
+      const ids = (Array.isArray(b.giraVentas.ventas) ? b.giraVentas.ventas : []).map((x) => parseInt(x, 10)).filter(Boolean);
+      const [g] = await sql`SELECT id FROM giras WHERE id = ${id}`;
+      if (!g) return res.status(404).json({ error: 'No existe esa gira' });
+      await sql`UPDATE consign_sales SET gira_id = NULL WHERE gira_id = ${id} AND NOT (id = ANY(${ids}::int[]))`;
+      if (ids.length) await sql`UPDATE consign_sales SET gira_id = ${id} WHERE id = ANY(${ids}::int[])`;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (b.borrarGira) {
+      const id = parseInt(b.borrarGira, 10);
+      await sql`UPDATE consign_sales SET gira_id = NULL WHERE gira_id = ${id}`;
+      const [row] = await sql`DELETE FROM giras WHERE id = ${id} RETURNING id`;
+      if (!row) return res.status(404).json({ error: 'No existe esa gira' });
+      return res.status(200).json({ ok: true });
+    }
+
+    // Un gasto del viaje (nafta, hotel, comida…), en pesos.
+    if (b.gasto) {
+      const x = b.gasto;
+      const giraId = parseInt(x.gira_id, 10);
+      const concepto = String(x.concepto || '').trim().slice(0, 80);
+      const monto = Math.round(Number(x.monto) || 0);
+      const medio = x.medio ? String(x.medio).slice(0, 40) : null;
+      if (!concepto) return res.status(400).json({ error: '¿En qué fue el gasto?' });
+      if (monto <= 0) return res.status(400).json({ error: 'Poné el monto' });
+      const [g] = await sql`SELECT id FROM giras WHERE id = ${giraId}`;
+      if (!g) return res.status(404).json({ error: 'No existe esa gira' });
+      await sql`INSERT INTO gira_gastos (gira_id, fecha, concepto, monto, medio)
+        VALUES (${giraId}, COALESCE(${diaValido(x.fecha)}::date, CURRENT_DATE), ${concepto}, ${monto}, ${medio})`;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (b.borrarGasto) {
+      const [row] = await sql`DELETE FROM gira_gastos WHERE id = ${parseInt(b.borrarGasto, 10)} RETURNING id`;
+      if (!row) return res.status(404).json({ error: 'No existe ese gasto' });
       return res.status(200).json({ ok: true });
     }
 

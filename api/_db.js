@@ -254,6 +254,31 @@ function ensureTables() {
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pago_id INTEGER`;
+    // Lo que pagó el cliente cuando la venta no tiene pedido (sin mail):
+    // [{ monto, medio }]. Con pedido, los cobros van a order_payments.
+    await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS cobros JSONB`;
+
+    // Giras: cada salida a vender (la semana en la ruta 9, un día en La Plata…).
+    // Las ventas de consignación se enganchan solas por fecha y a la gira se le
+    // cargan los gastos del viaje, para ver cuánto quedó limpio.
+    await sql`CREATE TABLE IF NOT EXISTS giras (
+      id SERIAL PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      desde DATE NOT NULL,
+      hasta DATE,
+      nota TEXT,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS gira_gastos (
+      id SERIAL PRIMARY KEY,
+      gira_id INTEGER NOT NULL REFERENCES giras(id) ON DELETE CASCADE,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      concepto TEXT NOT NULL,
+      monto INTEGER NOT NULL,
+      medio TEXT,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS gira_id INTEGER`;
     // Arreglo de la primera versión, que cargaba las ventas de consignación y
     // sus pagos en la cuenta corriente: los pagos se pasan a consign_payments y
     // todo eso sale de supplier_moves. Si ya no queda nada para mover, no hace nada.
