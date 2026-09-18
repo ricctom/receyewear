@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
         return { ...o, costo: c.detalle, sin_costo: c.sinCosto };
       });
 
-      const [precios, mapa, provs, cupones, embudo, origenes, carritos] = await Promise.all([
+      const [precios, mapa, provs, cupones, embudo, origenes, carritos, clientes] = await Promise.all([
         sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo ORDER BY articulo`,
         sql`SELECT patron, articulo, factor, supplier_id FROM cost_map ORDER BY patron`,
         sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
@@ -97,13 +97,21 @@ module.exports = async (req, res) => {
                   WHERE e.sid = c.sid AND e.user_id IS NOT NULL
                   ORDER BY e.id DESC LIMIT 1))
              ORDER BY c.updated_at DESC LIMIT 300`,
+        // Para elegir a quién pasarle un pedido ("Pasar a otra cuenta").
+        sql`SELECT u.email, COALESCE(NULLIF(u.razon_social, ''), u.name) AS nombre,
+                   (u.google_sub LIKE 'pendiente:%') AS sin_entrar,
+                   -- Los de la lista de Cupones: null si nunca pidió uno.
+                   (SELECT bool_or(v.used_at IS NOT NULL) FROM vouchers v WHERE v.user_id = u.id) AS cupon_usado,
+                   (SELECT count(*)::int FROM orders o WHERE o.user_id = u.id) AS pedidos
+              FROM users u WHERE u.email IS NOT NULL AND u.email <> ''
+             ORDER BY lower(COALESCE(NULLIF(u.razon_social, ''), u.name, u.email))`,
       ]);
       return res.status(200).json({
         orders, usd, proveedores: provs,
         articulos: precios,
         cost_map: mapa,
         sin_mapear: [...sinMapear.values()],
-        cupones, embudo, origenes, carritos,
+        cupones, embudo, origenes, carritos, clientes,
       });
     }
 

@@ -105,7 +105,7 @@ const VISTAS = [
   ['saldado',    'Saldados'],
 ];
 
-let ORDERS = [], USD = { valor:0 }, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [], PROVS = [];
+let ORDERS = [], USD = { valor:0 }, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [], PROVS = [], CLIENTES = [];
 let vista = 'pendientes';
 const abiertos = new Set();
 
@@ -116,7 +116,7 @@ async function cargar(){
     const d = await api('/api/admin');
     ORDERS = d.orders; USD = d.usd || { valor:0 };
     ARTICULOS = d.articulos || []; SIN_MAPEAR = d.sin_mapear || [];
-    COSTMAP = d.cost_map || []; PROVS = d.proveedores || [];
+    COSTMAP = d.cost_map || []; PROVS = d.proveedores || []; CLIENTES = d.clientes || [];
     pintar();
   }catch(e){
     if(esSesion(e)) return logout();
@@ -500,19 +500,42 @@ async function guardarNota(id){
 function cambiarCuenta(id){
   const o = ORDERS.find(x => x.id === id);
   abrirModal(`<h3>Pasar el pedido #${id} a otra cuenta</h3>
-    <p class="sub">Hoy está en la cuenta de <b>${esc(o.email||'')}</b>. El cliente lo va a ver en "Mis pedidos"
-      cuando entre con Google con este mail. Si todavía no tiene cuenta, se le crea.</p>
-    <label>Mail del cliente</label>
-    <input id="cMail" type="email" placeholder="cliente@gmail.com">
-    <label>Nombre o razón social <span style="font-weight:400">(si es cuenta nueva)</span></label>
-    <input id="cNom" type="text" placeholder="Óptica Ejemplo">
+    <p class="sub">Hoy está en la cuenta de <b>${esc(o.email||'')}</b>. El cliente lo va a ver en "Mis pedidos".</p>
+    <label>Cliente</label>
+    <select id="cSel" onchange="cuentaElegida()">
+      <option value="">Elegí un cliente…</option>
+      ${CLIENTES.filter(c => c.email !== o.email).map(c => `<option value="${esc(c.email)}">${esc(c.nombre ? c.nombre + ' · ' + c.email : c.email)}${clienteExtra(c)}</option>`).join('')}
+      <option value="+">＋ Cliente nuevo (escribo el mail)</option>
+    </select>
+    <div id="cNuevo" style="display:none">
+      <label>Mail del cliente</label>
+      <input id="cMail" type="email" placeholder="cliente@gmail.com">
+      <label>Nombre o razón social</label>
+      <input id="cNom" type="text" placeholder="Óptica Ejemplo">
+      <p class="sub" style="margin:10px 0 0">Se le crea la cuenta: ve el pedido cuando entre con Google con ese mail.</p>
+    </div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
     <button class="b p" style="flex:none" onclick="guardarCuenta(${id})">Pasar</button></div>`);
-  document.getElementById('cMail').focus();
+}
+// Lo que va entre paréntesis en la lista: pedidos y si vino por el cupón.
+function clienteExtra(c){
+  const x = [];
+  if(c.pedidos) x.push(c.pedidos + (c.pedidos === 1 ? ' pedido' : ' pedidos'));
+  if(c.cupon_usado === true) x.push('usó el cupón');
+  else if(c.cupon_usado === false) x.push('cupón sin usar');
+  return x.length ? ' (' + x.join(' · ') + ')' : '';
+}
+function cuentaElegida(){
+  const nuevo = document.getElementById('cSel').value === '+';
+  document.getElementById('cNuevo').style.display = nuevo ? '' : 'none';
+  if(nuevo) document.getElementById('cMail').focus();
 }
 async function guardarCuenta(id){
-  const email = document.getElementById('cMail').value.trim();
-  const nombre = document.getElementById('cNom').value.trim();
+  const sel = document.getElementById('cSel').value;
+  if(!sel) return alert('Elegí a qué cliente se lo pasás.');
+  const email = sel === '+' ? document.getElementById('cMail').value.trim() : sel;
+  const nombre = sel === '+' ? document.getElementById('cNom').value.trim() : '';
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return alert('Ese mail no parece válido.');
   try{
     const r = await post({ id, cuenta:{ email, nombre } });
     cerrarModal(); await cargar();
