@@ -99,7 +99,7 @@ function faltanteDetalleHtml(sh){
 const VISTAS = [
   ['pendientes', 'Pendientes'],
   ['nuevo',      'Para mandar'],
-  ['pedido',     'En Martín'],
+  ['pedido',     'En proveedor'],
   ['recibido',   'Para despachar'],
   ['cobrar',     'Por cobrar'],
   ['saldado',    'Saldados'],
@@ -170,7 +170,7 @@ function pintar(){
 
   document.getElementById('resumen').innerHTML = `
     <div><p class="r1">Te deben</p><p class="r2 ${porCobrar ? 'debe' : 'ok'}">${porCobrar ? fmt(porCobrar) : 'nada'}</p></div>
-    <div><p class="r1">En Martín</p><p class="r2">${enMartin}</p></div>
+    <div><p class="r1">En proveedor</p><p class="r2">${enMartin}</p></div>
     <div><p class="r1">Para despachar</p><p class="r2">${paraDespachar}</p></div>`;
 
   document.getElementById('filtros').innerHTML = VISTAS.map(([k,t]) => {
@@ -185,7 +185,7 @@ function pintar(){
     ['recibido','despachado','saldado'].includes(paso(o)));
   document.getElementById('avisoMartin').innerHTML = sinCargar.length
     ? `<div class="aviso">${sinCargar.length === 1 ? 'Hay 1 pedido que ya retiraste y' : 'Hay ' + sinCargar.length + ' pedidos que ya retiraste y'}
-        todavía no ${sinCargar.length === 1 ? 'está cargado' : 'están cargados'} en la cuenta de Martín:
+        todavía no ${sinCargar.length === 1 ? 'está cargado' : 'están cargados'} en la cuenta del proveedor:
         <b>${sinCargar.map(o => '#' + o.id).join(', ')}</b>.
         <button class="b sm" style="margin-left:6px" onclick="cargarPendientesMartin()">Cargarlos ahora</button></div>` : '';
 
@@ -218,6 +218,24 @@ function porLinea(items){
   return [...m.values()].sort((a,b) => b.total - a.total);
 }
 
+// De quién es cada parte del pedido: [{ nombre, lineas }], Martín primero.
+function provsDe(o){
+  const m = new Map();
+  porLinea(o.items).forEach(l => {
+    const n = (o.prov_linea && o.prov_linea[l.linea]) || 'Martín';
+    if(!m.has(n)) m.set(n, []);
+    m.get(n).push(l);
+  });
+  return [...m.entries()].map(([nombre, lineas]) => ({ nombre, lineas }))
+    .sort((a,b) => /^mart/i.test(b.nombre) - /^mart/i.test(a.nombre));
+}
+// "Martín", "Juan", "Martín y Juan"
+function quienes(o){
+  const n = provsDe(o).map(p => p.nombre);
+  return n.length > 1 ? n.slice(0,-1).join(', ') + ' y ' + n[n.length-1] : (n[0] || 'Martín');
+}
+const aQuien = o => provsDe(o).length > 1 ? 'proveedores' : quienes(o);
+
 function tarjeta(o){
   const p = paso(o);
   const info = PASOS[p];
@@ -243,7 +261,8 @@ function tarjeta(o){
       <div class="cplata">${plata}</div>
     </div>
 
-    <div class="paso"><span class="pt ${p}"></span>${info.txt}</div>
+    <div class="paso"><span class="pt ${p}"></span>${p === 'nuevo' ? 'Sin mandar a ' + esc(quienes(o))
+      : p === 'pedido' ? 'Esperando a ' + esc(quienes(o)) : info.txt}</div>
 
     <div class="acc">
       ${accionPrincipal(o, p)}
@@ -259,7 +278,7 @@ function tarjeta(o){
 }
 
 function accionPrincipal(o, p){
-  if(p === 'nuevo') return `<button class="b p" onclick="pasarAMartin(${o.id})">Pasar a Martín</button>`;
+  if(p === 'nuevo') return `<button class="b p" onclick="pasarAProveedores(${o.id})">Pasar a ${esc(aQuien(o))}</button>`;
   if(p === 'pedido') return `<button class="b p" onclick="llegoTalCual(${o.id})">Llegó tal cual</button>
     <button class="b" onclick="modalRecibir(${o.id})">Vino distinto</button>`;
   if(p === 'recibido') return `<button class="b p" onclick="mover(${o.id},'despachado')">Despachado</button>
@@ -273,8 +292,8 @@ function menu(o, p){
   const atras = { pedido:'nuevo', recibido:'pedido', despachado:'recibido' }[p];
   const faltaCargar = !cargadoMartin(o) && p !== 'nuevo' && p !== 'cancelado';
   return `
-    ${faltaCargar ? `<button onclick="modalRecibir(${o.id})"><b>Cargar a la cuenta de Martín</b></button><hr>` : ''}
-    <button onclick="pdfProveedor(${o.id})">PDF para Martín</button>
+    ${faltaCargar ? `<button onclick="modalRecibir(${o.id})"><b>Cargar a la cuenta de ${esc(quienes(o))}</b></button><hr>` : ''}
+    ${provsDe(o).map((g,i) => `<button onclick="pdfProveedor(${o.id},${i})">PDF para ${esc(g.nombre)}</button>`).join('')}
     <button onclick="pdfCliente(${o.id})">PDF para el cliente</button>
     <button onclick="etiqueta(${o.id})">Etiqueta de envío</button>
     <hr>
@@ -358,17 +377,31 @@ async function mover(id, etapa){
   try{ await post({ id, etapa }); await cargar(); }catch(e){ alert(e.message); }
 }
 
-// "Pasar a Martín": baja el PDF y deja el pedido esperando.
-async function pasarAMartin(id){
-  pdfProveedor(id);
-  try{ await post({ id, etapa:'pedido' }); await cargar(); showToast('Pedido #'+id+' a la espera de Martín'); }
+// "Pasar a Martín" (o a Juan, o a Fernando): baja el PDF de cada uno y deja
+// el pedido esperando. Si hay más de un proveedor, un PDF por cada uno.
+async function pasarAProveedores(id){
+  const o = ORDERS.find(x => x.id === id);
+  const provs = provsDe(o);
+  if(provs.length === 1){ pdfProveedor(id, 0); return marcarPedido(id); }
+  abrirModal(`<h3>Pasar el pedido #${id} a proveedores</h3>
+    <p class="sub">Este pedido tiene cosas de ${esc(quienes(o))}. Bajá el PDF de cada uno y después marcalo como pedido.</p>
+    ${provs.map((g,i) => `<div class="qrow" style="grid-template-columns:1fr auto">
+      <div><span class="qn">${esc(g.nombre)}</span>
+        <span class="qg">${g.lineas.map(l => esc(l.linea) + ' × ' + l.qty).join(' · ')}</span></div>
+      <button class="b" onclick="pdfProveedor(${id},${i});this.textContent='✓ PDF'">PDF para ${esc(g.nombre)}</button>
+    </div>`).join('')}
+    <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
+    <button class="b p" style="flex:none" onclick="cerrarModal();marcarPedido(${id})">Listo, ya se los pasé</button></div>`);
+}
+async function marcarPedido(id){
+  const o = ORDERS.find(x => x.id === id);
+  try{ await post({ id, etapa:'pedido' }); await cargar(); showToast('Pedido #'+id+' a la espera de '+quienes(o)); }
   catch(e){ alert(e.message); }
 }
 
 async function llegoTalCual(id){
   const o = ORDERS.find(x => x.id === id);
-  const u = (o.items||[]).reduce((a,it) => a + (parseInt(it.qty,10)||1), 0);
-  if(!confirm(`Llegaron los ${u} anteojo${u===1?'':'s'} del pedido #${id} tal cual.\n\nSe le suma a la deuda de Martín.`)) return;
+  if(!confirm(`Llegó todo el pedido #${id} tal cual.\n\nSe le suma a la deuda de ${quienes(o)}.`)) return;
   try{
     const r = await post({ id, recibir:{} });
     await cargar();
@@ -391,20 +424,21 @@ function modalRecibir(id, quedan){
   const o = ORDERS.find(x => x.id === id);
   const lineas = porLinea(o.items);
   const yaDespachado = paso(o) === 'despachado' || paso(o) === 'saldado';
+  const varios = provsDe(o).length > 1, quien = esc(quienes(o));
   abrirModal(`
-    <h3>${yaDespachado ? 'Cargar el pedido #' + id + ' a la cuenta de Martín' : '¿Qué te trajo Martín?'}</h3>
+    <h3>${yaDespachado ? 'Cargar el pedido #' + id + ' a la cuenta de ' + quien : '¿Qué te trajo ' + quien + '?'}</h3>
     <p class="sub">${yaDespachado
       ? 'Este ya lo retiraste y lo despachaste, pero nunca se le cargó. Confirmá las cantidades y va a su deuda.'
       : 'Dejá las que vinieron bien y corregí las que no. Solo cantidades por línea; los modelos no importan.'}
       ${quedan > 1 ? `<br><b>Quedan ${quedan} por cargar.</b>` : ''}</p>
     ${lineas.map((l,i) => `<div class="qrow" id="q${i}">
-      <div><span class="qn">${esc(l.linea)}</span><span class="qg">pediste ${l.qty}</span></div>
+      <div><span class="qn">${esc(l.linea)}</span><span class="qg">pediste ${l.qty}${varios ? ' · ' + esc(o.prov_linea[l.linea] || 'Martín') : ''}</span></div>
       <input type="number" min="0" id="qi${i}" value="${l.qty}" data-pedido="${l.qty}" oninput="marcarDif(${i})">
     </div>`).join('')}
     <div class="qtot"><span>Total</span><span><span id="qTot">${lineas.reduce((a,l)=>a+l.qty,0)}</span> <span class="g">anteojos</span></span></div>
     <div class="mfoot">
       <button class="b q" onclick="cerrarModal()">Cancelar</button>
-      <button class="b p" style="flex:none" onclick="guardarRecibido(${id})">Sumar a la deuda de Martín</button>
+      <button class="b p" style="flex:none" onclick="guardarRecibido(${id})">Sumar a la deuda de ${quien}</button>
     </div>`);
   window._lineasRecibir = lineas;
 }
@@ -588,12 +622,10 @@ function pintarCostos(){
       <input type="number" id="cf${i}" value="${m.factor||1}" min="1" title="unidades que trae el ítem"
              onchange="guardarCosto(${i})">
       ${m.supplier_id ? `<div class="otrocosto" id="oc${i}">
-        <select id="ca${i}" onchange="guardarCosto(${i})" style="width:auto">
-          <option value="">— artículo —</option>
-          ${arts.map(a => `<option value="${esc(a.articulo)}"${m.articulo===a.articulo?' selected':''}>${esc(a.articulo)}</option>`).join('')}
-          ${m.articulo && !arts.some(a => a.articulo === m.articulo)
-            ? `<option value="${esc(m.articulo)}" selected>${esc(m.articulo)}</option>` : ''}
-        </select>
+        <input id="ca${i}" list="al${i}" value="${esc(m.articulo || l)}" placeholder="artículo"
+               title="Cómo se llama en la lista de ${esc(prov ? prov.nombre : 'ese proveedor')}"
+               style="text-align:left" onchange="guardarCosto(${i})">
+        <datalist id="al${i}">${arts.map(a => `<option value="${esc(a.articulo)}">`).join('')}</datalist>
         <input type="number" id="cp${i}" value="${precio || ''}" step="0.01"
                placeholder="${prov && prov.moneda === 'USD' ? 'US$ por unidad' : '$ por unidad'}"
                onchange="guardarCosto(${i})">
@@ -707,11 +739,12 @@ function faltanteMartinHtml(o){
   return `<div class="falta"><div class="ft">Si falta alguno</div>${l.join('<br>')}</div>`;
 }
 
-function pdfProveedor(id){
+function pdfProveedor(id, i){
   const o = ORDERS.find(x => x.id === id); if(!o) return;
-  const lineas = porLinea(o.items);
+  const g = provsDe(o)[i || 0]; if(!g) return;
+  const lineas = g.lineas, esMartin = /^mart/i.test(g.nombre);
   const total = lineas.reduce((a,l) => a + l.qty, 0);
-  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id} para Martín</title>
+  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id} para ${esc(g.nombre)}</title>
 <style>@page{size:105mm auto;margin:7mm 6mm}${HOJA}body{max-width:105mm}
 .falta{margin-top:16px;border:2px solid #111;border-radius:6px;padding:9px 11px;line-height:1.6;font-size:12px}
 .falta .ft{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}</style></head><body>
@@ -721,8 +754,8 @@ ${lineas.map(l => `<h2><span>${esc(l.linea)}</span><span>${l.qty} u.</span></h2>
 <table><thead><tr><th>Modelo</th><th>Color</th><th class="q">Cant.</th></tr></thead><tbody>
 ${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'—')}</td><td class="q">${m.qty}</td></tr>`).join('')}
 </tbody></table>`).join('')}
-<div class="tot"><span>Total</span><span>${total} anteojos</span></div>
-${faltanteMartinHtml(o)}
+<div class="tot"><span>Total</span><span>${total} ${esMartin ? 'anteojos' : 'u.'}</span></div>
+${esMartin ? faltanteMartinHtml(o) : ''}
 <script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
 }
 

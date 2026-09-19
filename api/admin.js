@@ -54,12 +54,23 @@ module.exports = async (req, res) => {
         costTables(),
       ]);
 
+      // A quién se le pide cada línea. Lo que todavía no tiene proveedor
+      // asignado se da por Martín, que es quien arma casi todo.
+      const martin = [...tablas.provs.values()].find((p) => /^mart/i.test(p.nombre));
+      const provDeLinea = (linea) => {
+        const m = tablas.mapa.get(norm(linea));
+        const p = (m && m.supplier_id && tablas.provs.get(m.supplier_id)) || martin;
+        return p ? p.nombre : 'Martín';
+      };
+
       const sinMapear = new Map();
       const orders = rows.map((o) => {
         // Si ya confirmó lo que llegó, el costo real es el de lo recibido.
         const c = o.recibido ? costoLineasDe(o.recibido, tablas) : costoDe(o.items, tablas);
         costoDe(o.items, tablas).sinCosto.forEach((x) => sinMapear.set(x.linea, x));
-        return { ...o, costo: c.detalle, sin_costo: c.sinCosto };
+        const prov_linea = {};
+        porLinea(o.items).forEach((l) => { prov_linea[l.linea] = provDeLinea(l.linea); });
+        return { ...o, costo: c.detalle, sin_costo: c.sinCosto, prov_linea };
       });
 
       const [precios, mapa, provs, cupones, embudo, origenes, carritos, clientes] = await Promise.all([
