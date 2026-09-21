@@ -10,7 +10,9 @@
 //          + cobros:[{ monto, medio }] -> lo que ya pagó, uno por medio (quedan como cobros del pedido)
 //          + mandarMail:true         -> le llega el detalle por línea (items[].nombre)
 //          + forzar:true             -> la guarda aunque venda más de lo que hay en mano
-//   POST { paga:{ fecha, nota, ventas:[id] } }  -> le pago esas ventas
+//   POST { paga:{ fecha, monto, nota } }  -> le pago esa plata a cuenta: no se
+//          dice de qué ventas es, se va descontando de la más vieja a la más
+//          nueva y lo que sobre queda a favor para las que vengan
 //   POST { borrarVenta: id } / { borrarEntrada: id } / { borrarPago: id }
 // Giras (de todos los proveedores juntos):
 //   POST { gira:{ id?, nombre, desde, hasta, nota } }  -> crea o cambia; engancha las ventas sueltas de esas fechas
@@ -23,6 +25,43 @@ const { notifyVentaCliente } = require('./_notify');
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const MAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const diaValido = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? x : null);
+const soloDia = (f) => (f instanceof Date ? f.toISOString().slice(0, 10) : String(f || ''));
+
+// La cuenta de consignación es una sola cuenta corriente: las ventas suman lo
+// que se le debe y los pagos restan, sin atarse unos a otros. Para saber qué
+// está pagado y qué no, lo que se le fue pagando se aplica a las ventas de la
+// más vieja a la más nueva. Así un pago puede no cerrar justo (deja una venta
+// a medias) o pasarse (queda plata a favor para las que vengan).
+function repartir(ventas, pagos) {
+  const EPS = 0.005;
+  const orden = (a, b) => (soloDia(a.fecha) < soloDia(b.fecha) ? -1
+    : soloDia(a.fecha) > soloDia(b.fecha) ? 1 : a.id - b.id);
+  const cola = [...pagos].sort(orden).map((p) => ({ id: p.id, fecha: p.fecha, resta: r2(p.monto), cubre: 0 }));
+  const estado = new Map();
+  let i = 0;
+  for (const v of [...ventas].sort(orden)) {
+    const costo = r2(v.costo);
+    let pagado = 0;
+    let ultimo = null;
+    while (pagado < costo - EPS && i < cola.length) {
+      const p = cola[i];
+      if (p.resta <= EPS) { i += 1; continue; }
+      const usa = Math.min(p.resta, r2(costo - pagado));
+      p.resta = r2(p.resta - usa);
+      pagado = r2(pagado + usa);
+      ultimo = p;
+    }
+    const saldada = pagado >= costo - EPS;
+    if (saldada && ultimo) ultimo.cubre += 1;
+    estado.set(v.id, {
+      pagado,
+      resta: saldada ? 0 : r2(costo - pagado),
+      pagada_at: saldada && ultimo ? ultimo.fecha : null,
+      pago_id: saldada && ultimo ? ultimo.id : null,
+    });
+  }
+  return { estado, aFavor: r2(cola.reduce((a, p) => a + Math.max(0, p.resta), 0)), pagos: cola };
+}
 
 module.exports = async (req, res) => {
   const s = getSession(req);
@@ -49,7 +88,7 @@ module.exports = async (req, res) => {
         sql`SELECT articulo, cantidad, sale_id FROM supplier_consign WHERE supplier_id = ${prov.id}`,
         sql`SELECT articulo, precio FROM supplier_prices WHERE supplier_id = ${prov.id} AND activo ORDER BY articulo`,
         sql`SELECT v.id, v.fecha, v.email, v.cliente, v.items, v.total_venta, v.costo, v.order_id,
-                   v.pagada_at, v.nota, v.gira_id, u.name, u.razon_social,
+                   v.nota, v.gira_id, u.name, u.razon_social,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = v.order_id), 0) AS cobrado
               FROM consign_sales v LEFT JOIN users u ON u.id = v.user_id
              WHERE v.supplier_id = ${prov.id}
@@ -110,18 +149,29 @@ module.exports = async (req, res) => {
         .map((a) => ({ ...a, precio: precioDe(a.articulo) }))
         .sort((x, y) => x.articulo.localeCompare(y.articulo));
 
-      const lista = ventas.map((v) => ({ ...v, costo: Number(v.costo) }));
       const unidades = (v) => (v.items || []).reduce((a, it) => a + (Number(it.cantidad) || 0), 0);
-      const impagas = lista.filter((v) => !v.pagada_at);
-      const listaPagos = pagos.map((p) => ({ ...p, monto: Number(p.monto) }));
+      const crudas = ventas.map((v) => ({ ...v, costo: Number(v.costo) }));
+      const crudosPagos = pagos.map((p) => ({ ...p, monto: Number(p.monto) }));
+      // Qué venta está tachada y cuál no sale de acá: de lo que se le pagó en
+      // total, aplicado de la más vieja a la más nueva.
+      const rep = repartir(crudas, crudosPagos);
+      const lista = crudas.map((v) => ({ ...v, ...rep.estado.get(v.id) }));
+      const listaPagos = crudosPagos.map((p) => {
+        const x = rep.pagos.find((q) => q.id === p.id) || { cubre: 0, resta: 0 };
+        return { ...p, cubre: x.cubre, a_cuenta: r2(Math.max(0, x.resta)) };
+      });
+      const debiendo = lista.filter((v) => v.resta > 0);
       const resumen = {
         vendido_u: lista.reduce((a, v) => a + unidades(v), 0),
         por_cobrar: lista.filter((v) => v.order_id)
           .reduce((a, v) => a + Math.max(0, v.total_venta - v.cobrado), 0),
-        debo: r2(impagas.reduce((a, v) => a + v.costo, 0)),
-        u_debo: impagas.reduce((a, v) => a + unidades(v), 0),
-        ventas_impagas: impagas.length,
-        pagado: r2(listaPagos.reduce((a, p) => a + p.monto, 0)),
+        debo: r2(debiendo.reduce((a, v) => a + v.resta, 0)),
+        u_debo: debiendo.reduce((a, v) => a + unidades(v), 0),
+        ventas_impagas: debiendo.length,
+        pagado: r2(crudosPagos.reduce((a, p) => a + p.monto, 0)),
+        // Lo que se le pagó de más: se descuenta solo de las próximas ventas.
+        a_favor: rep.aFavor,
+        costo_total: r2(crudas.reduce((a, v) => a + v.costo, 0)),
       };
 
       return res.status(200).json({
@@ -312,47 +362,61 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, id: venta.id, order_id: o.id, cobrado, mail, gira_id: venta.gira_id });
     }
 
-    /* ----- Le pagué ventas de consignación ----- */
-    // El pago va a la cuenta de consignación: el proveedor lo ve como pago de
+    /* ----- Le pagué plata de la consignación ----- */
+    // Va a la cuenta de consignación: el proveedor lo ve como pago de
     // consignación, sin saber de qué ventas. La cuenta corriente no se toca.
+    // No hace falta que cierre justo con unas ventas: se anota cuánto fue y la
+    // cuenta se ordena sola (ver repartir).
     if (b.paga) {
-      const ids = (Array.isArray(b.paga.ventas) ? b.paga.ventas : []).map((x) => parseInt(x, 10)).filter(Boolean);
-      if (!ids.length) return res.status(400).json({ error: 'Elegí qué ventas le pagaste' });
       const dia = diaValido(b.paga.fecha);
       const nota = b.paga.nota ? String(b.paga.nota).trim().slice(0, 200) || null : null;
-
-      const elegidas = await sql`SELECT id, costo FROM consign_sales
-        WHERE supplier_id = ${prov.id} AND pagada_at IS NULL AND id = ANY(${ids}::int[])`;
-      if (!elegidas.length) return res.status(400).json({ error: 'Esas ventas ya estaban pagadas' });
-      const monto = r2(elegidas.reduce((a, v) => a + Number(v.costo), 0));
-      const lasIds = elegidas.map((v) => v.id);
+      let monto = r2(b.paga.monto);
+      // Una pantalla vieja (o una pestaña que quedó abierta) manda las ventas
+      // marcadas: se toma lo que suman y se registra igual, como pago a cuenta.
+      if (!(monto > 0) && Array.isArray(b.paga.ventas) && b.paga.ventas.length) {
+        const ids = b.paga.ventas.map((x) => parseInt(x, 10)).filter(Boolean);
+        const elegidas = await sql`SELECT costo FROM consign_sales
+          WHERE supplier_id = ${prov.id} AND id = ANY(${ids}::int[])`;
+        monto = r2(elegidas.reduce((a, v) => a + Number(v.costo), 0));
+      }
+      if (!(monto > 0)) return res.status(400).json({ error: 'Poné cuánto le pagaste' });
 
       const [pago] = await sql`
         INSERT INTO consign_payments (supplier_id, fecha, monto, nota)
         VALUES (${prov.id}, COALESCE(${dia}::date, CURRENT_DATE), ${monto}, ${nota})
         RETURNING id`;
-      await sql`UPDATE consign_sales SET pagada_at = now(), pago_id = ${pago.id}
-        WHERE id = ANY(${lasIds}::int[])`;
-      return res.status(200).json({ ok: true, monto, ventas: lasIds.length });
+
+      // Cómo quedó la cuenta con este pago, para avisarlo en la pantalla.
+      const [lasVentas, losPagos] = await Promise.all([
+        sql`SELECT id, fecha, costo FROM consign_sales WHERE supplier_id = ${prov.id}`,
+        sql`SELECT id, fecha, monto FROM consign_payments WHERE supplier_id = ${prov.id}`,
+      ]);
+      const rep = repartir(
+        lasVentas.map((v) => ({ ...v, costo: Number(v.costo) })),
+        losPagos.map((p) => ({ ...p, monto: Number(p.monto) })),
+      );
+      const cubre = (rep.pagos.find((p) => p.id === pago.id) || { cubre: 0 }).cubre;
+      const debo = r2([...rep.estado.values()].reduce((a, e) => a + e.resta, 0));
+      return res.status(200).json({ ok: true, id: pago.id, monto, cubre, debo, a_favor: rep.aFavor });
     }
 
-    /* ----- Borrar un pago: esas ventas vuelven a quedar sin pagar ----- */
+    /* ----- Borrar un pago: la cuenta se rearma sola ----- */
     if (b.borrarPago) {
       const id = parseInt(b.borrarPago, 10);
       const [row] = await sql`DELETE FROM consign_payments WHERE id = ${id} AND supplier_id = ${prov.id} RETURNING id`;
       if (!row) return res.status(404).json({ error: 'No existe ese pago' });
-      await sql`UPDATE consign_sales SET pagada_at = NULL, pago_id = NULL WHERE pago_id = ${id}`;
+      // No hay nada que deshacer en las ventas: se tachan según lo que se le
+      // pagó en total, así que sin este pago las últimas vuelven a deberse.
       return res.status(200).json({ ok: true });
     }
 
     /* ----- Borrar una venta: se deshace todo lo que generó ----- */
     if (b.borrarVenta) {
       const id = parseInt(b.borrarVenta, 10);
-      const [v] = await sql`SELECT id, order_id, pagada_at FROM consign_sales WHERE id = ${id} AND supplier_id = ${prov.id}`;
+      const [v] = await sql`SELECT id, order_id FROM consign_sales WHERE id = ${id} AND supplier_id = ${prov.id}`;
       if (!v) return res.status(404).json({ error: 'No existe esa venta' });
-      if (v.pagada_at) {
-        return res.status(400).json({ error: 'Esa venta ya se la pagaste: si hay que corregirla, borrá primero el pago (abajo, en Pagos).' });
-      }
+      // Aunque ya estuviera tachada se puede borrar: los pagos son a cuenta,
+      // así que lo que cubría esta venta pasa a la siguiente sin pagar.
       await sql`DELETE FROM supplier_consign WHERE sale_id = ${id}`;
       if (v.order_id) {
         await sql`DELETE FROM order_payments WHERE order_id = ${v.order_id}`;

@@ -21,6 +21,9 @@
   .hero.stock{background:var(--azbg);border-color:#d3e0ee}
   .hero.stock .et,.hero.stock .big{color:var(--az)}
   .hero.stock .ch{color:#4d6b8c}
+  .hero.aldia{background:var(--okbg);border-color:#cde0d4}
+  .hero.aldia .et,.hero.aldia .big{color:var(--ok)}
+  .hero.aldia .ch{color:#3f6b53}
   .hero.cobrar{background:var(--cd);border-color:var(--ln)}
   .hero.cobrar .et{color:var(--al)}
   .hero.cobrar .big{color:var(--tx);font-size:32px}
@@ -54,6 +57,7 @@
   /* ventas */
   .venta{display:flex;justify-content:space-between;gap:20px;padding:18px 0;border-top:1px solid var(--ln)}
   .venta .quien{font-size:15.5px;font-weight:600;margin:0}
+  .venta .quien.tachada{color:var(--mt);text-decoration:line-through;text-decoration-thickness:1px}
   .venta .f{font-size:13px;color:var(--mt);margin:4px 0 0}
   .venta .items{font-size:14px;color:var(--md);margin:9px 0 0;line-height:1.6}
   .venta .tags{margin-top:10px}
@@ -103,6 +107,18 @@
   .pagar-l input{width:auto;margin:3px 0 0;flex:none}
   .pagar-l .g{color:var(--mt);font-size:12.5px;display:block;margin-top:2px}
   .pagar-l .m{margin-left:auto;white-space:nowrap;font-weight:600;color:var(--no)}
+  /* qué ventas tacha el pago que se está por registrar */
+  .p-todo{background:var(--okbg);border:1px solid #cde0d4;color:var(--ok);border-radius:11px;
+    padding:10px 15px;font-size:13.5px;font-weight:600;margin-top:15px;font-family:inherit}
+  .p-todo:hover{background:#ddece3}
+  .prev-p{margin:18px 0 0;max-height:220px;overflow-y:auto}
+  .prev-p .pagar-l{cursor:default}
+  .prev-p .tick{flex:none;width:16px;color:var(--ok);font-weight:700}
+  .prev-p .tick.med{color:var(--al)}
+  .prev-p .tachada{color:var(--mt);text-decoration:line-through}
+  .prev-p .m{color:var(--ok)}
+  .prev-p .m.med{color:var(--al)}
+  .prev-p .nada{color:var(--md);font-size:13.5px;line-height:1.6}
 
   /* ---------- vista cliente: pantalla completa, sin números internos ---------- */
   .b.cli{background:#fff;border-color:var(--tx);font-weight:600}
@@ -376,13 +392,25 @@ function pintar(){
   const valorVenta = conStock.reduce((s, a) => s + a.en_mano * precioWeb(a.articulo), 0);
   const unidades = conStock.reduce((s, a) => s + a.en_mano, 0);
 
+  // La cuenta con el proveedor da tres cosas: le debo, estoy al día, o le pagué
+  // de más y tengo plata a favor para las próximas ventas.
+  const yaPagado = R.pagado ? '<br>Ya le pagaste ' + plata(R.pagado, Pr.moneda) + ' de consignación' : '';
+  const heroCuenta = R.debo > 0
+    ? `<div class="hero debe">
+        <p class="et">Le debés a ${esc(Pr.nombre)} de lo vendido</p>
+        <p class="big num">${plata(R.debo, Pr.moneda)}</p>
+        <p class="ch">${aPesos(R.debo) && Pr.moneda === 'USD' ? aPesos(R.debo) + ' · ' : ''}${R.u_debo} u. en ${R.ventas_impagas} ${R.ventas_impagas === 1 ? 'venta' : 'ventas'} sin saldar${yaPagado}</p>
+      </div>`
+    : `<div class="hero aldia">
+        <p class="et">${R.a_favor > 0 ? 'Le pagaste de más a ' + esc(Pr.nombre) : 'Estás al día con ' + esc(Pr.nombre)}</p>
+        <p class="big num">${R.a_favor > 0 ? plata(R.a_favor, Pr.moneda) + ' a favor' : plata(0, Pr.moneda)}</p>
+        <p class="ch">${R.a_favor > 0
+          ? 'Se va a descontar solo de las próximas ventas'
+          : 'No le debés nada de lo que vendiste'}${yaPagado}</p>
+      </div>`;
+
   document.getElementById('heroes').innerHTML = `
-    <div class="hero debe">
-      <p class="et">Le debés a ${esc(Pr.nombre)} de lo vendido</p>
-      <p class="big num">${plata(R.debo, Pr.moneda)}</p>
-      <p class="ch">${aPesos(R.debo) && Pr.moneda === 'USD' ? aPesos(R.debo) + ' · ' : ''}${R.u_debo} u. en ${R.ventas_impagas} ${R.ventas_impagas === 1 ? 'venta' : 'ventas'} sin pagarle${
-        R.pagado ? '<br>Ya le pagaste ' + plata(R.pagado, Pr.moneda) + ' de consignación' : ''}</p>
-    </div>
+    ${heroCuenta}
     <div class="hero stock">
       <p class="et">Tenés en consignación</p>
       <p class="big num">${plata(valorCosto, Pr.moneda)}</p>
@@ -432,14 +460,18 @@ function pintar(){
         const items = (v.items || []).map(i => `${i.cantidad}× ${i.articulo}`).join(' · ');
         const venta = ventaDe(v);
         const debe = v.order_id ? Math.max(0, venta - (Number(v.cobrado) || 0)) : 0;
-        const tags = (v.pagada_at
-            ? '<span class="tag ok">Le pagaste el ' + fechaCorta(v.pagada_at) + '</span>'
-            : '<span class="tag no">Sin pagarle</span>')
+        // Se tacha con lo que se le fue pagando, de la más vieja a la más
+        // nueva: por eso una puede quedar a medias (el pago no cerró justo).
+        const tags = (v.resta > 0
+            ? (v.pagado > 0
+                ? '<span class="tag al">Le pagaste ' + plata(v.pagado, Pr.moneda) + ' · falta ' + plata(v.resta, Pr.moneda) + '</span>'
+                : '<span class="tag no">Sin pagarle</span>')
+            : '<span class="tag ok">' + (v.pagada_at ? 'Le pagaste el ' + fechaCorta(v.pagada_at) : 'Pagada') + '</span>')
           + (!v.order_id ? '' : debe > 0 ? '<span class="tag al">Te debe ' + fmt(debe) + '</span>' : '<span class="tag ok">Cobrada</span>')
           + (v.gira_id && giraDe(v.gira_id) ? '<span class="tag gris">' + esc(giraDe(v.gira_id).nombre) + '</span>' : '');
         return `<div class="venta">
           <div>
-            <p class="quien">${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}</p>
+            <p class="quien ${v.resta > 0 ? '' : 'tachada'}">${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}</p>
             <p class="f">${fechaCorta(v.fecha)}${v.email ? ' · ' + esc(v.email) : ''}${v.order_id ? ' · pedido #' + v.order_id : ''}${v.nota ? ' · ' + esc(v.nota) : ''}</p>
             <p class="items">${esc(items)}</p>
             <div class="tags">${tags}</div>
@@ -447,11 +479,11 @@ function pintar(){
           <div style="display:flex">
             <div class="plata num">
               <p class="l">A ${esc(Pr.nombre)}</p>
-              <p class="v ${v.pagada_at ? 'gris' : 'rojo'}">${plata(v.costo, Pr.moneda)}</p>
+              <p class="v ${v.resta > 0 ? 'rojo' : 'gris'}">${plata(v.costo, Pr.moneda)}</p>
               <p class="l">Venta</p>
               <p class="v gris">${venta ? fmt(venta) : '—'}</p>
             </div>
-            ${v.pagada_at ? '' : `<button class="x" title="Borrar" onclick="borrarVenta(${v.id})">×</button>`}
+            <button class="x" title="Borrar" onclick="borrarVenta(${v.id})">×</button>
           </div>
         </div>`;
       }).join('')
@@ -468,10 +500,14 @@ function pintar(){
       </div>
       <div class="caja" style="margin-top:22px">
         <div class="cabe"><h3>Pagos de consignación</h3>
-          <span class="g">${D.pagos.length ? 'Total ' + plata(D.resumen.pagado, Pr.moneda) : ''}</span></div>
+          <span class="g">${D.pagos.length ? 'Total ' + plata(R.pagado, Pr.moneda)
+            + (R.debo > 0 ? ' · faltan ' + plata(R.debo, Pr.moneda)
+              : R.a_favor > 0 ? ' · ' + plata(R.a_favor, Pr.moneda) + ' a favor' : ' · al día') : ''}</span></div>
         ${D.pagos.length ? D.pagos.map(p => `<div class="mov">
             <div><div>Le pagaste <b>${plata(p.monto, Pr.moneda)}</b></div>
-              <p class="f">${fechaCorta(p.fecha)}${p.nota ? ' · ' + esc(p.nota) : ''}</p></div>
+              <p class="f">${fechaCorta(p.fecha)}${p.nota ? ' · ' + esc(p.nota) : ''}${
+                p.cubre ? ' · tachó ' + p.cubre + (p.cubre === 1 ? ' venta' : ' ventas') : ''}${
+                p.a_cuenta > 0 ? ' · ' + plata(p.a_cuenta, Pr.moneda) + ' a cuenta' : ''}</p></div>
             <button class="x" title="Borrar" onclick="borrarPago(${p.id})">×</button>
           </div>`).join('') : '<div class="empty" style="padding:24px 0">Todavía no le pagaste nada de consignación.</div>'}
       </div>
@@ -632,40 +668,94 @@ async function postVenta(venta){
 }
 
 /* ---------- le pagué ---------- */
+// Se anota cuánta plata le pasé, sin decir de qué ventas es: el pago se
+// descuenta de las ventas más viejas hacia las nuevas. Si no cierra justo, la
+// última queda a medias; si me paso, queda a favor para las que vengan.
+function reparto(monto){
+  const pend = D.ventas.filter(v => Number(v.resta) > 0).slice()
+    .sort((a, b) => String(a.fecha) < String(b.fecha) ? -1 : String(a.fecha) > String(b.fecha) ? 1 : a.id - b.id);
+  const r2 = (n) => Math.round(n * 100) / 100;
+  let queda = Math.max(0, Number(monto) || 0);
+  const tacha = [];
+  let parcial = null;
+  for(const v of pend){
+    if(queda <= 0.005) break;
+    const falta = Number(v.resta);
+    if(queda >= falta - 0.005){ tacha.push(v); queda = r2(queda - falta); }
+    else { parcial = { v, monto: r2(queda), falta: r2(falta - queda) }; queda = 0; }
+  }
+  const debe = r2(pend.reduce((a, v) => a + Number(v.resta), 0));
+  return { tacha, parcial, aFavor: r2(queda), debe, nuevoDebe: Math.max(0, r2(debe - (Number(monto) || 0))) };
+}
+
 function modalPaga(){
-  const Pr = P();
-  const impagas = D.ventas.filter(v => !v.pagada_at);
-  if(!impagas.length) return alert('No tenés ventas sin pagarle a ' + Pr.nombre + '.');
+  const Pr = P(), R = D.resumen;
   abrirModal(`<h3>Le pagué a ${esc(Pr.nombre)}</h3>
-    <p class="sub">Marcá qué ventas le pagaste. A ${esc(Pr.nombre)} le aparece solo el pago, en su
-      cuenta de consignación (sin qué vendiste). La cuenta corriente no cambia.</p>
-    <div id="pLista">${impagas.map(v => `<label class="pagar-l">
-        <input type="checkbox" value="${v.id}" checked onchange="totalPago()">
-        <span>${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}
-          <span class="g">${fechaCorta(v.fecha)} · ${esc((v.items || []).map(i => i.cantidad + '× ' + i.articulo).join(' · '))}</span></span>
-        <span class="m">${plata(v.costo, Pr.moneda)}</span>
-      </label>`).join('')}</div>
-    <div class="fila" style="margin-top:12px">
+    <p class="sub">Poné cuánto le pagaste y listo: no hace falta decir de qué ventas es. Se descuenta
+      de las más viejas hacia las nuevas y, si no cierra justo, una queda a medias o te queda plata a
+      favor. A ${esc(Pr.nombre)} le aparece solo el pago, en su cuenta de consignación (sin qué
+      vendiste). La cuenta corriente no cambia.</p>
+    <div class="fila">
+      <div><label>Cuánto le pagaste${Pr.moneda === 'USD' ? ' (US$)' : ''}</label>
+        <input type="number" id="pMonto" min="0" step="${Pr.moneda === 'USD' ? '0.01' : '1'}"
+          inputmode="decimal" placeholder="0" oninput="pintarPrev()"></div>
       <div><label>Cuándo</label><input type="date" id="pFecha" value="${hoyISO()}"></div>
-      <div><label>Nota</label><input type="text" id="pNota" placeholder="Transferencia, efectivo…"></div>
     </div>
-    <div class="qtot"><span>Le pagás</span><span id="pTot"></span></div>
+    <label>Nota</label><input type="text" id="pNota" placeholder="Transferencia, efectivo…">
+    ${R.debo > 0 ? `<button class="p-todo" onclick="pTodo()">Todo lo que le debés: ${plata(R.debo, Pr.moneda)}</button>` : ''}
+    ${R.a_favor > 0 ? `<p class="aviso-c">Ya le pagaste ${plata(R.a_favor, Pr.moneda)} de más: eso se descuenta solo de las próximas ventas.</p>` : ''}
+    <div id="pPrev"></div>
+    <div class="qtot"><span>Cómo queda la cuenta</span><span id="pTot" class="num"></span></div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
     <button class="b verde" onclick="guardarPago()">Registrar pago</button></div>`);
-  totalPago();
+  pintarPrev();
+  const inp = document.getElementById('pMonto');
+  if(inp) setTimeout(() => inp.focus(), 60);
 }
-function marcadas(){ return [...document.querySelectorAll('#pLista input:checked')].map(x => parseInt(x.value, 10)); }
-function totalPago(){
-  const ids = marcadas();
-  const t = D.ventas.filter(v => ids.includes(v.id)).reduce((a, v) => a + Number(v.costo), 0);
-  document.getElementById('pTot').textContent = plata(t, P().moneda) + (P().moneda === 'USD' && aPesos(t) ? ' · ' + aPesos(t) : '');
+function pTodo(){
+  const inp = document.getElementById('pMonto');
+  inp.value = D.resumen.debo;
+  pintarPrev();
+  inp.focus();
+}
+// Lo que va a pasar cuando se registre: qué ventas quedan tachadas, cuál a
+// medias y cómo queda el saldo.
+function pintarPrev(){
+  const Pr = P(), monto = Number(document.getElementById('pMonto').value) || 0;
+  const rp = reparto(monto);
+  const quien = (v) => esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente');
+  const detalle = (v) => fechaCorta(v.fecha) + ' · ' + esc((v.items || []).map(i => i.cantidad + '× ' + i.articulo).join(' · '));
+  document.getElementById('pPrev').innerHTML = monto <= 0 ? '' : `<div class="prev-p">
+      ${rp.tacha.map(v => `<div class="pagar-l"><span class="tick">✓</span>
+          <span><span class="tachada">${quien(v)}</span><span class="g">${detalle(v)}</span></span>
+          <span class="m">${plata(v.resta, Pr.moneda)}</span></div>`).join('')}
+      ${rp.parcial ? `<div class="pagar-l"><span class="tick med">◐</span>
+          <span>${quien(rp.parcial.v)}<span class="g">${detalle(rp.parcial.v)} · queda a medias, le faltarían ${plata(rp.parcial.falta, Pr.moneda)}</span></span>
+          <span class="m med">${plata(rp.parcial.monto, Pr.moneda)}</span></div>` : ''}
+      ${!rp.tacha.length && !rp.parcial ? '<p class="nada">No te queda nada sin pagarle: todo esto le queda a favor tuyo para las próximas ventas.</p>' : ''}
+    </div>`;
+  const resto = rp.nuevoDebe > 0 ? 'Le seguirías debiendo ' + plata(rp.nuevoDebe, Pr.moneda)
+    : rp.aFavor > 0 ? plata(rp.aFavor, Pr.moneda) + ' a favor tuyo'
+    : 'Al día';
+  document.getElementById('pTot').textContent = monto <= 0
+    ? (rp.debe > 0 ? 'Le debés ' + plata(rp.debe, Pr.moneda) : 'Estás al día')
+    : resto;
 }
 async function guardarPago(){
-  const ids = marcadas();
-  if(!ids.length) return alert('Marcá al menos una venta.');
+  const Pr = P();
+  const monto = Number(document.getElementById('pMonto').value) || 0;
+  if(monto <= 0) return alert('Poné cuánto le pagaste.');
+  const rp = reparto(monto);
+  if(rp.aFavor > 0 && !confirm('Le estarías pagando ' + plata(rp.aFavor, Pr.moneda)
+      + ' más de lo que le debés.\n\n¿Lo registro igual? Queda a favor tuyo y se descuenta de las próximas ventas.')) return;
   try{
-    const r = await post({ paga:{ ventas: ids, fecha: document.getElementById('pFecha').value, nota: document.getElementById('pNota').value } });
-    cerrarModal(); showToast('Pago registrado: ' + plata(r.monto, P().moneda)); await cargar();
+    const r = await post({ paga:{ monto, fecha: document.getElementById('pFecha').value, nota: document.getElementById('pNota').value } });
+    cerrarModal();
+    showToast('Pago registrado: ' + plata(r.monto, Pr.moneda)
+      + (r.cubre ? ' · ' + r.cubre + (r.cubre === 1 ? ' venta tachada' : ' ventas tachadas') : '')
+      + (r.a_favor > 0 ? ' · ' + plata(r.a_favor, Pr.moneda) + ' a favor'
+        : r.debo > 0 ? ' · faltan ' + plata(r.debo, Pr.moneda) : ' · al día'));
+    await cargar();
   }catch(e){ alert(e.message); }
 }
 
@@ -1199,12 +1289,13 @@ async function guardarGiraVentas(giraId){
 
 /* ---------- borrar ---------- */
 async function borrarVenta(id){
-  if(!confirm('¿Borrar esta venta? Se borra también el pedido del cliente, sus cobros y lo que sumó a la deuda.')) return;
+  if(!confirm('¿Borrar esta venta? Se borra también el pedido del cliente, sus cobros y lo que sumó a la deuda.'
+    + '\n\nSi ya estaba tachada, lo que le pagaste pasa a la venta siguiente sin saldar.')) return;
   try{ await post({ borrarVenta: id }); showToast('Borrada'); await cargar(); }
   catch(e){ alert(e.message); }
 }
 async function borrarPago(id){
-  if(!confirm('¿Borrar este pago? Las ventas que cubría vuelven a quedar sin pagar.')) return;
+  if(!confirm('¿Borrar este pago? La cuenta se rehace: las últimas ventas que cubría vuelven a quedar sin pagar.')) return;
   try{ await post({ borrarPago: id }); showToast('Pago borrado'); await cargar(); }
   catch(e){ alert(e.message); }
 }

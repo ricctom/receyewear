@@ -238,7 +238,10 @@ function ensureTables() {
       nota TEXT,
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
-    // Cuándo se le pagó al proveedor y con qué movimiento de pago.
+    // Cuándo se le pagó al proveedor y con qué movimiento de pago. Quedaron de
+    // cuando un pago se ataba a ventas elegidas a mano: hoy los pagos van a
+    // cuenta y qué venta está saldada se calcula con el total pagado, de la más
+    // vieja a la más nueva (api/consignacion.js, repartir). No se leen más.
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pagada_at TIMESTAMPTZ`;
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS pago_move_id INTEGER`;
 
