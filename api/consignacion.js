@@ -4,12 +4,15 @@
 // ventas son solo de Tomás.
 //   GET  ?proveedor=ID  -> stock en mano, entradas, ventas, pagos y lo que se debe
 //   POST { agrega:{ fecha, nota, items:[{ articulo, cantidad, precio }] } }  -> entra mercadería
-//   POST { venta:{ fecha, email, cliente, nota, items:[{ articulo, cantidad, precio }] } }
+//   POST { venta:{ fecha, email, cliente, nota, items:[{ articulo, cantidad, precio, propio }] } }
 //          -> baja el stock y queda debiéndose; con mail, le crea el pedido al cliente
 //          + descuento: $            -> se resta del total
 //          + cobros:[{ monto, medio }] -> lo que ya pagó, uno por medio (quedan como cobros del pedido)
 //          + mandarMail:true         -> le llega el detalle por línea (items[].nombre)
 //          + forzar:true             -> la guarda aunque venda más de lo que hay en mano
+//          Una línea con propio:true es mercadería mía (no del proveedor): el
+//          artículo es texto libre, no baja stock ni suma a lo que le debo, y
+//          en la gira queda toda como ganancia.
 //   POST { paga:{ fecha, monto, nota } }  -> le pago esa plata a cuenta: no se
 //          dice de qué ventas es, se va descontando de la más vieja a la más
 //          nueva y lo que sobre queda a favor para las que vengan
@@ -227,17 +230,22 @@ module.exports = async (req, res) => {
       const nota = v.nota ? String(v.nota).trim().slice(0, 200) || null : null;
       const dia = diaValido(v.fecha);
 
+      // Mercadería mía (propio): la escribo a mano, no sale del stock del
+      // proveedor y no le debo nada por ella. Todo lo demás es de él.
       const items = (Array.isArray(v.items) ? v.items : []).map((it) => {
+        const propio = !!it.propio;
         const articulo = String(it.articulo || '').trim().slice(0, 80);
         return {
           articulo,
           nombre: String(it.nombre || '').trim().slice(0, 80) || articulo,   // cómo lo ve el cliente
           cantidad: parseInt(it.cantidad, 10) || 0,
           precio: Math.max(0, Math.round(Number(it.precio) || 0)),   // venta, en pesos
-          costo: costoDe(articulo),                                  // lo que se le debe al proveedor
+          costo: propio ? 0 : costoDe(articulo),                     // lo que se le debe al proveedor
+          ...(propio ? { propio: true } : {}),
         };
       }).filter((it) => it.articulo && it.cantidad > 0);
       if (!items.length) return res.status(400).json({ error: 'Cargá al menos una línea con cantidad' });
+      const delProveedor = items.filter((it) => !it.propio);
       const subtotal = items.reduce((a, it) => a + it.precio * it.cantidad, 0);
       // Descuento en pesos sobre el total (la página lo pasa ya calculado si fue un %).
       const descuento = Math.min(subtotal, Math.max(0, Math.round(Number(v.descuento) || 0)));
@@ -251,7 +259,7 @@ module.exports = async (req, res) => {
         const enMano = await sql`SELECT upper(articulo) AS k, sum(cantidad)::int AS n FROM supplier_consign
           WHERE supplier_id = ${prov.id} GROUP BY upper(articulo)`;
         const pide = new Map();
-        items.forEach((it) => pide.set(it.articulo.toUpperCase(),
+        delProveedor.forEach((it) => pide.set(it.articulo.toUpperCase(),
           { articulo: it.articulo, cantidad: (pide.get(it.articulo.toUpperCase()) || { cantidad: 0 }).cantidad + it.cantidad }));
         const faltan = [...pide.entries()].map(([k, p]) => {
           const hay = (enMano.find((x) => x.k === k) || { n: 0 }).n;
@@ -309,7 +317,8 @@ module.exports = async (req, res) => {
         RETURNING id, fecha, gira_id`;
 
       // Baja el stock. El proveedor no ve estas líneas (van con sale_id).
-      for (const it of items) {
+      // Lo mío no toca su stock ni su cuenta: no deja rastro de este lado.
+      for (const it of delProveedor) {
         await sql`INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, precio, nota, privado, sale_id)
           VALUES (${prov.id}, ${venta.fecha}, ${it.articulo}, ${-it.cantidad}, ${it.costo}, ${it.costo},
                   ${'Vendido a ' + quien}, true, ${venta.id})`;
@@ -317,7 +326,7 @@ module.exports = async (req, res) => {
 
       // Para que el panel de Pedidos calcule la ganancia, cada línea tiene que
       // estar mapeada a su artículo. Si ya había un mapeo con ese nombre, se respeta.
-      for (const it of items) {
+      for (const it of delProveedor) {
         await sql`INSERT INTO cost_map (patron, articulo, factor, supplier_id)
           VALUES (${norm(it.articulo)}, ${it.articulo}, 1, ${prov.id})
           ON CONFLICT (patron) DO NOTHING`;
@@ -337,7 +346,8 @@ module.exports = async (req, res) => {
         INSERT INTO orders (user_id, items, total, descuento, ship, faltante, usd_rate, nota,
                             etapa, status, created_at)
         VALUES (${u.id},
-                ${JSON.stringify(items.map((it) => ({ sku: '', name: it.articulo, color: null, qty: it.cantidad, price: it.precio })))}::jsonb,
+                ${JSON.stringify(items.map((it) => ({ sku: '', name: it.articulo, color: null, qty: it.cantidad,
+                                                      price: it.precio, ...(it.propio ? { propio: true } : {}) })))}::jsonb,
                 ${totalVenta}, ${descuento}, ${JSON.stringify(ship)}::jsonb, ${ship.faltante}, ${rate},
                 ${'Venta de consignación' + (nota ? ': ' + nota : '')},
                 'despachado', 'enviado',

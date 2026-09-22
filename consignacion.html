@@ -154,6 +154,23 @@
     font-weight:600;color:var(--tx);-moz-appearance:textfield}
   .step input:focus{outline:none}
   .ln-t .sub-t{font-size:13.5px;color:var(--md);text-align:right;min-height:18px;margin:-4px 2px 0}
+  /* mercadería mía: el nombre y el precio los escribo yo, no es del proveedor */
+  .ln-t.propio{position:relative;border-style:dashed}
+  .ln-t.propio.on{border-style:solid}
+  .ln-t .nom-in{border:none;border-bottom:1px dashed var(--ln2);background:transparent;font:inherit;
+    font-size:17px;font-weight:600;letter-spacing:-.2px;color:var(--tx);width:100%;padding:18px 0 6px;
+    border-radius:0;min-height:45px}
+  .ln-t .nom-in:focus{outline:none;border-bottom-color:var(--tx)}
+  .ln-t .mio{position:absolute;top:9px;right:16px;font-size:10.5px;font-weight:700;letter-spacing:1px;
+    text-transform:uppercase;color:var(--al)}
+  .ln-t .quitar{position:absolute;top:4px;left:8px;background:none;border:none;color:var(--ln2);
+    font-size:18px;padding:4px 8px;line-height:1}
+  .ln-t .quitar:hover{color:var(--no)}
+  .ln-add{background:transparent;border:2px dashed var(--ln2);border-radius:22px;padding:20px;
+    color:var(--md);font:inherit;font-size:16px;font-weight:600;line-height:1.5;text-align:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px}
+  .ln-add small{font-size:13px;font-weight:400;color:var(--mt)}
+  .ln-add:hover{border-color:var(--tx);color:var(--tx)}
 
   .vc-bar{background:var(--tx);color:#fff;padding:16px 28px}
   .vc-bar .vc-in{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
@@ -340,6 +357,13 @@ function armarPreciosWeb(){
 const precioWeb = (art) => PRECIO_WEB.get(String(art || '').toUpperCase()) || 0;
 // Cómo se llama la línea en la tienda (lo que ve el cliente); si no está, el nombre del proveedor.
 const nombreWeb = (art) => NOMBRE_WEB.get(String(art || '').toUpperCase()) || art;
+// Líneas que no están publicadas en la tienda: precio de venta puesto a mano,
+// para que en la vista cliente ya salga cargado y no haya que escribirlo en
+// cada pedido. Igual se puede cambiar desde la tarjeta.
+const PRECIO_FIJO = { 'NYLON SOL': 26300 };
+// Con qué precio arranca cada línea en la vista cliente: el de la tienda y, si
+// esa línea no está publicada, el fijo de acá.
+const precioLista = (art) => precioWeb(art) || PRECIO_FIJO[String(art || '').toUpperCase()] || 0;
 // Lo que se cobró (o se va a cobrar) por una venta. Las viejas no tenían
 // precio cargado: se valúan con el precio de la tienda.
 const ventaDe = (v) => Number(v.total_venta) > 0 ? Number(v.total_venta)
@@ -457,21 +481,28 @@ function pintar(){
   const totalVendido = D.ventas.reduce((s, v) => s + ventaDe(v), 0);
   const ventasHtml = D.ventas.length
     ? D.ventas.map(v => {
-        const items = (v.items || []).map(i => `${i.cantidad}× ${i.articulo}`).join(' · ');
+        const items = (v.items || []).map(i => `${i.cantidad}× ${i.articulo}${i.propio ? ' (mío)' : ''}`).join(' · ');
         const venta = ventaDe(v);
+        // Lo que vendí de lo mío no es de él: no baja su stock ni le suma deuda.
+        const mio = (v.items || []).filter(i => i.propio)
+          .reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0);
+        const todoMio = (v.items || []).length > 0 && (v.items || []).every(i => i.propio);
         const debe = v.order_id ? Math.max(0, venta - (Number(v.cobrado) || 0)) : 0;
         // Se tacha con lo que se le fue pagando, de la más vieja a la más
         // nueva: por eso una puede quedar a medias (el pago no cerró justo).
-        const tags = (v.resta > 0
-            ? (v.pagado > 0
-                ? '<span class="tag al">Le pagaste ' + plata(v.pagado, Pr.moneda) + ' · falta ' + plata(v.resta, Pr.moneda) + '</span>'
-                : '<span class="tag no">Sin pagarle</span>')
-            : '<span class="tag ok">' + (v.pagada_at ? 'Le pagaste el ' + fechaCorta(v.pagada_at) : 'Pagada') + '</span>')
+        const tags = (todoMio
+            ? '<span class="tag gris">Mercadería mía · no es de ' + esc(Pr.nombre) + '</span>'
+            : v.resta > 0
+              ? (v.pagado > 0
+                  ? '<span class="tag al">Le pagaste ' + plata(v.pagado, Pr.moneda) + ' · falta ' + plata(v.resta, Pr.moneda) + '</span>'
+                  : '<span class="tag no">Sin pagarle</span>')
+              : '<span class="tag ok">' + (v.pagada_at ? 'Le pagaste el ' + fechaCorta(v.pagada_at) : 'Pagada') + '</span>')
+          + (mio && !todoMio ? '<span class="tag gris">Incluye ' + fmt(mio) + ' mío</span>' : '')
           + (!v.order_id ? '' : debe > 0 ? '<span class="tag al">Te debe ' + fmt(debe) + '</span>' : '<span class="tag ok">Cobrada</span>')
           + (v.gira_id && giraDe(v.gira_id) ? '<span class="tag gris">' + esc(giraDe(v.gira_id).nombre) + '</span>' : '');
         return `<div class="venta">
           <div>
-            <p class="quien ${v.resta > 0 ? '' : 'tachada'}">${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}</p>
+            <p class="quien ${v.resta > 0 || todoMio ? '' : 'tachada'}">${esc(v.cliente || v.razon_social || v.name || v.email || 'Sin cliente')}</p>
             <p class="f">${fechaCorta(v.fecha)}${v.email ? ' · ' + esc(v.email) : ''}${v.order_id ? ' · pedido #' + v.order_id : ''}${v.nota ? ' · ' + esc(v.nota) : ''}</p>
             <p class="items">${esc(items)}</p>
             <div class="tags">${tags}</div>
@@ -479,7 +510,7 @@ function pintar(){
           <div style="display:flex">
             <div class="plata num">
               <p class="l">A ${esc(Pr.nombre)}</p>
-              <p class="v ${v.resta > 0 ? 'rojo' : 'gris'}">${plata(v.costo, Pr.moneda)}</p>
+              <p class="v ${v.resta > 0 ? 'rojo' : 'gris'}">${todoMio ? '—' : plata(v.costo, Pr.moneda)}</p>
               <p class="l">Venta</p>
               <p class="v gris">${venta ? fmt(venta) : '—'}</p>
             </div>
@@ -534,18 +565,22 @@ function renderFilas(){
   document.getElementById('filas').innerHTML = filas.map((f, i) => {
     const pw = precioWeb(f.articulo);
     // En la venta el precio sale de la tienda. Solo se pide a mano si esa
-    // línea no está en la tienda.
+    // línea no está en la tienda o si es mercadería mía.
     const precio = esVenta
-      ? (!f.articulo ? '<span class="precio-web">—</span>'
-         : pw ? `<span class="precio-web">${fmt(pw)} c/u</span>`
-         : `<input type="number" min="0" placeholder="$ c/u" value="${f.precio || ''}" oninput="filas[${i}].precio=this.value;totalFilas()">`)
+      ? (f.propio || (f.articulo && !pw)
+         ? `<input type="number" min="0" placeholder="$ c/u" value="${f.precio || ''}" oninput="filas[${i}].precio=this.value;totalFilas()">`
+         : !f.articulo ? '<span class="precio-web">—</span>'
+         : `<span class="precio-web">${fmt(pw)} c/u</span>`)
       : `<input type="number" min="0" step="0.01" placeholder="${P().moneda === 'USD' ? 'US$ c/u' : '$ c/u'}" value="${f.precio || ''}" oninput="filas[${i}].precio=this.value;totalFilas()">`;
     return `<div class="qrow" style="grid-template-columns:1fr 74px 104px 26px">
       ${esVenta
-        ? `<select onchange="filas[${i}].articulo=this.value;renderFilas()">
+        ? (f.propio
+          ? `<input type="text" placeholder="Qué le vendiste (tuyo)" value="${esc(f.articulo)}" oninput="filas[${i}].articulo=this.value;totalFilas()">`
+          : `<select onchange="elegirVenta(${i},this.value)">
             <option value="">— línea —</option>
             ${articulos().map(a => `<option value="${esc(a)}"${f.articulo === a ? ' selected' : ''}>${esc(a)} (quedan ${enMano(a)})</option>`).join('')}
-          </select>`
+            <option value="__mio__">+ Algo mío (no es de ${esc(P().nombre)})</option>
+          </select>`)
         : `<input type="text" list="artList" placeholder="Línea (ej. CLIPON)" value="${esc(f.articulo)}" onchange="elegirArt(${i},this.value)">`}
       <input type="number" min="1" placeholder="cant." value="${f.cantidad || ''}" oninput="filas[${i}].cantidad=this.value;totalFilas()">
       ${precio}
@@ -563,7 +598,15 @@ function elegirArt(i, valor){
   renderFilas();
 }
 function agregarFila(){ filas.push({ articulo:'', cantidad:'', precio:'' }); renderFilas(); }
-const precioVentaFila = (f) => precioWeb(f.articulo) || Number(f.precio) || 0;
+// Mercadería mía: el nombre lo escribo yo y el precio también. No sale del
+// stock de nadie ni suma deuda, así que en la gira queda toda como ganancia.
+function agregarFilaPropia(){ filas.push({ articulo:'', cantidad:1, precio:'', propio:true }); renderFilas(); }
+function elegirVenta(i, v){
+  if(v === '__mio__') filas[i] = { articulo:'', cantidad: filas[i].cantidad || 1, precio: filas[i].precio || '', propio:true };
+  else filas[i].articulo = v;
+  renderFilas();
+}
+const precioVentaFila = (f) => f.propio ? (Number(f.precio) || 0) : (precioWeb(f.articulo) || Number(f.precio) || 0);
 function totalFilas(){
   const Pr = P();
   const tot = document.getElementById('fTot');
@@ -575,10 +618,12 @@ function totalFilas(){
     return;
   }
   const venta = filas.reduce((a, f) => a + (Number(f.cantidad) || 0) * precioVentaFila(f), 0);
-  const costo = filas.reduce((a, f) => a + (Number(f.cantidad) || 0) * costoDe(f.articulo), 0);
-  const pasados = filas.filter(f => f.articulo && Number(f.cantidad) > enMano(f.articulo)).map(f => f.articulo);
+  const costo = filas.reduce((a, f) => a + (f.propio ? 0 : (Number(f.cantidad) || 0) * costoDe(f.articulo)), 0);
+  const mio = filas.reduce((a, f) => a + (f.propio ? (Number(f.cantidad) || 0) * precioVentaFila(f) : 0), 0);
+  const pasados = filas.filter(f => !f.propio && f.articulo && Number(f.cantidad) > enMano(f.articulo)).map(f => f.articulo);
   if(tot) tot.textContent = fmt(venta);
   if(c) c.innerHTML = 'Le vas a deber a ' + esc(Pr.nombre) + ': <b style="color:var(--no)">' + plata(costo, Pr.moneda) + '</b>'
+    + (mio ? '<div>Aparte, ' + fmt(mio) + ' es mercadería tuya: no entra en la cuenta de ' + esc(Pr.nombre) + ' y queda toda para vos.</div>' : '')
     + (pasados.length ? '<div class="aviso-c">Ojo: vendés más de lo que tenés de ' + esc(pasados.join(', ')) + '. Se guarda igual.</div>' : '');
 }
 
@@ -631,6 +676,7 @@ function modalVenta(){
     <label>Qué le vendiste (por línea)</label>
     <div id="filas"></div>
     <button class="b sm q" onclick="agregarFila()">+ Otra línea</button>
+    <button class="b sm q" onclick="agregarFilaPropia()">+ Algo mío</button>
     <div class="qtot"><span>Total de la venta</span><span id="fTot"></span></div>
     <div class="sub" id="fCosto" style="text-align:right;margin-top:6px"></div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
@@ -647,7 +693,7 @@ async function guardarVenta(){
   const email = document.getElementById('vMail').value.trim();
   if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return alert('Ese mail no parece válido.');
   const items = filas.filter(f => f.articulo && Number(f.cantidad) > 0)
-    .map(f => ({ articulo: f.articulo, cantidad: f.cantidad, precio: precioVentaFila(f) }));
+    .map(f => ({ articulo: f.articulo, cantidad: f.cantidad, precio: precioVentaFila(f), propio: !!f.propio }));
   if(!items.length) return alert('Cargá al menos una línea con cantidad.');
   try{
     const r = await postVenta({
@@ -766,9 +812,19 @@ async function guardarPago(){
 // guarda igual que "Vendí", con el pago si ya lo hizo, y le llega el mail.
 let VC = null;
 const MAIL_OK = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const vcPrecio = (l) => { const p = VC.precio[l.art]; return p === undefined ? precioWeb(l.art) : (Number(p) || 0); };
+const vcPrecio = (l) => { const p = VC.precio[l.art]; return p === undefined ? precioLista(l.art) : (Number(p) || 0); };
 const vcElegidas = () => VC.lineas.filter(l => VC.cant[l.art] > 0);
-const vcBruto = () => vcElegidas().reduce((a, l) => a + VC.cant[l.art] * vcPrecio(l), 0);
+// Mercadería mía: nombre y precio a mano. No es del proveedor, así que no baja
+// su stock ni le suma deuda; en la gira queda toda como ganancia.
+const vcPropios = () => VC.propios.filter(p => (Number(p.cant) || 0) > 0 && String(p.nombre).trim());
+const vcTodo = () => [
+  ...vcElegidas().map(l => ({ articulo: l.art, nombre: l.nombre, cant: VC.cant[l.art], precio: vcPrecio(l), propio: false })),
+  ...vcPropios().map(p => {
+    const nombre = String(p.nombre).trim().slice(0, 80);
+    return { articulo: nombre, nombre, cant: Number(p.cant) || 0, precio: Number(p.precio) || 0, propio: true };
+  }),
+];
+const vcBruto = () => vcTodo().reduce((a, x) => a + x.cant * x.precio, 0);
 // Descuento en pesos: si es %, sobre el bruto. Nunca más que el total.
 const vcDescuento = () => {
   const b = vcBruto(), x = Math.max(0, Number(VC.desc.valor) || 0);
@@ -780,7 +836,7 @@ const MEDIOS = ['Efectivo', 'Transferencia', 'Tarjeta', 'Otro'];
 function abrirCliente(){
   if(!D || !D.proveedor) return;
   VC = {
-    paso: 'elegir', cant: {}, precio: {}, email: '', nombre: '', mail: true,
+    paso: 'elegir', cant: {}, precio: {}, propios: [], email: '', nombre: '', mail: true,
     desc: { abierto: false, tipo: '%', valor: '' },
     // Pagos: uno por medio. El que tiene "auto" se completa solo con lo que falta.
     pago: 'no', pagos: [{ medio: 'Efectivo', monto: '', auto: true }],
@@ -796,7 +852,7 @@ function abrirCliente(){
   vcPintar();
 }
 function salirCliente(){
-  if(VC && VC.paso !== 'listo' && vcElegidas().length && !confirm('¿Salir? Se pierde el pedido que estás armando.')) return;
+  if(VC && VC.paso !== 'listo' && vcTodo().length && !confirm('¿Salir? Se pierde el pedido que estás armando.')) return;
   document.getElementById('vc').classList.remove('open');
   document.body.style.overflow = '';
   VC = null;
@@ -821,7 +877,9 @@ function vcPintar(){
     document.getElementById('vcBody').innerHTML = `
       <h2>¿Qué vas a llevar?</h2>
       <p class="vsub">Tocá cada línea para sumar. Los precios son por unidad.</p>
-      <div class="lineas">${VC.lineas.map((l, i) => vcTile(i)).join('') || '<div class="empty">No hay líneas cargadas.</div>'}</div>`;
+      <div class="lineas">${VC.lineas.map((l, i) => vcTile(i)).join('')}${VC.propios.map((x, j) => vcTilePropio(j)).join('')}
+        <button class="ln-add" onclick="vcPropioAgregar()">+ Otro producto<small>Algo mío: lo escribís y le ponés precio</small></button>
+      </div>`;
   } else vcPintarConfirmar();
   vcPintarBarra();
 }
@@ -842,6 +900,65 @@ function vcTile(i){
     <div class="sub-t">${vcSubtotal(i)}</div>
   </div>`;
 }
+// Tarjeta de algo mío: el nombre se escribe, el precio también.
+function vcTilePropio(j){
+  const x = VC.propios[j], q = Number(x.cant) || 0, pr = Number(x.precio) || 0;
+  return `<div class="ln-t propio ${q ? 'on' : ''}" id="vp${j}" onclick="vcPropioSumar(${j},1,event)">
+    <span class="mio">Mío</span>
+    <button class="quitar" title="Sacar" onclick="vcPropioSacar(${j})">×</button>
+    <input class="nom-in" type="text" placeholder="¿Qué le vendés?" value="${esc(x.nombre)}"
+      onclick="event.stopPropagation()" oninput="vcPropioNombre(${j},this.value)">
+    <label class="pre" onclick="event.stopPropagation()">$<input type="number" min="0" inputmode="numeric"
+      class="${q && !pr ? 'falta' : ''}" value="${esc(x.precio)}" placeholder="precio"
+      oninput="vcPropioPrecio(${j},this.value)"></label>
+    <div class="step" onclick="event.stopPropagation()">
+      <button onclick="vcPropioSumar(${j},-1)" ${q ? '' : 'disabled'} aria-label="Uno menos">−</button>
+      <input type="number" min="0" inputmode="numeric" value="${q}" onfocus="this.select()" onchange="vcPropioCant(${j},this.value)">
+      <button class="mas-b" onclick="vcPropioSumar(${j},1)" aria-label="Uno más">+</button>
+    </div>
+    <div class="sub-t">${vcSubtotalPropio(j)}</div>
+  </div>`;
+}
+function vcSubtotalPropio(j){
+  const x = VC.propios[j], q = Number(x.cant) || 0, pr = Number(x.precio) || 0;
+  if(q && !String(x.nombre).trim()) return 'Poné qué es';
+  return q && pr ? q + ' × ' + fmt(pr) + ' = <b>' + fmt(q * pr) + '</b>' : q ? 'Poné el precio' : '';
+}
+function vcRepintarPropio(j){
+  const el = document.getElementById('vp' + j);
+  if(el) el.outerHTML = vcTilePropio(j);
+  vcPintarBarra();
+}
+// Sin repintar la tarjeta, para no perder el foco mientras escribe.
+function vcSoloSubtotal(j){
+  const el = document.getElementById('vp' + j);
+  if(el){
+    el.querySelector('.sub-t').innerHTML = vcSubtotalPropio(j);
+    const x = VC.propios[j];
+    el.querySelector('.pre input').classList.toggle('falta', !!(Number(x.cant) || 0) && !(Number(x.precio) || 0));
+    el.classList.toggle('on', (Number(x.cant) || 0) > 0);
+  }
+  vcPintarBarra();
+}
+function vcPropioAgregar(){
+  VC.propios.push({ nombre:'', precio:'', cant: 1 });
+  vcPintar();
+  const el = document.querySelector('#vp' + (VC.propios.length - 1) + ' .nom-in');
+  if(el) el.focus();
+}
+function vcPropioSacar(j){ VC.propios.splice(j, 1); vcPintar(); }
+function vcPropioNombre(j, v){ VC.propios[j].nombre = v; vcSoloSubtotal(j); }
+function vcPropioPrecio(j, v){ VC.propios[j].precio = v; vcSoloSubtotal(j); }
+function vcPropioSumar(j, d, ev){
+  if(ev && ev.target.closest('input,button,label')) return;
+  VC.propios[j].cant = Math.max(0, (Number(VC.propios[j].cant) || 0) + d);
+  vcRepintarPropio(j);
+}
+function vcPropioCant(j, v){
+  VC.propios[j].cant = Math.max(0, parseInt(v, 10) || 0);
+  vcRepintarPropio(j);
+}
+
 function vcSubtotal(i){
   const l = VC.lineas[i], q = VC.cant[l.art] || 0, pr = vcPrecio(l);
   return q && pr ? q + ' × ' + fmt(pr) + ' = <b>' + fmt(q * pr) + '</b>' : q ? 'Poné el precio' : '';
@@ -874,14 +991,16 @@ function vcSetPrecio(i, v){
 }
 
 function vcPintarBarra(){
-  const el = vcElegidas();
-  const u = el.reduce((a, l) => a + VC.cant[l.art], 0);
-  const sinPrecio = el.some(l => !vcPrecio(l));
+  const el = vcTodo();
+  const u = el.reduce((a, x) => a + x.cant, 0);
+  const sinNombre = VC.propios.some(x => (Number(x.cant) || 0) > 0 && !String(x.nombre).trim());
+  const sinPrecio = el.some(x => !x.precio);
   const res = el.length
-    ? u + (u === 1 ? ' unidad' : ' unidades') + ' · ' + el.map(l => VC.cant[l.art] + '× ' + esc(l.nombre)).join(' · ')
+    ? u + (u === 1 ? ' unidad' : ' unidades') + ' · ' + el.map(x => x.cant + '× ' + esc(x.nombre)).join(' · ')
     : 'Todavía no elegiste nada';
+  const falta = sinNombre ? 'Falta un nombre' : sinPrecio ? 'Falta un precio' : '';
   const botones = VC.paso === 'elegir'
-    ? `<button class="go" onclick="vcIr('confirmar')" ${el.length && !sinPrecio ? '' : 'disabled'}>${sinPrecio ? 'Falta un precio' : 'Continuar →'}</button>`
+    ? `<button class="go" onclick="vcIr('confirmar')" ${el.length && !falta ? '' : 'disabled'}>${falta || 'Continuar →'}</button>`
     : `<button class="go sec" onclick="vcIr('elegir')" title="Cambiar">←<span class="tx"> Cambiar</span></button>
        <button class="go" id="vcOk" onclick="vcGuardar()">Confirmar pedido</button>`;
   document.getElementById('vcBar').innerHTML = `<div class="vc-in">
@@ -898,9 +1017,9 @@ function vcPintarConfirmar(){
     <p class="vsub">Revisá que esté todo bien.</p>
     <div class="conf">
       <div class="vcaja">
-        ${vcElegidas().map(l => `<div class="det-l">
-            <div><b>${esc(l.nombre)}</b><span class="g">${VC.cant[l.art]} × ${fmt(vcPrecio(l))}</span></div>
-            <div class="num">${fmt(VC.cant[l.art] * vcPrecio(l))}</div></div>`).join('')}
+        ${vcTodo().map(x => `<div class="det-l">
+            <div><b>${esc(x.nombre)}</b><span class="g">${x.cant} × ${fmt(x.precio)}</span></div>
+            <div class="num">${fmt(x.cant * x.precio)}</div></div>`).join('')}
         ${VC.desc.abierto ? `
           <div class="desc-box">
             <div class="desc-in">
@@ -1032,7 +1151,7 @@ async function vcGuardar(){
     if(monto <= 0) return alert('Poné cuánto pagó.');
     if(monto > total) return alert('Los pagos suman ' + fmt(monto) + ' y el total es ' + fmt(total) + '.');
   }
-  const items = vcElegidas().map(l => ({ articulo: l.art, nombre: l.nombre, cantidad: VC.cant[l.art], precio: vcPrecio(l) }));
+  const items = vcTodo().map(x => ({ articulo: x.articulo, nombre: x.nombre, cantidad: x.cant, precio: x.precio, propio: x.propio }));
   const btn = document.getElementById('vcOk');
   if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
   try{
@@ -1077,10 +1196,14 @@ function resumenGira(g){
   const usdT = ventas.filter(v => v.moneda === 'USD').reduce((a, v) => a + v.costo, 0);
   const arsT = ventas.filter(v => v.moneda !== 'USD').reduce((a, v) => a + v.costo, 0);
   const mercaderia = arsT + usdT * tasa();
+  // De lo vendido, lo que era mercadería mía: no se le debe a nadie, así que
+  // entra entero en lo que queda.
+  const propio = Math.min(vendido, ventas.reduce((a, v) => a + (v.items || []).filter(i => i.propio)
+    .reduce((b, i) => b + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), 0));
   const gastos = (g.gastos || []).reduce((a, x) => a + Number(x.monto), 0);
   const gastosMedio = {};
   (g.gastos || []).forEach(x => { const m = x.medio || 'Sin decir'; gastosMedio[m] = (gastosMedio[m] || 0) + Number(x.monto); });
-  return { ventas, vendido, medios, cobrado, falta: Math.max(0, vendido - cobrado), usdT, arsT, mercaderia,
+  return { ventas, vendido, medios, cobrado, falta: Math.max(0, vendido - cobrado), usdT, arsT, mercaderia, propio,
     gastos, gastosMedio, queda: vendido - mercaderia - gastos,
     unidades: ventas.reduce((a, v) => a + unidadesDe(v), 0),
     sinTasa: usdT > 0 && !tasa() };
@@ -1135,7 +1258,8 @@ function pintarGiras(){
         <div class="caja">
           <div class="cabe"><h3>Cuánto te queda</h3><span class="g">${cot}</span></div>
           <table class="tabla num"><tbody>
-            <tr><td>Vendiste<span class="g">${R.ventas.length} ${R.ventas.length === 1 ? 'venta' : 'ventas'}, ya con los descuentos</span></td><td class="mas">${fmt(R.vendido)}</td></tr>
+            <tr><td>Vendiste<span class="g">${R.ventas.length} ${R.ventas.length === 1 ? 'venta' : 'ventas'}, ya con los descuentos${
+              R.propio ? ' · ' + fmt(R.propio) + ' de mercadería tuya, que queda entera para vos' : ''}</span></td><td class="mas">${fmt(R.vendido)}</td></tr>
             <tr><td>Mercadería<span class="g">Lo que le debés a los proveedores por lo vendido${
               R.usdT ? ': ' + usd(R.usdT) : ''}${R.arsT ? (R.usdT ? ' + ' : ': ') + fmt(R.arsT) : ''}</span></td>
               <td class="menos">${R.sinTasa ? 'sin cotización' : '−' + fmt(R.mercaderia)}</td></tr>

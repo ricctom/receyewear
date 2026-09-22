@@ -566,8 +566,11 @@ async function costTables() {
 // Devuelve un renglón por proveedor, cada uno en su moneda.
 function costoDe(items, t) {
   return costoLineasDe(
-    (items || []).map((it) => ({ linea: splitNombre(it.name).linea,
-                                 qty: Math.max(1, parseInt(it.qty, 10) || 1) })), t);
+    // Las líneas mías (ventas de consignación con mercadería propia) no son de
+    // ningún proveedor: no tienen costo que buscar ni hay que avisar que falta.
+    (items || []).filter((it) => !it.propio)
+      .map((it) => ({ linea: splitNombre(it.name).linea,
+                      qty: Math.max(1, parseInt(it.qty, 10) || 1) })), t);
 }
 
 function costoLineasDe(lineas, t) {
