@@ -79,6 +79,8 @@ header h1{font-size:13px;margin:0;letter-spacing:2px;text-transform:uppercase;fo
 .chead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
 .cname{font-size:18px;font-weight:600;letter-spacing:-.2px;margin:0}
 .cmeta{font-size:13.5px;color:var(--mt);margin:3px 0 0;line-height:1.55}
+.cmeta .debe{color:var(--no);font-weight:500}
+.dato .num.debe{color:var(--no)}
 .cplata{text-align:right;white-space:nowrap}
 .cplata .big{font-size:25px;font-weight:600;letter-spacing:-.5px;display:block}
 .cplata .chico{font-size:13px;color:var(--mt);display:block;margin-top:2px}

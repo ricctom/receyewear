@@ -2,7 +2,9 @@
 // El pedido avanza de a un paso: nuevo -> pedido (a Martín) -> recibido -> despachado.
 //   GET                                -> pedidos + costo + cotización
 //   POST { id, etapa }                 -> mueve el pedido de paso
-//   POST { id, recibir:{ lineas } }    -> confirma lo que llegó y genera la deuda con Martín
+//   POST { id, recibir:{ lineas, items } } -> confirma lo que llegó: genera la deuda con
+//          el proveedor y le descuenta al cliente lo que no vino (items = [{ i, qty }],
+//          una por item del pedido; si no viene, se saca del final de cada línea)
 //   POST { id, pago:{...} }            -> registra un cobro
 //   POST { id, resetPagos|borrar|nota|items }
 //   POST { usd:{...} } / { costmap:{...} }
@@ -29,7 +31,48 @@ function porLinea(items) {
   return [...m.values()];
 }
 
+// Qué items del pedido quedan en pie después de confirmar lo que llegó.
+// Dos formas de decirlo, de la más precisa a la más cómoda:
+//   items: [{ i, qty }]  -> cuánto llegó de cada item del pedido (i = su lugar
+//                           en la lista). Es la que usa la pantalla cuando hay
+//                           que elegir qué modelo fue el que vino de menos.
+//   lineas: [{ linea, qty }] -> cuánto llegó de cada línea. Las unidades que
+//                           faltan se sacan de los últimos items de esa línea.
+// Sin ninguna de las dos, llegó todo tal cual y el pedido no se toca.
+function quedaronEnPie(pedidos, recibir) {
+  const porItem = Array.isArray(recibir.items) ? recibir.items : null;
+  if (porItem) {
+    return pedidos
+      .map((it, i) => {
+        const d = porItem.find((x) => Number(x.i) === i);
+        const q = d ? Math.max(0, parseInt(d.qty, 10) || 0) : it.qty;
+        return { ...it, qty: Math.min(q, it.qty) };
+      })
+      .filter((it) => it.qty > 0);
+  }
 
+  const porLineaDada = Array.isArray(recibir.lineas) && recibir.lineas.length ? recibir.lineas : null;
+  if (!porLineaDada) return pedidos;
+
+  const faltan = new Map();
+  porLinea(pedidos).forEach((p) => {
+    const dado = porLineaDada.find((x) => String(x.linea) === p.linea);
+    const q = dado ? Math.max(0, parseInt(dado.qty, 10) || 0) : p.qty;
+    if (q < p.qty) faltan.set(p.linea, p.qty - q);
+  });
+  if (!faltan.size) return pedidos;
+
+  const copia = pedidos.map((it) => ({ ...it }));
+  for (let i = copia.length - 1; i >= 0; i -= 1) {
+    const { linea } = splitNombre(copia[i].name);
+    const resta = faltan.get(linea) || 0;
+    if (!resta) continue;
+    const saca = Math.min(resta, copia[i].qty);
+    copia[i].qty -= saca;
+    faltan.set(linea, resta - saca);
+  }
+  return copia.filter((it) => it.qty > 0);
+}
 
 module.exports = async (req, res) => {
   const s = getSession(req);
@@ -41,7 +84,7 @@ module.exports = async (req, res) => {
       const [rows, usd, tablas] = await Promise.all([
         sql`SELECT o.id, o.items, o.recibido, o.total, COALESCE(o.descuento, 0) AS descuento,
                    o.etapa, o.created_at, o.ship, o.faltante,
-                   o.supplier_move_id,
+                   o.supplier_move_id, o.pedido_original,
                    -- Venta de consignación: su deuda con el proveedor va en consignacion.html.
                    EXISTS (SELECT 1 FROM consign_sales cs WHERE cs.order_id = o.id) AS consignacion,
                    o.usd_rate, o.nota, u.email, u.name,
@@ -220,7 +263,8 @@ module.exports = async (req, res) => {
 
     /* ----- Confirmar lo que llegó: acá se genera la deuda con Martín ----- */
     if (b.recibir) {
-      const [ped] = await sql`SELECT id, items, etapa, supplier_move_id, ship FROM orders WHERE id = ${id}`;
+      const [ped] = await sql`SELECT id, items, total, COALESCE(descuento, 0) AS descuento,
+                 etapa, supplier_move_id, ship, pedido_original FROM orders WHERE id = ${id}`;
       if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
       if (ped.supplier_move_id) return res.status(400).json({ error: 'Este pedido ya se cargó en la cuenta de Martín' });
       const [consig] = await sql`SELECT id FROM consign_sales WHERE order_id = ${id} LIMIT 1`;
@@ -228,17 +272,28 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Este pedido es una venta de consignación: lo que se le debe va en Consignación, no en la cuenta corriente.' });
       }
 
-      // Si no mandó las líneas, es "llegó tal cual": se usa lo que pidió el cliente.
-      const pedidas = porLinea(ped.items);
-      const lineas = Array.isArray(b.recibir.lineas) && b.recibir.lineas.length
-        ? pedidas.map((p) => {
-            const dado = b.recibir.lineas.find((x) => String(x.linea) === p.linea);
-            return { linea: p.linea, qty: dado ? Math.max(0, parseInt(dado.qty, 10) || 0) : p.qty };
-          })
-        : pedidas;
+      // Lo que llegó, item por item. Si no mandó nada, es "llegó tal cual".
+      const pedidos = (Array.isArray(ped.items) ? ped.items : [])
+        .map((it) => ({ ...it, qty: Math.max(1, parseInt(it.qty, 10) || 1) }));
+      const items = quedaronEnPie(pedidos, b.recibir);
+      const lineas = porLinea(items);
+      if (!lineas.length) {
+        return res.status(400).json({ error: 'No llegó nada de este pedido. Cancelalo o dejalo esperando.' });
+      }
 
       const tablas = await costTables();
       const { detalle, sinCosto } = costoLineasDe(lineas, tablas);
+
+      // Lo que no llegó tampoco se le cobra al cliente: el pedido queda con lo
+      // que se le manda de verdad. El cupón que tenía se le respeta igual.
+      const unidades = (l) => l.reduce((a, x) => a + (parseInt(x.qty, 10) || 0), 0);
+      const faltaron = unidades(pedidos) - unidades(items);
+      const subtotal = items.reduce((a, it) => a + (Number(it.price) || 0) * it.qty, 0);
+      const totalNuevo = Math.max(0, Math.round(subtotal - Number(ped.descuento || 0)));
+      const antes = Number(ped.total) || 0;
+      // Cómo estaba antes del primer descuento, para poder volver atrás.
+      const original = ped.pedido_original
+        || (faltaron > 0 ? { items: ped.items, total: antes } : null);
 
       // Un movimiento por proveedor: lo de Martín va a su cuenta en dólares,
       // lo de Fernando y Juan a la de ellos en pesos.
@@ -263,18 +318,32 @@ module.exports = async (req, res) => {
       await sql`UPDATE orders SET etapa = ${nuevaEtapa}, status = ${STATUS[nuevaEtapa]},
           recibido = ${JSON.stringify(lineas)}::jsonb, supplier_move_id = ${moveId}
         WHERE id = ${id}`;
-      return res.status(200).json({ ok: true, cargado, sin_costo: sinCosto });
+      // Si llegó todo, el pedido del cliente no se toca.
+      if (faltaron > 0) {
+        await sql`UPDATE orders SET items = ${JSON.stringify(items)}::jsonb, total = ${totalNuevo},
+            pedido_original = ${JSON.stringify(original)}::jsonb WHERE id = ${id}`;
+      }
+      return res.status(200).json({ ok: true, cargado, sin_costo: sinCosto, faltaron,
+        total: faltaron > 0 ? totalNuevo : antes, antes,
+        menos: faltaron > 0 ? Math.max(0, antes - totalNuevo) : 0 });
     }
 
     /* ----- Mover de paso ----- */
     if (b.etapa) {
       if (!ETAPAS.includes(b.etapa)) return res.status(400).json({ error: 'Paso inválido' });
-      const [ped] = await sql`SELECT etapa, supplier_move_id FROM orders WHERE id = ${id}`;
+      const [ped] = await sql`SELECT etapa, supplier_move_id, pedido_original FROM orders WHERE id = ${id}`;
       if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
-      // Volver atrás de "recibido" deshace la deuda que se le había cargado a Martín.
+      // Volver atrás de "recibido" deshace la deuda que se le había cargado a Martín
+      // y le devuelve al pedido lo que se le había descontado por lo que no llegó.
       if (ped.supplier_move_id && (b.etapa === 'nuevo' || b.etapa === 'pedido')) {
         await sql`DELETE FROM supplier_moves WHERE order_id = ${id}`;
-        await sql`UPDATE orders SET supplier_move_id = NULL, recibido = NULL WHERE id = ${id}`;
+        const orig = ped.pedido_original;
+        if (orig && Array.isArray(orig.items)) {
+          await sql`UPDATE orders SET items = ${JSON.stringify(orig.items)}::jsonb,
+              total = ${Number(orig.total) || 0} WHERE id = ${id}`;
+        }
+        await sql`UPDATE orders SET supplier_move_id = NULL, recibido = NULL,
+            pedido_original = NULL WHERE id = ${id}`;
       }
       await sql`UPDATE orders SET etapa = ${b.etapa}, status = ${STATUS[b.etapa]} WHERE id = ${id}`;
       return res.status(200).json({ ok: true });
@@ -362,7 +431,9 @@ module.exports = async (req, res) => {
         price: Number(it.price) || 0,
       }));
       if (clean.some((it) => !it.name)) return res.status(400).json({ error: 'Hay un item sin nombre' });
-      const total = clean.reduce((a, it) => a + it.price * it.qty, 0);
+      const [antes] = await sql`SELECT COALESCE(descuento, 0) AS descuento FROM orders WHERE id = ${id}`;
+      const subtotal = clean.reduce((a, it) => a + it.price * it.qty, 0);
+      const total = Math.max(0, Math.round(subtotal - Number((antes && antes.descuento) || 0)));
       await sql`UPDATE orders SET items = ${JSON.stringify(clean)}::jsonb, total = ${total} WHERE id = ${id}`;
       return res.status(200).json({ ok: true, total });
     }

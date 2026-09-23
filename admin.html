@@ -127,8 +127,18 @@ async function cargar(){
 /* ---------- cuentas ---------- */
 const cobrado = o => Number(o.cobrado) || 0;
 const debe    = o => Math.max(0, o.total - cobrado(o));
+// Si el pedido bajó después de cobrarlo, esa plata le quedó a favor al cliente.
+const aFavor  = o => Math.max(0, cobrado(o) - o.total);
 // El total del pedido ya viene con el cupón restado; esto es lo que se descontó.
 const cupon   = o => Number(o.descuento) || 0;
+// Lo que no llegó y por eso no se le cobra. `pedido_original` es cómo estaba el
+// pedido antes de descontarlo; si no está, es que llegó todo.
+const unidadesDe = its => (its||[]).reduce((a,it) => a + (parseInt(it.qty,10)||1), 0);
+function faltaron(o){
+  const orig = o.pedido_original;
+  if(!orig || !Array.isArray(orig.items)) return 0;
+  return Math.max(0, unidadesDe(orig.items) - unidadesDe(o.items));
+}
 const cuponTxt = o => cupon(o) ? ' · cupón −' + fmt(cupon(o)) : '';
 // Los pedidos de consignación no se cargan a la cuenta corriente de Martín:
 // su deuda se lleva en consignacion.html. Para el panel cuentan como resueltos.
@@ -207,13 +217,14 @@ function verVista(v){ vista = v; pintar(); }
 // Agrupa por línea; los modelos quedan adentro para cuando quieras mirarlos.
 function porLinea(items){
   const m = new Map();
-  (items||[]).forEach(it => {
+  (items||[]).forEach((it, i) => {
     const { linea, modelo } = splitNombre(it.name);
     if(!m.has(linea)) m.set(linea, { linea, qty:0, total:0, modelos:[] });
     const g = m.get(linea);
     const q = Math.max(1, parseInt(it.qty,10)||1);
     g.qty += q; g.total += q * (Number(it.price)||0);
-    g.modelos.push({ modelo: it.sku || modelo, color: it.color || '', qty:q, price: Number(it.price)||0 });
+    // idx = en qué lugar de la lista está este item, para poder tocarlo después.
+    g.modelos.push({ idx:i, modelo: it.sku || modelo, color: it.color || '', qty:q, price: Number(it.price)||0 });
   });
   return [...m.values()].sort((a,b) => b.total - a.total);
 }
@@ -249,14 +260,16 @@ function tarjeta(o){
   // La plata de la derecha: mientras no despachaste, el total. Después, lo que te deben.
   const plata = (p === 'despachado' || p === 'saldado')
     ? `<span class="big ${debe(o)>0?'debe':''}">${debe(o) > 0 ? fmt(debe(o)) : fmt(o.total)}</span>
-       <span class="chico">${debe(o) > 0 ? 'te debe · de ' + fmt(o.total) : 'cobrado'}${cuponTxt(o)}</span>`
+       <span class="chico">${debe(o) > 0 ? 'te debe · de ' + fmt(o.total)
+         : aFavor(o) ? 'cobrado · le quedan ' + fmt(aFavor(o)) + ' a favor' : 'cobrado'}${cuponTxt(o)}</span>`
     : `<span class="big">${fmt(o.total)}</span><span class="chico">${uTxt}${cuponTxt(o)}</span>`;
 
   return `<div class="card ${p==='cancelado'||p==='saldado'?'mudo':''}" id="c${o.id}">
     <div class="chead">
       <div>
         <p class="cname">${esc(nombre)}</p>
-        <p class="cmeta">#${o.id} · ${cuando}${p!=='despachado'&&p!=='saldado' ? '' : ' · ' + uTxt}</p>
+        <p class="cmeta">#${o.id} · ${cuando}${p!=='despachado'&&p!=='saldado' ? '' : ' · ' + uTxt}${
+          faltaron(o) ? ' · <span class="debe">vino de menos ' + faltaron(o) + ' u.</span>' : ''}</p>
       </div>
       <div class="cplata">${plata}</div>
     </div>
@@ -350,6 +363,7 @@ function detalle(o){
     <div class="dato"><span>Te queda</span><span class="num"><b>${costo(o) ? fmt(ganancia(o)) + ' · ' + Math.round(ganancia(o)/o.total*100) + '%' : '—'}</b></span></div>
     ${cobrado(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobrado(o))}</span></div>` : ''}
     ${debe(o) && (p==='despachado'||p==='saldado') ? `<div class="dato"><span>Te debe</span><span class="num debe"><b>${fmt(debe(o))}</b></span></div>` : ''}
+    ${aFavor(o) ? `<div class="dato"><span>Le quedó a favor</span><span class="num debe"><b>${fmt(aFavor(o))}</b></span></div>` : ''}
     </div>`;
 
   const pagos = (o.pagos||[]).length ? `<div class="det"><h4>Cobros</h4>
@@ -366,7 +380,21 @@ function detalle(o){
     + faltanteDetalleHtml(o.ship)
     + (o.nota ? `<div class="aviso info">${esc(o.nota)}</div>` : '');
 
-  return pedido + guita + pagos + envio + extra;
+  return pedido + vinoDeMenos(o) + guita + pagos + envio + extra;
+}
+
+// Qué no llegó y qué dejó de cobrar por eso. Se muestra debajo del pedido.
+function vinoDeMenos(o){
+  const orig = o.pedido_original;
+  if(!faltaron(o)) return '';
+  const antes = porLinea(orig.items), ahora = porLinea(o.items);
+  const dif = antes.map(a => {
+    const b = ahora.find(x => x.linea === a.linea);
+    return { linea: a.linea, falta: a.qty - (b ? b.qty : 0) };
+  }).filter(x => x.falta > 0);
+  return `<div class="aviso">Vino de menos: ${dif.map(d => esc(d.linea) + ' −' + d.falta + ' u.').join(' · ')}
+    Eso no se le cobra: el pedido pasó de <b>${fmt(orig.total)}</b> a <b>${fmt(o.total)}</b>.
+    ${cobrado(o) > o.total ? 'Ya te pagó ' + fmt(cobrado(o)) + ': le quedaron <b>' + fmt(cobrado(o) - o.total) + '</b> a favor.' : ''}</div>`;
 }
 
 /* ---------- acciones ---------- */
@@ -420,55 +448,162 @@ function cargarPendientesMartin(){
   modalRecibir(pend[0].id, pend.length);
 }
 
+/* Confirmar lo que llegó. Lo que vino de menos se descuenta de los dos lados:
+   baja lo que le debés al proveedor y baja lo que te debe el cliente.
+   REC guarda lo que se va cargando, así se puede ir y volver entre los pasos. */
+let REC = null;
+
 function modalRecibir(id, quedan){
   const o = ORDERS.find(x => x.id === id);
   const lineas = porLinea(o.items);
+  if(!REC || REC.id !== id) REC = { id, quedan, lineas, cant: lineas.map(l => l.qty), amb: [] };
+  REC.lineas = lineas; REC.quedan = quedan;
   const yaDespachado = paso(o) === 'despachado' || paso(o) === 'saldado';
   const varios = provsDe(o).length > 1, quien = esc(quienes(o));
   abrirModal(`
     <h3>${yaDespachado ? 'Cargar el pedido #' + id + ' a la cuenta de ' + quien : '¿Qué te trajo ' + quien + '?'}</h3>
     <p class="sub">${yaDespachado
       ? 'Este ya lo retiraste y lo despachaste, pero nunca se le cargó. Confirmá las cantidades y va a su deuda.'
-      : 'Dejá las que vinieron bien y corregí las que no. Solo cantidades por línea; los modelos no importan.'}
+      : 'Dejá las que vinieron bien y corregí las que no. Lo que no llegó no se lo cobrás al cliente ni se lo pagás a ' + quien + '.'}
       ${quedan > 1 ? `<br><b>Quedan ${quedan} por cargar.</b>` : ''}</p>
     ${lineas.map((l,i) => `<div class="qrow" id="q${i}">
       <div><span class="qn">${esc(l.linea)}</span><span class="qg">pediste ${l.qty}${varios ? ' · ' + esc(o.prov_linea[l.linea] || 'Martín') : ''}</span></div>
-      <input type="number" min="0" id="qi${i}" value="${l.qty}" data-pedido="${l.qty}" oninput="marcarDif(${i})">
+      <input type="number" min="0" id="qi${i}" value="${REC.cant[i]}" data-pedido="${l.qty}" oninput="marcarDif(${i})">
     </div>`).join('')}
-    <div class="qtot"><span>Total</span><span><span id="qTot">${lineas.reduce((a,l)=>a+l.qty,0)}</span> <span class="g">anteojos</span></span></div>
+    <div class="qtot"><span>Total</span><span><span id="qTot">0</span> <span class="g">anteojos</span></span></div>
+    <div class="aviso" id="qMenos" style="display:none"></div>
     <div class="mfoot">
       <button class="b q" onclick="cerrarModal()">Cancelar</button>
-      <button class="b p" style="flex:none" onclick="guardarRecibido(${id})">Sumar a la deuda de ${quien}</button>
+      <button class="b p" style="flex:none" onclick="guardarRecibido()">Sumar a la deuda de ${quien}</button>
     </div>`);
-  window._lineasRecibir = lineas;
+  lineas.forEach((l,i) => marcarDif(i));
 }
+
+// Si todos los modelos de la línea salen lo mismo, la cuenta es exacta.
+function precioUnif(l){
+  const p = l.modelos[0] ? l.modelos[0].price : 0;
+  return l.modelos.every(m => m.price === p) ? p : null;
+}
+
 function marcarDif(i){
   const inp = document.getElementById('qi'+i);
-  document.getElementById('q'+i).classList.toggle('dif', Number(inp.value) !== Number(inp.dataset.pedido));
-  let t = 0;
-  (window._lineasRecibir||[]).forEach((l,k) => { t += Number(document.getElementById('qi'+k).value) || 0; });
-  document.getElementById('qTot').textContent = t;
+  REC.cant[i] = Math.max(0, parseInt(inp.value, 10) || 0);
+  document.getElementById('q'+i).classList.toggle('dif', REC.cant[i] !== Number(inp.dataset.pedido));
+  const o = ORDERS.find(x => x.id === REC.id);
+  let total = 0, faltan = 0, menos = 0, aprox = false;
+  REC.lineas.forEach((l,k) => {
+    total += REC.cant[k];
+    if(REC.cant[k] >= l.qty) return;
+    const f = l.qty - REC.cant[k], p = precioUnif(l);
+    faltan += f;
+    menos += f * (p === null ? l.total / l.qty : p);
+    if(p === null) aprox = true;
+  });
+  menos = Math.round(menos);
+  document.getElementById('qTot').textContent = total;
+  const box = document.getElementById('qMenos');
+  box.style.display = faltan ? '' : 'none';
+  if(faltan) box.innerHTML = `Faltan <b>${faltan} u.</b> No se las cobrás: el pedido le baja `
+    + `${aprox ? '≈ ' : ''}<b>${fmt(menos)}</b>, de ${fmt(o.total)} a ${aprox ? '≈ ' : ''}`
+    + `<b>${fmt(Math.max(0, o.total - menos))}</b>.`;
 }
-async function guardarRecibido(id){
-  const lineas = (window._lineasRecibir||[]).map((l,i) =>
-    ({ linea: l.linea, qty: Math.max(0, parseInt(document.getElementById('qi'+i).value,10) || 0) }));
+
+// Paso 1 -> si una línea que vino de menos tiene más de un modelo, hay que saber
+// cuál faltó: el remito del cliente y lo que se le cobra dependen de eso.
+function guardarRecibido(){
+  REC.amb = REC.lineas.map((l,k) => ({ k, l, recib: REC.cant[k] }))
+    .filter(a => a.recib < a.l.qty && a.l.modelos.length > 1)
+    .map(a => ({ k:a.k, l:a.l, recib:a.recib, elegido: sugerirModelos(a.l, a.recib) }));
+  if(REC.amb.length) return modalCuales();
+  mandarRecibido();
+}
+
+// Repartija por defecto: las que faltan se sacan de los últimos modelos.
+function sugerirModelos(l, recib){
+  const q = l.modelos.map(m => m.qty);
+  let saca = l.qty - recib;
+  for(let z = q.length - 1; z >= 0 && saca > 0; z--){
+    const t = Math.min(saca, q[z]); q[z] -= t; saca -= t;
+  }
+  return q;
+}
+
+function modalCuales(){
+  const o = ORDERS.find(x => x.id === REC.id);
+  const quien = esc(quienes(o));
+  abrirModal(`
+    <h3>¿Cuáles faltaron?</h3>
+    <p class="sub">Estas líneas vinieron de menos y tienen más de un modelo. Decime cuál faltó,
+      así el remito y lo que le cobrás al cliente salen bien.</p>
+    ${REC.amb.map((a,j) => `<div class="det"><h4>${esc(a.l.linea)} · llegaron ${a.recib} de ${a.l.qty}</h4>
+      ${a.l.modelos.map((m,z) => `<div class="qrow" id="c${j}_${z}">
+        <div><span class="qn">${esc(m.modelo || '—')}${m.color ? ' · ' + esc(m.color) : ''}</span>
+          <span class="qg">pediste ${m.qty} · ${fmt(m.price)} c/u</span></div>
+        <input type="number" min="0" max="${m.qty}" id="ci${j}_${z}" value="${a.elegido[z]}"
+               data-pedido="${m.qty}" oninput="marcarCual(${j},${z})">
+      </div>`).join('')}
+      <div class="qtot"><span>Cargaste</span><span><span id="cTot${j}">${a.recib}</span> de ${a.recib}</span></div>
+    </div>`).join('')}
+    <div class="aviso" id="cMal" style="display:none"></div>
+    <div class="mfoot">
+      <button class="b q" onclick="modalRecibir(REC.id, REC.quedan)">← Volver</button>
+      <button class="b p" style="flex:none" id="cOk" onclick="mandarRecibido()">Sumar a la deuda de ${quien}</button>
+    </div>`);
+  REC.amb.forEach((a,j) => a.l.modelos.forEach((m,z) => marcarCual(j,z)));
+}
+
+function marcarCual(j, z){
+  const a = REC.amb[j];
+  const inp = document.getElementById('ci'+j+'_'+z);
+  a.elegido[z] = Math.min(Math.max(0, parseInt(inp.value, 10) || 0), a.l.modelos[z].qty);
+  document.getElementById('c'+j+'_'+z).classList.toggle('dif', a.elegido[z] !== a.l.modelos[z].qty);
+  let mal = '';
+  REC.amb.forEach((x,k) => {
+    const suma = x.elegido.reduce((t,n) => t + n, 0);
+    const box = document.getElementById('cTot'+k);
+    if(box) box.textContent = suma;
+    if(suma !== x.recib) mal = `En ${x.l.linea} cargaste ${suma} y llegaron ${x.recib}.`;
+  });
+  const aviso = document.getElementById('cMal'), ok = document.getElementById('cOk');
+  aviso.style.display = mal ? '' : 'none';
+  aviso.textContent = mal;
+  ok.disabled = !!mal;
+}
+
+async function mandarRecibido(){
+  const o = ORDERS.find(x => x.id === REC.id);
+  // Cuánto llegó de cada item del pedido del cliente.
+  const items = (o.items || []).map((it,i) => ({ i, qty: Math.max(1, parseInt(it.qty,10) || 1) }));
+  REC.lineas.forEach((l,k) => {
+    if(REC.cant[k] >= l.qty) return;
+    const a = (REC.amb || []).find(x => x.k === k);
+    if(a) a.l.modelos.forEach((m,z) => { items[m.idx].qty = a.elegido[z]; });
+    else l.modelos.forEach(m => { items[m.idx].qty = REC.cant[k]; });
+  });
+  const lineas = REC.lineas.map((l,k) => ({ linea: l.linea, qty: REC.cant[k] }));
+  const id = REC.id;
   try{
-    const r = await post({ id, recibir:{ lineas } });
+    const r = await post({ id, recibir:{ items, lineas } });
+    REC = null;
     cerrarModal(); await cargar();
     showToast(textoCargado(r));
     // Si venía de la carga en tanda, sigue con el que falte.
-    const pend = ORDERS.filter(o => !cargadoMartin(o) && ['recibido','despachado','saldado'].includes(paso(o)));
+    const pend = ORDERS.filter(x => !cargadoMartin(x) && ['recibido','despachado','saldado'].includes(paso(x)));
     if(window._enTanda && pend.length) return modalRecibir(pend[0].id, pend.length);
     window._enTanda = false;
   }catch(e){ alert(e.message); }
 }
 
-// "Sumado a Martín US$ 148 y a Fernando $39.800"
+// "Sumado a Martín US$ 148 y a Fernando $39.800 · al cliente le sacaste $24.000"
 function textoCargado(r){
   const c = (r && r.cargado) || [];
-  if(!c.length) return 'Recibido';
-  return 'Sumado a ' + c.map(d =>
-    d.nombre + ' ' + (d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) : fmt(d.monto))).join(' y a ');
+  const base = c.length
+    ? 'Sumado a ' + c.map(d =>
+        d.nombre + ' ' + (d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) : fmt(d.monto))).join(' y a ')
+    : 'Recibido';
+  return r && r.faltaron > 0
+    ? base + ' · no llegaron ' + r.faltaron + ' u., al cliente le sacaste ' + fmt(r.menos)
+    : base;
 }
 
 async function cobrarTodo(id){

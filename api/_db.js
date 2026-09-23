@@ -45,6 +45,9 @@ function ensureTables() {
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS etapa TEXT`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS recibido JSONB`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS supplier_move_id INTEGER`;
+    // Cómo era el pedido antes de descontarle lo que no llegó: { items, total }.
+    // Con esto, volver un paso atrás lo deja como el cliente lo había pedido.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS pedido_original JSONB`;
     await sql`UPDATE orders SET etapa = CASE status
         WHEN 'preparando' THEN 'pedido'
         WHEN 'enviado' THEN 'despachado'
