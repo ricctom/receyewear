@@ -6,10 +6,12 @@
 //          el proveedor y le descuenta al cliente lo que no vino (items = [{ i, qty }],
 //          una por item del pedido; si no viene, se saca del final de cada línea)
 //   POST { id, pago:{...} }            -> registra un cobro
+//   POST { id, pagoEdit:{ id, medio?, en_blanco? } } / { id, pagoBorrar: pagoId }
 //   POST { id, resetPagos|borrar|nota|items }
+// La facturación en ARCA está en /api/facturas.
 //   POST { usd:{...} } / { costmap:{...} }
 const { sql, ensureTables, splitNombre, norm, setSetting, usdRate,
-        costTables, costoDe, costoLineasDe } = require('./_db');
+        costTables, costoDe, costoLineasDe, enBlancoPorMedio } = require('./_db');
 const { getSession } = require('./_auth');
 
 const ETAPAS = ['nuevo', 'pedido', 'recibido', 'despachado', 'cancelado'];
@@ -89,8 +91,11 @@ module.exports = async (req, res) => {
                    EXISTS (SELECT 1 FROM consign_sales cs WHERE cs.order_id = o.id) AS consignacion,
                    o.usd_rate, o.nota, u.email, u.name,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = o.id), 0) AS cobrado,
-                   COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota) ORDER BY p.id)
-                             FROM order_payments p WHERE p.order_id = o.id), '[]'::json) AS pagos
+                   COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota,
+                                                         'en_blanco',p.en_blanco,'usd',p.usd,'cotiz',p.cotiz,'factura_id',p.factura_id) ORDER BY p.id)
+                             FROM order_payments p WHERE p.order_id = o.id), '[]'::json) AS pagos,
+                   COALESCE((SELECT json_agg(f ORDER BY f.id) FROM facturas f WHERE f.order_id = o.id), '[]'::json) AS facturas,
+                   u.cond_iva
             FROM orders o JOIN users u ON u.id = o.user_id
             ORDER BY o.id DESC LIMIT 500`,
         usdRate(),
@@ -351,6 +356,8 @@ module.exports = async (req, res) => {
 
     /* ----- Borrar ----- */
     if (b.borrar) {
+      const [f] = await sql`SELECT count(*)::int AS n FROM facturas WHERE order_id = ${id} AND estado <> 'rechazada'`;
+      if (f.n) return res.status(400).json({ error: 'El pedido tiene facturas: cancelalo en vez de borrarlo' });
       await sql`DELETE FROM supplier_moves WHERE order_id = ${id}`;
       await sql`DELETE FROM order_payments WHERE order_id = ${id}`;
       await sql`DELETE FROM orders WHERE id = ${id}`;
@@ -359,24 +366,56 @@ module.exports = async (req, res) => {
 
     /* ----- Cobros ----- */
     if (b.resetPagos) {
+      const [f] = await sql`SELECT count(*)::int AS n FROM order_payments WHERE order_id = ${id} AND factura_id IS NOT NULL`;
+      if (f.n) return res.status(400).json({ error: 'Hay cobros ya facturados: borrá los otros de a uno' });
       await sql`DELETE FROM order_payments WHERE order_id = ${id}`;
       return res.status(200).json({ ok: true, cobrado: 0 });
+    }
+    // Cambiar cómo se pagó un cobro (medio, si va en blanco). Uno ya facturado
+    // no se toca: para eso está la nota de crédito.
+    if (b.pagoEdit) {
+      const pid = parseInt(b.pagoEdit.id, 10);
+      const [pg] = await sql`SELECT id, factura_id FROM order_payments WHERE id = ${pid} AND order_id = ${id}`;
+      if (!pg) return res.status(404).json({ error: 'No existe ese cobro' });
+      if (pg.factura_id) return res.status(400).json({ error: 'Ese cobro ya está facturado' });
+      const medio = b.pagoEdit.medio !== undefined ? (String(b.pagoEdit.medio || '').slice(0, 40) || null) : undefined;
+      if (medio !== undefined) await sql`UPDATE order_payments SET medio = ${medio} WHERE id = ${pid}`;
+      if (b.pagoEdit.en_blanco !== undefined) {
+        await sql`UPDATE order_payments SET en_blanco = ${!!b.pagoEdit.en_blanco} WHERE id = ${pid}`;
+      }
+      return res.status(200).json({ ok: true });
+    }
+    if (b.pagoBorrar) {
+      const pid = parseInt(b.pagoBorrar, 10);
+      const [pg] = await sql`SELECT factura_id FROM order_payments WHERE id = ${pid} AND order_id = ${id}`;
+      if (!pg) return res.status(404).json({ error: 'No existe ese cobro' });
+      if (pg.factura_id) return res.status(400).json({ error: 'Ese cobro ya está facturado: primero anulá la factura' });
+      await sql`DELETE FROM order_payments WHERE id = ${pid}`;
+      return res.status(200).json({ ok: true });
     }
     if (b.pago) {
       const [row] = await sql`SELECT total,
           COALESCE((SELECT sum(monto)::int FROM order_payments WHERE order_id = ${id}), 0) AS cobrado
         FROM orders WHERE id = ${id}`;
       if (!row) return res.status(404).json({ error: 'No existe el pedido' });
-      const monto = b.pago.resto ? (row.total - row.cobrado) : Math.round(Number(b.pago.monto) || 0);
+      // En dólares: se cargan los US$ y la cotización; al pedido le descuenta en pesos.
+      const usd = Number(b.pago.usd) > 0 ? Number(b.pago.usd) : null;
+      const cotiz = usd && Number(b.pago.cotiz) > 0 ? Number(b.pago.cotiz) : null;
+      if (usd && !cotiz) return res.status(400).json({ error: 'Falta la cotización del dólar' });
+      const monto = usd ? Math.round(usd * cotiz)
+        : b.pago.resto ? (row.total - row.cobrado) : Math.round(Number(b.pago.monto) || 0);
       if (!monto) return res.status(400).json({ error: 'El monto tiene que ser distinto de cero' });
-      if (monto > 0 && row.cobrado + monto > row.total) {
+      // Con dólares el redondeo de la cotización puede pasarse por unos pesos: se deja.
+      if (monto > 0 && !usd && row.cobrado + monto > row.total) {
         return res.status(400).json({ error: 'Te pasás: faltan ' + (row.total - row.cobrado) });
       }
       const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(b.pago.fecha || '')) ? b.pago.fecha : null;
-      await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota)
-        VALUES (${id}, COALESCE(${fecha}::date, CURRENT_DATE), ${monto},
-                ${b.pago.medio ? String(b.pago.medio).slice(0, 40) : null},
-                ${b.pago.nota ? String(b.pago.nota).slice(0, 200) : null})`;
+      const medio = b.pago.medio ? String(b.pago.medio).slice(0, 40) : (usd ? 'Dólares' : null);
+      // Si no se dice, en blanco = lo que entra al banco. El efectivo y los dólares no.
+      const enBlanco = b.pago.en_blanco !== undefined ? !!b.pago.en_blanco : enBlancoPorMedio(medio);
+      await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota, en_blanco, usd, cotiz)
+        VALUES (${id}, COALESCE(${fecha}::date, CURRENT_DATE), ${monto}, ${medio},
+                ${b.pago.nota ? String(b.pago.nota).slice(0, 200) : null}, ${enBlanco}, ${usd}, ${cotiz})`;
       return res.status(200).json({ ok: true, cobrado: row.cobrado + monto, total: row.total });
     }
 

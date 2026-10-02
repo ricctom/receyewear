@@ -8,6 +8,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="panel.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+/* Cómo se cobró: en blanco (va a factura), en negro, en dólares. */
+.tg{display:inline-block;font-size:11.5px;font-weight:600;border-radius:7px;padding:2px 8px;margin-left:6px;
+  border:none;font-family:inherit;cursor:default;vertical-align:1px}
+button.tg{cursor:pointer}
+.tg.bl{background:var(--azbg);color:var(--az)} .tg.ng{background:#eeece6;color:var(--md)}
+.tg.fc{background:var(--okbg);color:var(--ok)} .tg.pe{background:var(--nobg);color:var(--no)}
+.pgx{border:none;background:none;color:var(--mt);cursor:pointer;font-size:15px;padding:0 4px}
+.chk{display:flex!important;align-items:center;gap:9px;font-size:14px!important;color:var(--tx)!important;cursor:pointer}
+.chk input{width:auto!important;margin:0}
+.ftab{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
+.ftab th,.ftab td{padding:7px 6px;border-bottom:1px solid var(--ln);text-align:right;white-space:nowrap}
+.ftab th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--mt);font-weight:600}
+.ftab th:first-child,.ftab td:first-child{text-align:left}
+</style>
 </head>
 <body>
 <header>
@@ -39,6 +55,7 @@
       <div class="sub" id="subtitulo"></div>
     </div>
     <div class="der">
+      <button class="b sm q" onclick="abrirFacturacion()">Facturación</button>
       <button class="b sm q" id="usdBtn" onclick="editarDolar()"></button>
       <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
     </div>
@@ -102,6 +119,7 @@ const VISTAS = [
   ['pedido',     'En proveedor'],
   ['recibido',   'Para despachar'],
   ['cobrar',     'Por cobrar'],
+  ['facturar',   'Para facturar'],
   ['saldado',    'Saldados'],
 ];
 
@@ -126,6 +144,12 @@ async function cargar(){
 
 /* ---------- cuentas ---------- */
 const cobrado = o => Number(o.cobrado) || 0;
+// En blanco = va a factura. Lo cobrado en blanco que todavía no tiene factura es lo que hay que facturar.
+const medioEnBlanco = m => /^(transferencia|mercado ?pago|cheque|echeq)/i.test(m || '');
+const enBlanco = pg => pg.en_blanco == null ? medioEnBlanco(pg.medio) : !!pg.en_blanco;
+const sinFacturar = o => (o.pagos||[]).filter(pg => enBlanco(pg) && !pg.factura_id);
+const paraFacturar = o => sinFacturar(o).reduce((a,pg) => a + Number(pg.monto), 0);
+const facturaDe = (o, fid) => (o.facturas||[]).find(f => f.id === fid);
 const debe    = o => Math.max(0, o.total - cobrado(o));
 // Si el pedido bajó después de cobrarlo, esa plata le quedó a favor al cliente.
 const aFavor  = o => Math.max(0, cobrado(o) - o.total);
@@ -160,6 +184,7 @@ function enVista(o, v){
   if(v === 'pendientes') return p !== 'saldado' && p !== 'cancelado';
   if(v === 'cobrar') return p !== 'cancelado' && debe(o) > 0 && (p === 'despachado' || p === 'saldado');
   if(v === 'saldado') return p === 'saldado' || p === 'cancelado';
+  if(v === 'facturar') return paraFacturar(o) > 0 || (o.facturas||[]).some(f => f.estado === 'pendiente');
   return p === v;
 }
 
@@ -170,6 +195,7 @@ function pintar(){
                          .reduce((a,o) => a + debe(o), 0);
   const enMartin = vivos.filter(o => paso(o) === 'pedido').length;
   const paraDespachar = vivos.filter(o => paso(o) === 'recibido').length;
+  const aFacturar = ORDERS.reduce((a,o) => a + paraFacturar(o), 0);
 
   document.getElementById('subtitulo').textContent =
     vivos.length + (vivos.length === 1 ? ' pedido' : ' pedidos') + ' · ' +
@@ -181,7 +207,8 @@ function pintar(){
   document.getElementById('resumen').innerHTML = `
     <div><p class="r1">Te deben</p><p class="r2 ${porCobrar ? 'debe' : 'ok'}">${porCobrar ? fmt(porCobrar) : 'nada'}</p></div>
     <div><p class="r1">En proveedor</p><p class="r2">${enMartin}</p></div>
-    <div><p class="r1">Para despachar</p><p class="r2">${paraDespachar}</p></div>`;
+    <div><p class="r1">Para despachar</p><p class="r2">${paraDespachar}</p></div>
+    ${aFacturar ? `<div style="cursor:pointer" onclick="verVista('facturar')"><p class="r1">Para facturar</p><p class="r2">${fmt(aFacturar)}</p></div>` : ''}`;
 
   document.getElementById('filtros').innerHTML = VISTAS.map(([k,t]) => {
     const n = ORDERS.filter(o => enVista(o,k)).length;
@@ -269,7 +296,8 @@ function tarjeta(o){
       <div>
         <p class="cname">${esc(nombre)}</p>
         <p class="cmeta">#${o.id} · ${cuando}${p!=='despachado'&&p!=='saldado' ? '' : ' · ' + uTxt}${
-          faltaron(o) ? ' · <span class="debe">vino de menos ' + faltaron(o) + ' u.</span>' : ''}</p>
+          faltaron(o) ? ' · <span class="debe">vino de menos ' + faltaron(o) + ' u.</span>' : ''}${
+          paraFacturar(o) ? '<span class="tg bl">' + fmt(paraFacturar(o)) + ' para facturar</span>' : ''}</p>
       </div>
       <div class="cplata">${plata}</div>
     </div>
@@ -296,8 +324,9 @@ function accionPrincipal(o, p){
     <button class="b" onclick="modalRecibir(${o.id})">Vino distinto</button>`;
   if(p === 'recibido') return `<button class="b p" onclick="mover(${o.id},'despachado')">Despachado</button>
     <button class="b" onclick="etiqueta(${o.id})">Etiqueta</button>`;
-  if(p === 'despachado') return `<button class="b p" onclick="cobrarTodo(${o.id})">Me pagó todo</button>
+  if(p === 'despachado') return `<button class="b p" onclick="modalPago(${o.id},true)">Me pagó todo</button>
     <button class="b" onclick="modalPago(${o.id})">Una parte</button>`;
+  if(paraFacturar(o)) return `<button class="b p" onclick="modalFacturar(${o.id})">Facturar ${fmt(paraFacturar(o))}</button>`;
   return `<button class="b q" style="flex:1" onclick="verDetalle(${o.id})">Ver el pedido</button>`;
 }
 
@@ -313,6 +342,8 @@ function menu(o, p){
     <button onclick="editarItems(${o.id})">Editar el pedido</button>
     <button onclick="editarNota(${o.id})">${o.nota ? 'Cambiar la nota' : 'Agregar una nota'}</button>
     <button onclick="cambiarCuenta(${o.id})">Pasar a otra cuenta</button>
+    ${p !== 'despachado' && p !== 'cancelado' ? `<button onclick="modalPago(${o.id})">Registrar un cobro</button>` : ''}
+    ${paraFacturar(o) ? `<button onclick="modalFacturar(${o.id})">Facturar lo cobrado en blanco</button>` : ''}
     ${cobrado(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
     ${atras ? `<button onclick="mover(${o.id},'${atras}')">Volver un paso atrás</button>` : ''}
     <hr>
@@ -367,8 +398,23 @@ function detalle(o){
     </div>`;
 
   const pagos = (o.pagos||[]).length ? `<div class="det"><h4>Cobros</h4>
-    ${o.pagos.map(pg => `<div class="dato"><span>${fechaCorta(pg.fecha)}${pg.medio?' · '+esc(pg.medio):''}${pg.nota?' · '+esc(pg.nota):''}</span>
-      <span class="num">${fmt(pg.monto)}</span></div>`).join('')}</div>` : '';
+    ${o.pagos.map(pg => `<div class="dato"><span>${fechaCorta(pg.fecha)} · ${pg.medio ? esc(pg.medio) : '<i>sin medio</i>'}${
+        pg.usd ? ' ' + usd(pg.usd) + ' a ' + fmt(pg.cotiz) : ''}${pg.nota?' · '+esc(pg.nota):''}${tagPago(o, pg)}</span>
+      <span class="num">${fmt(pg.monto)}${pg.factura_id ? '' : `<button class="pgx" title="Cambiar o borrar" onclick="editarPago(${o.id},${pg.id})">✎</button>`}</span></div>`).join('')}
+    ${paraFacturar(o) ? `<div class="mfoot" style="margin-top:10px;justify-content:flex-start">
+      <button class="b sm p" onclick="modalFacturar(${o.id})">Facturar ${fmt(paraFacturar(o))}</button></div>` : ''}</div>` : '';
+
+  const facts = (o.facturas||[]).filter(f => f.estado !== 'rechazada');
+  const facturas = facts.length ? `<div class="det"><h4>Facturas</h4>
+    ${facts.map(f => `<div class="dato"><span>${nroFactura(f)} · ${fechaCorta(f.fecha)}${
+        f.homologacion ? ' <span class="tg pe">PRUEBA</span>' : ''}${
+        f.estado === 'pendiente' ? ' <span class="tg pe">sin confirmar</span>' : ''}${
+        anulada(o, f) ? ' <span class="tg ng">anulada</span>' : ''}</span>
+      <span class="num">${f.tipo === 13 ? '−' : ''}${fmt(f.total)}
+        ${f.estado === 'ok' ? `<button class="b sm q" onclick="imprimirFactura(${o.id},${f.id})">Ver</button>` : ''}
+        ${f.estado === 'pendiente' ? `<button class="b sm" onclick="revisarFactura(${f.id})">Revisar</button>` : ''}
+        ${f.estado === 'ok' && f.tipo === 11 && !anulada(o, f) ? `<button class="b sm q" onclick="anularFactura(${o.id},${f.id})">Anular</button>` : ''}
+      </span></div>`).join('')}</div>` : '';
 
   const envio = sh.razon_social ? `<div class="det"><h4>Envío</h4>
     <div class="dato"><span>${esc(sh.razon_social)}</span><span>${esc(sh.dni_cuit||'')}</span></div>
@@ -380,7 +426,7 @@ function detalle(o){
     + faltanteDetalleHtml(o.ship)
     + (o.nota ? `<div class="aviso info">${esc(o.nota)}</div>` : '');
 
-  return pedido + vinoDeMenos(o) + guita + pagos + envio + extra;
+  return pedido + vinoDeMenos(o) + guita + pagos + facturas + envio + extra;
 }
 
 // Qué no llegó y qué dejó de cobrar por eso. Se muestra debajo del pedido.
@@ -606,43 +652,100 @@ function textoCargado(r){
     : base;
 }
 
-async function cobrarTodo(id){
+// "Me pagó todo" y "Una parte" abren lo mismo: siempre se dice CÓMO pagó,
+// porque de eso depende si va a factura o no.
+const MEDIOS = ['Transferencia','Mercado Pago','Efectivo','Dólares','Cheque','Echeq','Otro'];
+function modalPago(id, todo){
   const o = ORDERS.find(x => x.id === id);
-  if(!confirm(`¿Te pagó los ${fmt(debe(o))} que faltaban?`)) return;
-  try{ await post({ id, pago:{ resto:true } }); await cargar(); showToast('Cobrado'); }
-  catch(e){ alert(e.message); }
-}
-
-function modalPago(id){
-  const o = ORDERS.find(x => x.id === id);
+  const falta = debe(o);
   abrirModal(`
-    <h3>Cobro parcial</h3>
-    <p class="sub">${esc((o.ship&&o.ship.razon_social) || o.name)} · te debe <b>${fmt(debe(o))}</b> de ${fmt(o.total)}.</p>
-    <label>¿Cuánto te pagó?</label>
-    <input type="number" id="pMonto" inputmode="numeric" placeholder="${debe(o)}">
+    <h3>${todo ? 'Te pagó todo' : 'Registrar un cobro'}</h3>
+    <p class="sub">${esc((o.ship&&o.ship.razon_social) || o.name)} · ${falta ? 'te debe <b>' + fmt(falta) + '</b> de ' + fmt(o.total) : 'ya está todo cobrado'}.</p>
+    <label>¿Cómo te pagó?</label>
+    <select id="pMedio" onchange="cambioMedio()">${MEDIOS.map(m => `<option>${m}</option>`).join('')}</select>
+    <div id="pPesos"><label>¿Cuánto?</label>
+      <input type="number" id="pMonto" inputmode="numeric" value="${todo ? falta : ''}" placeholder="${falta}"></div>
+    <div id="pDolar" style="display:none"><div class="fila">
+      <div><label>¿Cuántos dólares?</label><input type="number" id="pUsd" inputmode="decimal" oninput="calcDolar()"></div>
+      <div><label>¿A cuánto?</label><input type="number" id="pCotiz" inputmode="decimal" value="${USD.valor || ''}" oninput="calcDolar()"></div>
+    </div><p class="sub" id="pEq" style="margin:8px 0 0">${falta && USD.valor ? 'Para cubrir ' + fmt(falta) + ' son ' + usd(falta / USD.valor) : ''}</p></div>
     <div class="fila">
-      <div><label>¿Cómo?</label>
-        <select id="pMedio">
-          <option>Transferencia</option><option>Efectivo</option><option>Cheque</option>
-          <option>Echeq</option><option>Otro</option>
-        </select></div>
       <div><label>Cuándo</label><input type="date" id="pFecha" value="${hoyISO()}"></div>
+      <div><label>Nota</label><input type="text" id="pNota" placeholder="Cheque a 30 días…"></div>
     </div>
-    <label>Nota</label>
-    <input type="text" id="pNota" placeholder="Cheque a 30 días, vence 20/9…">
+    <label class="chk"><input type="checkbox" id="pBlanco" checked> Va en blanco (lo facturo)</label>
     <div class="mfoot">
       <button class="b q" onclick="cerrarModal()">Cancelar</button>
       <button class="b p" style="flex:none" onclick="guardarPago(${id})">Registrar</button>
     </div>`);
 }
+function cambioMedio(){
+  const m = document.getElementById('pMedio').value;
+  const dol = m === 'Dólares';
+  document.getElementById('pPesos').style.display = dol ? 'none' : '';
+  document.getElementById('pDolar').style.display = dol ? '' : 'none';
+  document.getElementById('pBlanco').checked = medioEnBlanco(m);
+}
+function calcDolar(){
+  const u = Number(document.getElementById('pUsd').value), c = Number(document.getElementById('pCotiz').value);
+  if(u > 0 && c > 0) document.getElementById('pEq').textContent = 'Son ' + fmt(u * c) + ' del pedido';
+}
 async function guardarPago(id){
-  const monto = Number(document.getElementById('pMonto').value);
-  if(!(monto > 0)) return alert('Poné cuánto te pagó.');
+  const medio = document.getElementById('pMedio').value;
+  const pago = { medio, en_blanco: document.getElementById('pBlanco').checked,
+    nota: document.getElementById('pNota').value, fecha: document.getElementById('pFecha').value };
+  if(medio === 'Dólares'){
+    pago.usd = Number(document.getElementById('pUsd').value);
+    pago.cotiz = Number(document.getElementById('pCotiz').value);
+    if(!(pago.usd > 0) || !(pago.cotiz > 0)) return alert('Poné los dólares y a cuánto.');
+  } else {
+    pago.monto = Number(document.getElementById('pMonto').value);
+    if(!(pago.monto > 0)) return alert('Poné cuánto te pagó.');
+  }
   try{
-    await post({ id, pago:{ monto, medio: document.getElementById('pMedio').value,
-      nota: document.getElementById('pNota').value, fecha: document.getElementById('pFecha').value } });
+    await post({ id, pago });
     cerrarModal(); await cargar(); showToast('Cobro registrado');
   }catch(e){ alert(e.message); }
+}
+
+// La etiqueta de cada cobro: en blanco / en negro / facturado. Tocándola se cambia.
+function tagPago(o, pg){
+  if(pg.factura_id){
+    const f = facturaDe(o, pg.factura_id);
+    return f && f.estado === 'pendiente' ? '<span class="tg pe">facturando…</span>'
+      : `<span class="tg fc">facturado${f && f.numero ? ' · ' + nroFactura(f, true) : ''}</span>`;
+  }
+  const bl = enBlanco(pg);
+  return `<button class="tg ${bl ? 'bl' : 'ng'}" title="Tocá para cambiarlo"
+    onclick="marcarBlanco(${o.id},${pg.id},${!bl})">${bl ? 'en blanco' : 'en negro'}</button>`;
+}
+async function marcarBlanco(id, pid, valor){
+  try{ await post({ id, pagoEdit:{ id: pid, en_blanco: valor } }); await cargar(); }catch(e){ alert(e.message); }
+}
+function editarPago(id, pid){
+  const o = ORDERS.find(x => x.id === id), pg = o.pagos.find(x => x.id === pid);
+  abrirModal(`<h3>Cobro del ${fechaCorta(pg.fecha)} · ${fmt(pg.monto)}</h3>
+    <p class="sub">Si el monto está mal, borralo y cargalo de nuevo.</p>
+    <label>¿Cómo te pagó?</label>
+    <select id="ePMedio">${['', ...MEDIOS].concat(pg.medio && !MEDIOS.includes(pg.medio) ? [pg.medio] : [])
+      .map(m => `<option value="${esc(m)}"${m === (pg.medio || '') ? ' selected' : ''}>${m ? esc(m) : '— sin decir —'}</option>`).join('')}</select>
+    <label class="chk"><input type="checkbox" id="ePBlanco"${enBlanco(pg) ? ' checked' : ''}> Va en blanco (lo facturo)</label>
+    <div class="mfoot">
+      <button class="b q" style="margin-right:auto;color:var(--no)" onclick="borrarPago(${id},${pid})">Borrar este cobro</button>
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" onclick="guardarEdicionPago(${id},${pid})">Guardar</button>
+    </div>`);
+}
+async function guardarEdicionPago(id, pid){
+  try{
+    await post({ id, pagoEdit:{ id: pid, medio: document.getElementById('ePMedio').value,
+      en_blanco: document.getElementById('ePBlanco').checked } });
+    cerrarModal(); await cargar();
+  }catch(e){ alert(e.message); }
+}
+async function borrarPago(id, pid){
+  if(!confirm('¿Borrar este cobro?')) return;
+  try{ await post({ id, pagoBorrar: pid }); cerrarModal(); await cargar(); }catch(e){ alert(e.message); }
 }
 
 async function borrarPagos(id){
@@ -826,6 +929,183 @@ async function guardarItems(id){
 }
 
 /* ---------- impresiones ---------- */
+/* ---------- facturación (ARCA, Factura C) ---------- */
+// Se factura lo cobrado en blanco: se eligen los cobros y sale UNA factura por
+// la suma. Cada cobro queda atado a su factura y no se puede facturar dos veces.
+let FACT = null;   // lo que devuelve GET /api/facturas: config, emisor, resumen, QR
+async function cargarFact(){ FACT = await api('/api/facturas'); return FACT; }
+
+const COND_IVA = { 5:'Consumidor final', 6:'Monotributo', 1:'Responsable inscripto', 4:'Exento' };
+const pad = (n, l) => String(n || 0).padStart(l, '0');
+function nroFactura(f, corto){
+  const n = pad(f.pto_vta, 5) + '-' + pad(f.numero, 8);
+  return corto ? n : (f.tipo === 13 ? 'Nota de crédito C ' : 'Factura C ') + n;
+}
+const anulada = (o, f) => (o.facturas||[]).some(x => x.anula_id === f.id && x.estado === 'ok');
+const docDigitos = s => String(s || '').replace(/\D/g, '');
+
+function avisoConfig(){
+  if(!FACT) return '';
+  const c = FACT.config;
+  if(c.falta.length) return `<div class="aviso">Todavía no se puede facturar: falta cargar en Vercel
+    <b>${c.falta.map(esc).join(', ')}</b>. Los pasos están en FACTURACION.md.</div>`;
+  return c.homologacion ? `<div class="aviso info">Estás en el entorno de <b>PRUEBA</b> de ARCA: lo que emitas no vale.</div>` : '';
+}
+
+async function modalFacturar(id){
+  const o = ORDERS.find(x => x.id === id);
+  try{ if(!FACT) await cargarFact(); }catch(e){ return alert(e.message); }
+  const sh = o.ship || {};
+  const libres = (o.pagos||[]).filter(pg => !pg.factura_id);
+  const doc = docDigitos(sh.dni_cuit);
+  // Condición de IVA: la que se usó la última vez; sin CUIT, consumidor final.
+  const cond = o.cond_iva || (doc.length === 11 ? '' : 5);
+  abrirModal(`<h3>Facturar · pedido #${o.id}</h3>
+    <p class="sub">Factura C a nombre tuyo. Marcá los cobros que entran en esta factura.</p>
+    ${avisoConfig()}
+    ${libres.map(pg => `<label class="chk" style="justify-content:space-between">
+      <span style="display:flex;gap:9px;align-items:center"><input type="checkbox" class="fPago" value="${pg.id}" data-monto="${pg.monto}"
+        ${enBlanco(pg) ? 'checked' : ''} onchange="totFactura()">
+        ${fechaCorta(pg.fecha)} · ${esc(pg.medio || 'sin medio')}${enBlanco(pg) ? '' : ' <span class="tg ng">en negro</span>'}</span>
+      <b>${fmt(pg.monto)}</b></label>`).join('')}
+    <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
+      <span>Total de la factura</span><span class="num"><b id="fTot"></b></span></div>
+    <label>A nombre de</label><input type="text" id="fNombre" value="${esc(sh.razon_social || o.name || '')}">
+    <div class="fila">
+      <div><label>CUIT o DNI</label><input type="text" id="fDoc" value="${esc(sh.dni_cuit || '')}" placeholder="Vacío = consumidor final sin identificar"></div>
+      <div><label>Condición frente al IVA</label><select id="fCond">
+        <option value="">Elegí…</option>
+        ${Object.entries(COND_IVA).map(([k,v]) => `<option value="${k}"${String(cond) === k ? ' selected' : ''}>${v}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="mfoot">
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" id="fBtn" onclick="emitirFactura(${o.id})">Emitir factura</button>
+    </div>`);
+  totFactura();
+}
+function totFactura(){
+  const t = [...document.querySelectorAll('.fPago:checked')].reduce((a,x) => a + Number(x.dataset.monto), 0);
+  document.getElementById('fTot').textContent = fmt(t);
+}
+async function emitirFactura(id){
+  const pagos = [...document.querySelectorAll('.fPago:checked')].map(x => Number(x.value));
+  const cond = document.getElementById('fCond').value;
+  const doc = document.getElementById('fDoc').value;
+  if(!pagos.length) return alert('Marcá al menos un cobro.');
+  if(!cond) return alert('Elegí la condición frente al IVA del cliente.');
+  if(cond !== '5' && docDigitos(doc).length !== 11) return alert('A un ' + COND_IVA[cond].toLowerCase() + ' hay que facturarle con CUIT (11 números).');
+  const tot = document.getElementById('fTot').textContent;
+  if(!confirm(`¿Emitir la Factura C por ${tot} a ${document.getElementById('fNombre').value || 'consumidor final'}?` +
+    (FACT && FACT.config.homologacion ? '\n\n(Entorno de PRUEBA)' : '\n\nSe emite de verdad en ARCA.'))) return;
+  const btn = document.getElementById('fBtn'); btn.disabled = true; btn.textContent = 'Hablando con ARCA…';
+  try{
+    const r = await api('/api/facturas', { method:'POST', body: JSON.stringify({ facturar:{
+      order_id: id, pagos, cond_iva: Number(cond), doc, nombre: document.getElementById('fNombre').value } }) });
+    cerrarModal(); FACT = null; await cargar();
+    showToast('Factura emitida · CAE ' + r.cae);
+  }catch(e){
+    btn.disabled = false; btn.textContent = 'Emitir factura';
+    await cargar(); alert(e.message);
+  }
+}
+async function revisarFactura(fid){
+  try{
+    await api('/api/facturas', { method:'POST', body: JSON.stringify({ revisar: fid }) });
+    FACT = null; await cargar(); showToast('ARCA la tiene: quedó emitida');
+  }catch(e){ await cargar(); alert(e.message); }
+}
+async function anularFactura(id, fid){
+  const o = ORDERS.find(x => x.id === id), f = facturaDe(o, fid);
+  if(!confirm(`¿Anular la ${nroFactura(f)} por ${fmt(f.total)}?\n\nSe emite una Nota de crédito C en ARCA y sus cobros vuelven a quedar sin facturar.`)) return;
+  try{
+    await api('/api/facturas', { method:'POST', body: JSON.stringify({ anular: fid }) });
+    FACT = null; await cargar(); showToast('Factura anulada');
+  }catch(e){ await cargar(); alert(e.message); }
+}
+
+// El comprobante impreso, con el QR de ARCA (RG 4892).
+async function imprimirFactura(id, fid){
+  const o = ORDERS.find(x => x.id === id), f = facturaDe(o, fid);
+  try{ if(!FACT || !FACT.qr[fid]) await cargarFact(); }catch(e){ return alert(e.message); }
+  const em = FACT.emisor || {}, cuit = FACT.config.cuit || '';
+  const cuitTxt = cuit.length === 11 ? cuit.slice(0,2) + '-' + cuit.slice(2,10) + '-' + cuit.slice(10) : cuit;
+  let qrImg = '';
+  if(window.qrcode && FACT.qr[fid]){ const q = qrcode(0, 'M'); q.addData(FACT.qr[fid]); q.make(); qrImg = q.createDataURL(4, 0); }
+  const docTxt = f.doc_tipo === 80 ? 'CUIT ' + f.doc_nro : f.doc_tipo === 96 ? 'DNI ' + f.doc_nro : 'Sin identificar';
+  const titulo = f.tipo === 13 ? 'NOTA DE CRÉDITO' : 'FACTURA';
+  const anula = f.anula_id ? facturaDe(o, f.anula_id) : null;
+  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${nroFactura(f)}</title>
+<style>@page{size:A4;margin:12mm}${HOJA}body{max-width:190mm}
+.fc{display:grid;grid-template-columns:1fr 64px 1fr;border:1px solid #111}
+.fc>div{padding:12px 14px;line-height:1.6}
+.letra{border-left:1px solid #111;border-right:1px solid #111;text-align:center;padding:8px 0!important}
+.letra b{display:block;font-size:34px;line-height:1}.letra span{font-size:9px}
+.rec{border:1px solid #111;border-top:none;padding:10px 14px;line-height:1.7}
+.pie{display:flex;gap:16px;align-items:center;margin-top:22px;border-top:1px solid #111;padding-top:12px}
+.prueba{border:2px solid #b00;color:#b00;text-align:center;font-weight:700;padding:6px;margin-bottom:10px}</style></head><body>
+<div class="noprint"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>
+${f.homologacion ? '<div class="prueba">COMPROBANTE DE PRUEBA · SIN VALIDEZ FISCAL</div>' : ''}
+<div class="fc">
+  <div><b style="font-size:15px">${esc(em.razon_social || 'REC Eyewear')}</b><br>${esc(em.domicilio || '')}<br>Responsable Monotributo</div>
+  <div class="letra"><b>C</b><span>COD. ${f.tipo === 13 ? '013' : '011'}</span></div>
+  <div><b style="font-size:15px">${titulo}</b><br>Punto de venta: ${pad(f.pto_vta,5)} · Comp. Nro: ${pad(f.numero,8)}<br>
+    Fecha de emisión: ${fechaCorta(f.fecha)}<br>CUIT: ${esc(cuitTxt)}<br>
+    ${em.iibb ? 'Ingresos Brutos: ' + esc(em.iibb) + '<br>' : ''}${em.inicio ? 'Inicio de actividades: ' + esc(em.inicio) : ''}</div>
+</div>
+<div class="rec"><b>${esc(f.nombre || 'Consumidor final')}</b> · ${esc(docTxt)}<br>
+  Condición frente al IVA: ${COND_IVA[f.cond_iva] || '—'} · Condición de venta: Contado
+  ${anula ? '<br>Comprobante asociado: ' + nroFactura(anula) + ' del ' + fechaCorta(anula.fecha) : ''}</div>
+<table style="margin-top:16px"><thead><tr><th>Descripción</th><th class="q">Cant.</th><th class="m">Precio u.</th><th class="m">Subtotal</th></tr></thead>
+<tbody><tr><td>Anteojos · pedido #${o.id}</td><td class="q">1</td><td class="m">${fmt(f.total)}</td><td class="m">${fmt(f.total)}</td></tr></tbody></table>
+<div class="tot"><span>Total</span><span>${fmt(f.total)}</span></div>
+<div class="pie">${qrImg ? `<img src="${qrImg}" style="width:110px;height:110px">` : ''}
+  <div style="line-height:1.8"><b>Comprobante autorizado por ARCA</b><br>CAE: ${esc(f.cae || '')}<br>Vencimiento del CAE: ${fechaCorta(f.cae_vence)}</div></div>
+<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`);
+}
+
+// El tablero: cuánto entró en blanco, en negro y en dólares por mes, y cuánto se facturó.
+async function abrirFacturacion(){
+  abrirModal('<h3>Facturación</h3><p class="sub">Cargando…</p>');
+  try{ await cargarFact(); }catch(e){ return abrirModal('<h3>Facturación</h3><div class="aviso">' + esc(e.message) + '</div>'); }
+  const em = FACT.emisor || {}, c = FACT.config;
+  const mes = m => { const [a,b] = m.split('-'); return new Date(a, b-1, 15).toLocaleDateString('es-AR', { month:'short', year:'2-digit' }); };
+  // Últimos 12 meses facturados: es lo que mira ARCA para la categoría del monotributo.
+  const hace12 = new Date(); hace12.setMonth(hace12.getMonth() - 11);
+  const desde = hace12.getFullYear() + '-' + String(hace12.getMonth()+1).padStart(2,'0');
+  const anual = FACT.meses.filter(m => m.mes >= desde).reduce((a,m) => a + Number(m.facturado), 0);
+  abrirModal(`<h3>Facturación</h3>
+    <p class="sub">${c.cuit ? 'CUIT ' + esc(c.cuit) + ' · punto de venta ' + (c.pto_vta || '—') : 'Sin CUIT configurado'}
+      ${c.homologacion ? ' · <b>entorno de PRUEBA</b>' : ''} · Facturado en los últimos 12 meses: <b>${fmt(anual)}</b></p>
+    ${avisoConfig()}
+    <table class="ftab"><thead><tr><th>Mes</th><th>En blanco</th><th>Facturado</th><th>Falta facturar</th><th>En negro</th><th>Dólares</th></tr></thead>
+    <tbody>${FACT.meses.map(m => `<tr><td>${mes(m.mes)}</td><td>${fmt(m.blanco)}</td><td>${fmt(m.facturado)}</td>
+      <td style="${Number(m.sin_facturar) ? 'color:var(--no);font-weight:600' : ''}">${Number(m.sin_facturar) ? fmt(m.sin_facturar) : '—'}</td>
+      <td>${fmt(m.negro)}</td><td>${Number(m.usd) ? usd(m.usd) : '—'}</td></tr>`).join('') || '<tr><td colspan="6">Sin cobros todavía.</td></tr>'}</tbody></table>
+    <h3 style="margin-top:26px;font-size:16px">Datos impresos en la factura</h3>
+    <label>Razón social / nombre</label><input type="text" id="emRs" value="${esc(em.razon_social || '')}">
+    <label>Domicilio comercial</label><input type="text" id="emDom" value="${esc(em.domicilio || '')}">
+    <div class="fila">
+      <div><label>Ingresos Brutos</label><input type="text" id="emIibb" value="${esc(em.iibb || '')}"></div>
+      <div><label>Inicio de actividades</label><input type="text" id="emIni" value="${esc(em.inicio || '')}" placeholder="01/03/2019"></div>
+    </div>
+    <div class="mfoot">
+      <button class="b q" style="margin-right:auto" onclick="probarArca()">Probar conexión con ARCA</button>
+      <button class="b q" onclick="cerrarModal()">Cerrar</button>
+      <button class="b p" style="flex:none" onclick="guardarEmisor()">Guardar datos</button>
+    </div>`);
+}
+async function guardarEmisor(){
+  const emisor = { razon_social: document.getElementById('emRs').value, domicilio: document.getElementById('emDom').value,
+    iibb: document.getElementById('emIibb').value, inicio: document.getElementById('emIni').value };
+  try{ await api('/api/facturas', { method:'POST', body: JSON.stringify({ emisor }) }); FACT = null; showToast('Guardado'); }
+  catch(e){ alert(e.message); }
+}
+async function probarArca(){
+  try{ const r = await api('/api/facturas', { method:'POST', body: JSON.stringify({ probar:true }) }); alert(r.msg); }
+  catch(e){ alert(e.message); }
+}
+
 function imprimir(html){
   const w = window.open('', '_blank');
   if(!w) return alert('Permití las ventanas emergentes.');

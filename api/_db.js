@@ -130,6 +130,42 @@ function ensureTables() {
       nota TEXT,
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
+    // Cómo pagó: en_blanco = va a factura. Si pagó en dólares, monto queda en
+    // pesos (lo que descuenta del pedido) y usd/cotiz guardan lo que entregó.
+    // factura_id = la factura que ya lo incluye.
+    await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS en_blanco BOOLEAN`;
+    await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS usd NUMERIC`;
+    await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS cotiz NUMERIC`;
+    await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS factura_id INTEGER`;
+    // Los cobros viejos (y los que carga consignación o el CRM sin decirlo) se
+    // marcan solos según el medio. Después se pueden cambiar a mano.
+    await sql`UPDATE order_payments
+         SET en_blanco = (lower(COALESCE(medio, '')) ~ '^(transferencia|mercado ?pago|cheque|echeq)')
+       WHERE en_blanco IS NULL`;
+
+    // Facturas C y notas de crédito C emitidas en ARCA con el CUIT de Tomás.
+    // estado: 'pendiente' (se mandó y no sabemos qué pasó), 'ok', 'rechazada'.
+    await sql`CREATE TABLE IF NOT EXISTS facturas (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+      tipo INTEGER NOT NULL,
+      pto_vta INTEGER NOT NULL,
+      numero INTEGER,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      total INTEGER NOT NULL,
+      doc_tipo INTEGER NOT NULL,
+      doc_nro TEXT,
+      nombre TEXT,
+      cond_iva INTEGER NOT NULL,
+      cae TEXT,
+      cae_vence DATE,
+      estado TEXT NOT NULL DEFAULT 'pendiente',
+      errores TEXT,
+      anula_id INTEGER,
+      homologacion BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS cond_iva INTEGER`;
 
     /* ---------- Configuración (dólar, etc.) ---------- */
     await sql`CREATE TABLE IF NOT EXISTS settings (
@@ -503,6 +539,10 @@ function splitNombre(name) {
   return { linea: s || 'Sin línea', modelo: '' };
 }
 
+// ¿Ese medio de pago va en blanco (a factura)? Lo que entra al banco, sí;
+// el efectivo y los dólares, no. Cada cobro se puede cambiar a mano.
+const enBlancoPorMedio = (medio) => /^(transferencia|mercado ?pago|cheque|echeq)/i.test(String(medio || '').trim());
+
 // Normaliza para comparar líneas: minúsculas, sin acentos, sin espacios de más.
 function norm(s) {
   return String(s || '')
@@ -618,6 +658,7 @@ function costoEnPesos(detalle, dolar) {
 }
 
 module.exports = {
+  enBlancoPorMedio,
   sql, ensureTables, splitNombre, norm,
   getSettings, setSetting, usdRate,
   costTables, costoDe, costoLineasDe, costoItems, costoEnPesos,

@@ -5,7 +5,7 @@
 //   POST { id, evento:{...} }  -> registra un contacto y actualiza "último contacto"
 //   POST { importar:"texto" }  -> importa un listado pegado (CSV o TSV)
 //   POST { id, borrar:true }   -> borra el cliente
-const { sql, ensureTables } = require('./_db');
+const { sql, ensureTables, enBlancoPorMedio } = require('./_db');
 const { getSession } = require('./_auth');
 
 const ESTADOS = ['compro', 'caliente', 'tibio', 'esperar', 'frio'];
@@ -289,8 +289,8 @@ module.exports = async (req, res) => {
           if (resto <= 0) break;
           const falta = o.total - o.cobrado;
           const monto = Math.min(falta, resto);
-          await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota)
-            VALUES (${o.id}, COALESCE(${fecha}::date, CURRENT_DATE), ${monto}, ${medio}, ${nota})`;
+          await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota, en_blanco)
+            VALUES (${o.id}, COALESCE(${fecha}::date, CURRENT_DATE), ${monto}, ${medio}, ${nota}, ${enBlancoPorMedio(medio)})`;
           aplicado.push({ pedido: o.id, monto });
           resto -= monto;
         }

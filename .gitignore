@@ -19,3 +19,5 @@ _uniq.txt
 dedup.py
 fixprice.py
 apply_acetato.py
+
+.vercel

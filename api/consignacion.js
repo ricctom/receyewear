@@ -21,7 +21,7 @@
 //   POST { gira:{ id?, nombre, desde, hasta, nota } }  -> crea o cambia; engancha las ventas sueltas de esas fechas
 //   POST { giraVentas:{ id, ventas:[id] } }            -> qué ventas son de esa gira
 //   POST { gasto:{ gira_id, fecha, concepto, monto, medio } } / { borrarGasto: id } / { borrarGira: id }
-const { sql, ensureTables, norm, usdRate } = require('./_db');
+const { sql, ensureTables, norm, usdRate, enBlancoPorMedio } = require('./_db');
 const { getSession } = require('./_auth');
 const { notifyVentaCliente } = require('./_notify');
 
@@ -357,8 +357,9 @@ module.exports = async (req, res) => {
 
       // Con pedido, cada pago queda como un cobro del pedido.
       for (const p of pagos) {
-        await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota)
-          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${p.monto}, ${p.medio}, 'Venta de consignación')`;
+        await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota, en_blanco)
+          VALUES (${o.id}, COALESCE(${dia}::date, CURRENT_DATE), ${p.monto}, ${p.medio}, 'Venta de consignación',
+                  ${enBlancoPorMedio(p.medio)})`;
       }
 
       let mail = false;
@@ -429,6 +430,8 @@ module.exports = async (req, res) => {
       // así que lo que cubría esta venta pasa a la siguiente sin pagar.
       await sql`DELETE FROM supplier_consign WHERE sale_id = ${id}`;
       if (v.order_id) {
+        const [f] = await sql`SELECT count(*)::int AS n FROM facturas WHERE order_id = ${v.order_id} AND estado <> 'rechazada'`;
+        if (f.n) return res.status(400).json({ error: 'Esa venta ya está facturada: anulá la factura antes de borrarla' });
         await sql`DELETE FROM order_payments WHERE order_id = ${v.order_id}`;
         await sql`DELETE FROM orders WHERE id = ${v.order_id}`;
       }
