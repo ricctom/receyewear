@@ -32,6 +32,12 @@ const WSFE_URL = HOMOLOGACION
   : 'https://servicios1.afip.gov.ar/wsfev1/service.asmx';
 const FEV1_NS = 'http://ar.gov.afip.dif.FEV1/';
 const SERVICIO = 'wsfe';
+// Consulta de padrón: con un CUIT devuelve nombre y condición frente al IVA.
+// Es otro servicio de ARCA, con su propio pase (no choca con el de wsfe).
+const PADRON = 'ws_sr_constancia_inscripcion';
+const PADRON_URL = HOMOLOGACION
+  ? 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5'
+  : 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5';
 const TICKET_KEY = 'arca_ticket_' + (HOMOLOGACION ? 'homo' : 'prod');
 
 const TIPOS = { 11: 'Factura C', 13: 'Nota de crédito C' };
@@ -119,14 +125,14 @@ const fechaDeArca = (s) => {
 
 /* ---------- WSAA: el ticket ---------- */
 
-function armarTRA() {
+function armarTRA(servicio) {
   const ahora = new Date();
   return '<?xml version="1.0" encoding="UTF-8"?>' +
     '<loginTicketRequest version="1.0"><header>' +
     '<uniqueId>' + Math.floor(ahora.getTime() / 1000) + '</uniqueId>' +
     '<generationTime>' + isoArgentina(new Date(ahora.getTime() - 10 * 60000)) + '</generationTime>' +
     '<expirationTime>' + isoArgentina(new Date(ahora.getTime() + 12 * 3600000)) + '</expirationTime>' +
-    '</header><service>' + SERVICIO + '</service></loginTicketRequest>';
+    '</header><service>' + servicio + '</service></loginTicketRequest>';
 }
 
 // Firma CMS (PKCS#7) del pedido, con SHA-256: la que ARCA acepta.
@@ -151,16 +157,19 @@ function firmarCMS(tra) {
   return forge.util.encode64(forge.asn1.toDer(p7.toAsn1()).getBytes());
 }
 
-async function pedirTicket() {
+async function pedirTicket(servicio) {
   const sobre = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" ' +
     'xmlns:wsaa="https://wsaa.afip.gov.ar/ws/services/LoginCms">' +
     '<soapenv:Header/><soapenv:Body><wsaa:loginCms>' +
-    '<wsaa:in0>' + firmarCMS(armarTRA()) + '</wsaa:in0>' +
+    '<wsaa:in0>' + firmarCMS(armarTRA(servicio)) + '</wsaa:in0>' +
     '</wsaa:loginCms></soapenv:Body></soapenv:Envelope>';
   const resp = await post(WSAA_URL, sobre, '');
   const ret = texto(resp, 'loginCmsReturn');
   if (!ret) {
     const falla = desescapar(texto(resp, 'faultstring') || resp.slice(0, 300));
+    if (/no autorizado|not authorized|notAuthorized|computador.*no.*relaci/i.test(falla) && servicio === PADRON) {
+      throw new ArcaError('SIN_PADRON');
+    }
     if (/ya posee un TA v[aá]lido/i.test(falla)) {
       throw new ArcaError('ARCA dice que el certificado ya tiene un pase vigente pedido por el sistema de ópticas, ' +
         'y REC no lo pudo leer. Revisá ARCA_TICKET_DB_URL en Vercel.');
@@ -177,32 +186,35 @@ const vigente = (t) => t && t.token && t.sign && new Date(t.expira).getTime() - 
 // en su tabla "ArcaTicket"; si no, REC lo guarda en su settings.
 const compartida = process.env.ARCA_TICKET_DB_URL && !HOMOLOGACION ? neon(process.env.ARCA_TICKET_DB_URL) : null;
 
-async function leerTicket() {
+// Clave en settings: la de wsfe queda como estaba; los otros servicios, con su nombre.
+const claveTicket = (servicio) => servicio === SERVICIO ? TICKET_KEY : TICKET_KEY + '_' + servicio;
+
+async function leerTicket(servicio) {
   if (compartida) {
-    const [r] = await compartida`SELECT token, sign, expira FROM "ArcaTicket" WHERE servicio = ${SERVICIO}`;
+    const [r] = await compartida`SELECT token, sign, expira FROM "ArcaTicket" WHERE servicio = ${servicio}`;
     return r || null;
   }
-  const [row] = await sql`SELECT value FROM settings WHERE key = ${TICKET_KEY}`;
+  const [row] = await sql`SELECT value FROM settings WHERE key = ${claveTicket(servicio)}`;
   try { return row && JSON.parse(row.value); } catch { return null; }
 }
-async function guardarTicket(t) {
+async function guardarTicket(servicio, t) {
   if (compartida) {
     await compartida`INSERT INTO "ArcaTicket" (servicio, token, sign, expira, updated_at)
-      VALUES (${SERVICIO}, ${t.token}, ${t.sign}, ${new Date(t.expira)}, now())
+      VALUES (${servicio}, ${t.token}, ${t.sign}, ${new Date(t.expira)}, now())
       ON CONFLICT (servicio) DO UPDATE SET token = EXCLUDED.token, sign = EXCLUDED.sign,
         expira = EXCLUDED.expira, updated_at = now()`;
-  } else await setSetting(TICKET_KEY, JSON.stringify(t));
+  } else await setSetting(claveTicket(servicio), JSON.stringify(t));
 }
-async function borrarTicket() {
-  if (compartida) await compartida`DELETE FROM "ArcaTicket" WHERE servicio = ${SERVICIO}`;
-  else await sql`DELETE FROM settings WHERE key = ${TICKET_KEY}`;
+async function borrarTicket(servicio) {
+  if (compartida) await compartida`DELETE FROM "ArcaTicket" WHERE servicio = ${servicio}`;
+  else await sql`DELETE FROM settings WHERE key = ${claveTicket(servicio)}`;
 }
 
-async function ticket() {
-  const t = await leerTicket();
+async function ticket(servicio = SERVICIO) {
+  const t = await leerTicket(servicio);
   if (vigente(t)) return t;
-  const nuevo = await pedirTicket();
-  await guardarTicket(nuevo);
+  const nuevo = await pedirTicket(servicio);
+  await guardarTicket(servicio, nuevo);
   return nuevo;
 }
 
@@ -222,7 +234,7 @@ async function wsfe(metodo, interno, conAuth = true, reintento = true) {
     '</soap:Body></soap:Envelope>';
   const resp = await post(WSFE_URL, sobre, FEV1_NS + metodo);
   if (conAuth && reintento && errores(resp).some((e) => TICKET_INVALIDO.has(e.codigo))) {
-    await borrarTicket();
+    await borrarTicket(SERVICIO);
     return wsfe(metodo, interno, conAuth, false);
   }
   return resp;
@@ -298,6 +310,46 @@ async function solicitarCAE(d) {
   };
 }
 
+/* ---------- Padrón: quién es un CUIT ---------- */
+
+// Nombre, domicilio y condición frente al IVA de un CUIT, según ARCA.
+// cond_iva: 6 monotributo, 1 responsable inscripto, 4 exento, 5 consumidor final.
+// Si el certificado no tiene habilitado el servicio, tira ArcaError('SIN_PADRON').
+async function consultarPadron(cuitCliente) {
+  const n = soloDigitos(cuitCliente);
+  if (n.length !== 11) throw new ArcaError('El CUIT tiene que tener 11 números');
+  const pedir = async (reintento) => {
+    const t = await ticket(PADRON);
+    const sobre = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a5="http://a5.soap.ws.server.puc.sr/">' +
+      '<soapenv:Header/><soapenv:Body><a5:getPersona_v2>' +
+      '<token>' + t.token + '</token><sign>' + t.sign + '</sign>' +
+      '<cuitRepresentada>' + cuit() + '</cuitRepresentada><idPersona>' + n + '</idPersona>' +
+      '</a5:getPersona_v2></soapenv:Body></soapenv:Envelope>';
+    const r = await post(PADRON_URL, sobre, '', 15000);
+    const falla = texto(r, 'faultstring');
+    if (falla && reintento && /token|sign|expir/i.test(falla)) { await borrarTicket(PADRON); return pedir(false); }
+    if (falla) {
+      if (/no existe|inexistente/i.test(falla)) throw new ArcaError('Ese CUIT no existe en ARCA');
+      throw new ArcaError('ARCA: ' + desescapar(falla));
+    }
+    return r;
+  };
+  const r = await pedir(true);
+  const generales = texto(r, 'datosGenerales') || '';
+  const nombre = texto(generales, 'razonSocial') ||
+    [texto(generales, 'apellido'), texto(generales, 'nombre')].filter(Boolean).join(' ');
+  const dom = texto(generales, 'domicilioFiscal') || '';
+  const domicilio = [texto(dom, 'direccion'), texto(dom, 'localidad'), texto(dom, 'descripcionProvincia')].filter(Boolean).join(', ');
+  const impuestos = [...String(texto(r, 'datosRegimenGeneral') || '').matchAll(/<idImpuesto>(\d+)<\/idImpuesto>/g)].map((m) => m[1]);
+  let condIva = 5;
+  if (texto(r, 'datosMonotributo')) condIva = 6;
+  else if (impuestos.includes('30')) condIva = 1;
+  else if (impuestos.includes('32')) condIva = 4;
+  const errorConstancia = texto(r, 'errorConstancia');
+  return { cuit: n, nombre: desescapar(nombre), domicilio: desescapar(domicilio), cond_iva: condIva,
+           aviso: errorConstancia ? desescapar(texto(errorConstancia, 'error') || '') : null };
+}
+
 // Qué documento mandar según lo que cargó el cliente en "DNI/CUIT".
 function documentoDe(dniCuit) {
   const n = soloDigitos(dniCuit);
@@ -320,5 +372,5 @@ function urlQR(f) {
 module.exports = {
   HOMOLOGACION, TIPOS, DOC, IVA_RECEPTOR, ArcaError,
   cuit, puntoVenta, faltaConfigurar, servidorVivo, ultimoAutorizado,
-  consultarComprobante, solicitarCAE, documentoDe, urlQR, enTexto,
+  consultarComprobante, solicitarCAE, documentoDe, urlQR, enTexto, consultarPadron,
 };

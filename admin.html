@@ -1049,24 +1049,27 @@ function avisoConfig(){
   return c.homologacion ? `<div class="aviso info">Estás en el entorno de <b>PRUEBA</b> de ARCA: lo que emitas no vale.</div>` : '';
 }
 
-async function modalFacturar(id){
+// `previo` = lo que ya estaba cargado, cuando se vuelve de la vista previa.
+async function modalFacturar(id, previo){
   const o = ORDERS.find(x => x.id === id);
   try{ if(!FACT) await cargarFact(); }catch(e){ return alert(e.message); }
   const sh = o.ship || {};
   const libres = (o.pagos||[]).filter(pg => !facturado(pg));
-  const doc = docDigitos(sh.dni_cuit);
-  // Condición de IVA: la que se usó la última vez; sin CUIT, consumidor final.
-  const cond = o.cond_iva || (doc.length === 11 ? '' : 5);
+  const doc = previo ? previo.doc : (sh.dni_cuit || '');
+  // Condición de IVA: la consulta a ARCA la completa sola con el CUIT. Si no
+  // hay CUIT, consumidor final.
+  const cond = previo ? previo.cond : (o.cond_iva || (docDigitos(doc).length === 11 ? '' : 5));
   // Fecha: la del último cobro, si ARCA todavía la acepta (hasta 5 días atrás).
   const { desde, hasta } = FACT.fechas;
   const ultimoCobro = libres.filter(enBlanco).map(pg => String(pg.fecha).slice(0,10)).sort().pop() || hasta;
-  const fechaDef = ultimoCobro < desde ? desde : ultimoCobro > hasta ? hasta : ultimoCobro;
+  const fechaDef = previo ? previo.fecha : (ultimoCobro < desde ? desde : ultimoCobro > hasta ? hasta : ultimoCobro);
+  const marcado = pg => previo ? previo.pagos.includes(pg.id) : enBlanco(pg);
   abrirModal(`<h3>Facturar · pedido #${o.id}</h3>
     <p class="sub">Factura C a nombre tuyo. Marcá los cobros que entran en esta factura.</p>
     ${avisoConfig()}
     ${libres.map(pg => `<label class="chk" style="justify-content:space-between">
       <span style="display:flex;gap:9px;align-items:center"><input type="checkbox" class="fPago" value="${pg.id}" data-monto="${pg.monto}"
-        ${enBlanco(pg) ? 'checked' : ''} onchange="totFactura()">
+        ${marcado(pg) ? 'checked' : ''} onchange="totFactura()">
         ${fechaCorta(pg.fecha)} · ${esc(pg.medio || 'sin medio')}${enBlanco(pg) ? '' : ' <span class="tg ng">en negro</span>'}</span>
       <b>${fmt(pg.monto)}</b></label>`).join('')}
     <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
@@ -1075,42 +1078,111 @@ async function modalFacturar(id){
       <div><label>Fecha de la factura</label><input type="date" id="fFecha" value="${fechaDef}" min="${desde}" max="${hasta}"></div>
       <div><p class="sub" style="margin:38px 0 0">ARCA deja hasta el ${fechaCorta(desde)}. Si hacés varias, de la más vieja a la más nueva.</p></div>
     </div>
-    <label>A nombre de</label><input type="text" id="fNombre" value="${esc(sh.razon_social || o.name || '')}">
     <div class="fila">
-      <div><label>CUIT o DNI</label><input type="text" id="fDoc" value="${esc(sh.dni_cuit || '')}" placeholder="Vacío = consumidor final sin identificar"></div>
+      <div><label>CUIT o DNI</label><input type="text" id="fDoc" value="${esc(doc)}" oninput="docCambio()" placeholder="Vacío = consumidor final"></div>
       <div><label>Condición frente al IVA</label><select id="fCond">
         <option value="">Elegí…</option>
         ${Object.entries(COND_IVA).map(([k,v]) => `<option value="${k}"${String(cond) === k ? ' selected' : ''}>${v}</option>`).join('')}
       </select></div>
     </div>
+    <p class="sub" id="fPadron" style="margin:8px 0 0"></p>
+    <label>A nombre de</label><input type="text" id="fNombre" value="${esc(previo ? previo.nombre : (sh.razon_social || o.name || ''))}">
     <div class="mfoot">
       <button class="b q" onclick="cerrarModal()">Cancelar</button>
-      <button class="b p" style="flex:none" id="fBtn" onclick="emitirFactura(${o.id})">Emitir factura</button>
+      <button class="b p" style="flex:none" onclick="vistaPrevia(${o.id})">Ver cómo queda</button>
     </div>`);
   totFactura();
+  if(!previo && docDigitos(doc).length === 11) buscarPadron();
 }
 function totFactura(){
   const t = [...document.querySelectorAll('.fPago:checked')].reduce((a,x) => a + Number(x.dataset.monto), 0);
   document.getElementById('fTot').textContent = fmt(t);
 }
-async function emitirFactura(id){
+let padronT = null;
+function docCambio(){
+  clearTimeout(padronT);
+  const n = docDigitos(document.getElementById('fDoc').value);
+  const box = document.getElementById('fPadron');
+  if(n.length === 11) padronT = setTimeout(buscarPadron, 300);
+  else { box.textContent = ''; if(!n) document.getElementById('fCond').value = '5'; }
+}
+// Pregunta a ARCA quién es el CUIT y completa la condición de IVA y el nombre.
+async function buscarPadron(){
+  const box = document.getElementById('fPadron');
+  const n = docDigitos(document.getElementById('fDoc').value);
+  if(!box || n.length !== 11) return;
+  box.innerHTML = 'Consultando a ARCA…';
+  try{
+    const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ padron: n }) });
+    if(docDigitos(document.getElementById('fDoc').value) !== n) return;   // cambió mientras tanto
+    if(!r.ok){
+      box.innerHTML = r.sinServicio
+        ? '<span style="color:var(--no)">ARCA todavía no le habilitó a tu certificado la consulta de CUIT, así que la condición la elegís vos.</span>'
+        : '<span style="color:var(--no)">' + esc(r.error) + '</span>';
+      return;
+    }
+    document.getElementById('fCond').value = String(r.cond_iva);
+    if(r.nombre) document.getElementById('fNombre').value = r.nombre;
+    box.innerHTML = '<span style="color:var(--ok)">✓ Según ARCA: <b>' + esc(COND_IVA[r.cond_iva]) + '</b> · ' + esc(r.nombre) +
+      (r.domicilio ? ' · ' + esc(r.domicilio) : '') + '</span>' + (r.aviso ? '<br><span style="color:var(--no)">' + esc(r.aviso) + '</span>' : '');
+  }catch(e){ box.innerHTML = '<span style="color:var(--no)">' + esc(e.message) + '</span>'; }
+}
+
+// Lo cargado en el modal, validado. null si falta algo (ya avisó).
+function leerFactura(){
   const pagos = [...document.querySelectorAll('.fPago:checked')].map(x => Number(x.value));
-  const cond = document.getElementById('fCond').value;
-  const doc = document.getElementById('fDoc').value;
-  if(!pagos.length) return alert('Marcá al menos un cobro.');
-  if(!cond) return alert('Elegí la condición frente al IVA del cliente.');
-  if(cond !== '5' && docDigitos(doc).length !== 11) return alert('A un ' + COND_IVA[cond].toLowerCase() + ' hay que facturarle con CUIT (11 números).');
-  const tot = document.getElementById('fTot').textContent;
-  if(!confirm(`¿Emitir la Factura C del ${fechaCorta(document.getElementById('fFecha').value)} por ${tot} a ${document.getElementById('fNombre').value || 'consumidor final'}?` +
-    (FACT && FACT.config.homologacion ? '\n\n(Entorno de PRUEBA)' : '\n\nSe emite de verdad en ARCA.'))) return;
+  const f = { pagos, cond: document.getElementById('fCond').value, doc: document.getElementById('fDoc').value,
+    fecha: document.getElementById('fFecha').value, nombre: document.getElementById('fNombre').value,
+    total: [...document.querySelectorAll('.fPago:checked')].reduce((a,x) => a + Number(x.dataset.monto), 0) };
+  if(!pagos.length){ alert('Marcá al menos un cobro.'); return null; }
+  if(!f.cond){ alert('Elegí la condición frente al IVA del cliente.'); return null; }
+  if(f.cond !== '5' && docDigitos(f.doc).length !== 11){ alert('A un ' + COND_IVA[f.cond].toLowerCase() + ' hay que facturarle con CUIT (11 números).'); return null; }
+  return f;
+}
+
+// La factura tal cual va a salir, antes de mandarla a ARCA.
+let PREVIA = null;
+function vistaPrevia(id){
+  const f = leerFactura(); if(!f) return;
+  PREVIA = f;
+  const o = ORDERS.find(x => x.id === id);
+  const em = FACT.emisor || {}, c = FACT.config;
+  const n = docDigitos(f.doc);
+  const docTxt = n.length === 11 ? 'CUIT ' + n : n.length >= 7 ? 'DNI ' + n : 'Sin identificar';
+  const cobros = (o.pagos||[]).filter(pg => f.pagos.includes(pg.id));
+  abrirModal(`<h3>Así va a salir</h3>
+    <p class="sub">Revisala. Recién cuando confirmes se manda a ARCA${c.homologacion ? ' (entorno de PRUEBA)' : ' y queda emitida de verdad'}.</p>
+    <div style="border:1.5px solid var(--tx);border-radius:10px;overflow:hidden;font-size:13.5px;line-height:1.6">
+      <div style="display:grid;grid-template-columns:1fr 54px 1fr;border-bottom:1.5px solid var(--tx)">
+        <div style="padding:10px 12px"><b>${esc(em.razon_social || 'Sin cargar')}</b><br>${esc(em.domicilio || '')}<br>Responsable Monotributo</div>
+        <div style="border-left:1.5px solid var(--tx);border-right:1.5px solid var(--tx);text-align:center;padding-top:6px">
+          <b style="font-size:28px;line-height:1">C</b><br><span style="font-size:9px">COD. 011</span></div>
+        <div style="padding:10px 12px"><b>FACTURA</b><br>Punto de venta ${pad(c.pto_vta,5)}<br>
+          Fecha: <b>${fechaCorta(f.fecha)}</b><br>CUIT ${esc(c.cuit || '')}</div>
+      </div>
+      <div style="padding:10px 12px;border-bottom:1px solid var(--ln)"><b>${esc(f.nombre || 'Consumidor final')}</b> · ${esc(docTxt)}<br>
+        ${COND_IVA[f.cond]} · Contado</div>
+      <div style="padding:10px 12px;display:flex;justify-content:space-between"><span>Anteojos · pedido #${o.id}</span><span>${fmt(f.total)}</span></div>
+      <div style="padding:10px 12px;display:flex;justify-content:space-between;border-top:1.5px solid var(--tx);font-size:16px">
+        <b>Total</b><b>${fmt(f.total)}</b></div>
+    </div>
+    <p class="sub" style="margin:12px 0 0">Cobros que entran: ${cobros.map(pg => fechaCorta(pg.fecha) + ' ' + esc(pg.medio || 'sin medio') + ' ' + fmt(pg.monto)).join(' · ')}</p>
+    ${!em.razon_social ? '<div class="aviso" style="margin-top:12px">Faltan tus datos de la factura: cargalos en <b>Facturación</b>.</div>' : ''}
+    <div class="mfoot">
+      <button class="b q" onclick="modalFacturar(${o.id}, PREVIA)">Volver a editar</button>
+      <button class="b p" style="flex:none" id="fBtn" onclick="emitirFactura(${o.id})">Confirmar y emitir</button>
+    </div>`);
+}
+async function emitirFactura(id){
+  const f = PREVIA; if(!f) return;
   const btn = document.getElementById('fBtn'); btn.disabled = true; btn.textContent = 'Hablando con ARCA…';
   try{
     const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ facturar:{
-      order_id: id, pagos, cond_iva: Number(cond), doc, fecha: document.getElementById('fFecha').value, nombre: document.getElementById('fNombre').value } }) });
-    cerrarModal(); FACT = null; await cargar();
+      order_id: id, pagos: f.pagos, cond_iva: Number(f.cond), doc: f.doc, fecha: f.fecha, nombre: f.nombre } }) });
+    cerrarModal(); FACT = null; PREVIA = null; await cargar();
     showToast('Factura emitida · CAE ' + r.cae);
   }catch(e){
-    btn.disabled = false; btn.textContent = 'Emitir factura';
+    btn.disabled = false; btn.textContent = 'Confirmar y emitir';
     await cargar(); alert(e.message);
   }
 }

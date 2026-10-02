@@ -139,6 +139,19 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'Falta cargar en Vercel: ' + falta.join(', ') + '. Mirá FACTURACION.md.' });
     }
 
+    // Quién es un CUIT, según el padrón de ARCA (para no preguntar la condición de IVA).
+    if (b.padron) {
+      try {
+        return res.status(200).json({ ok: true, ...(await arca.consultarPadron(b.padron)) });
+      } catch (e) {
+        if (e.message === 'SIN_PADRON') {
+          return res.status(200).json({ ok: false, sinServicio: true,
+            error: 'El certificado todavía no tiene habilitada la consulta de padrón en ARCA' });
+        }
+        return res.status(200).json({ ok: false, error: e.message });
+      }
+    }
+
     if (b.probar) {
       const vivo = await arca.servidorVivo();
       const ultimo = await arca.ultimoAutorizado(FACTURA_C);
