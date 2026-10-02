@@ -1140,6 +1140,18 @@ function leerFactura(){
   return f;
 }
 
+// El detalle impreso de la factura: UNA línea genérica, "Anteojos", con la
+// cantidad de unidades del pedido y el precio unitario promedio (el
+// monotributo tiene tope de precio unitario: "1 × $2.000.000" lo pasaría).
+// Sin modelos ni líneas. A ARCA solo va el total; esto es lo que se imprime.
+function lineasFactura(o, total){
+  const qty = unidadesDe(o.items) || 1;
+  return [{ desc:'Anteojos', qty, unit: total / qty, sub: total }];
+}
+// Precio unitario: con centavos solo si no es redondo.
+const fmtU = n => Number.isInteger(n) ? fmt(n)
+  : '$' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 // La factura tal cual va a salir, antes de mandarla a ARCA.
 let PREVIA = null;
 function vistaPrevia(id){
@@ -1162,7 +1174,8 @@ function vistaPrevia(id){
       </div>
       <div style="padding:10px 12px;border-bottom:1px solid var(--ln)"><b>${esc(f.nombre || 'Consumidor final')}</b> · ${esc(docTxt)}<br>
         ${COND_IVA[f.cond]} · Contado</div>
-      <div style="padding:10px 12px;display:flex;justify-content:space-between"><span>Anteojos · pedido #${o.id}</span><span>${fmt(f.total)}</span></div>
+      ${lineasFactura(o, f.total).map(l => `<div style="padding:6px 12px;display:flex;justify-content:space-between;gap:10px">
+        <span>${esc(l.desc)} <span style="color:var(--mt)">· ${l.qty} × ${fmtU(l.unit)}</span></span><span>${fmt(l.sub)}</span></div>`).join('')}
       <div style="padding:10px 12px;display:flex;justify-content:space-between;border-top:1.5px solid var(--tx);font-size:16px">
         <b>Total</b><b>${fmt(f.total)}</b></div>
     </div>
@@ -1234,7 +1247,7 @@ ${f.homologacion ? '<div class="prueba">COMPROBANTE DE PRUEBA · SIN VALIDEZ FIS
   Condición frente al IVA: ${COND_IVA[f.cond_iva] || '—'} · Condición de venta: Contado
   ${anula ? '<br>Comprobante asociado: ' + nroFactura(anula) + ' del ' + fechaCorta(anula.fecha) : ''}</div>
 <table style="margin-top:16px"><thead><tr><th>Descripción</th><th class="q">Cant.</th><th class="m">Precio u.</th><th class="m">Subtotal</th></tr></thead>
-<tbody><tr><td>Anteojos · pedido #${o.id}</td><td class="q">1</td><td class="m">${fmt(f.total)}</td><td class="m">${fmt(f.total)}</td></tr></tbody></table>
+<tbody>${lineasFactura(o, f.total).map(l => `<tr><td>${esc(l.desc)}</td><td class="q">${l.qty}</td><td class="m">${fmtU(l.unit)}</td><td class="m">${fmt(l.sub)}</td></tr>`).join('')}</tbody></table>
 <div class="tot"><span>Total</span><span>${fmt(f.total)}</span></div>
 <div class="pie">${qrImg ? `<img src="${qrImg}" style="width:110px;height:110px">` : ''}
   <div style="line-height:1.8"><b>Comprobante autorizado por ARCA</b><br>CAE: ${esc(f.cae || '')}<br>Vencimiento del CAE: ${fechaCorta(f.cae_vence)}</div></div>
@@ -1329,11 +1342,24 @@ async function probarArca(){
   catch(e){ alert(e.message); }
 }
 
+// Facturas, PDF de pedidos y etiquetas se abren ADENTRO del panel, en una
+// hoja encima de todo. Con una ventana nueva Chrome la bloqueaba cuando el
+// documento tardaba en armarse (la factura espera los datos de ARCA).
 function imprimir(html){
-  const w = window.open('', '_blank');
-  if(!w) return alert('Permití las ventanas emergentes.');
-  w.document.open(); w.document.write(html); w.document.close();
+  cerrarVisor();
+  const caja = document.createElement('div');
+  caja.id = 'visor';
+  caja.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(28,27,25,.55);display:flex;flex-direction:column;padding:14px';
+  caja.innerHTML = `<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px">
+      <button class="b p" style="flex:none" onclick="document.getElementById('visorDoc').contentWindow.print()">Imprimir / Guardar PDF</button>
+      <button class="b" style="flex:none" onclick="cerrarVisor()">Cerrar</button></div>
+    <iframe id="visorDoc" style="flex:1;border:0;border-radius:12px;background:#fff;width:100%"></iframe>`;
+  document.body.appendChild(caja);
+  // El botón propio del documento sobra: el visor ya tiene el suyo.
+  document.getElementById('visorDoc').srcdoc = html.replace('<body>', '<body><style>.noprint{display:none!important}</style>');
 }
+function cerrarVisor(){ const v = document.getElementById('visor'); if(v) v.remove(); }
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape') cerrarVisor(); });
 const HOJA = `*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0 auto;padding:18px;font-size:12px}
 h1{font-size:18px;margin:0;letter-spacing:.5px;text-transform:uppercase}
 .meta{font-size:11px;color:#555;margin-top:3px}
