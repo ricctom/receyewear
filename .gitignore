@@ -21,3 +21,7 @@ fixprice.py
 apply_acetato.py
 
 .vercel
+
+# Extractos bancarios y exportes del panel: datos privados, NUNCA se publican
+Bancos/
+rec-ventas-y-cobros-*.csv

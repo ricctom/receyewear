@@ -120,6 +120,7 @@ const VISTAS = [
   ['recibido',   'Para despachar'],
   ['cobrar',     'Por cobrar'],
   ['facturar',   'Para facturar'],
+  ['repasar',    'Repasar cobros'],
   ['saldado',    'Saldados'],
 ];
 
@@ -147,7 +148,10 @@ const cobrado = o => Number(o.cobrado) || 0;
 // En blanco = va a factura. Lo cobrado en blanco que todavía no tiene factura es lo que hay que facturar.
 const medioEnBlanco = m => /^(transferencia|mercado ?pago|cheque|echeq)/i.test(m || '');
 const enBlanco = pg => pg.en_blanco == null ? medioEnBlanco(pg.medio) : !!pg.en_blanco;
-const sinFacturar = o => (o.pagos||[]).filter(pg => enBlanco(pg) && !pg.factura_id);
+const facturado = pg => !!pg.factura_id || !!pg.facturado_aparte;
+const sinFacturar = o => (o.pagos||[]).filter(pg => enBlanco(pg) && !facturado(pg));
+// Cobrado pero sin decir cómo: hay que repasarlo para saber qué facturar.
+const sinMedio = o => (o.pagos||[]).some(pg => !pg.medio && !facturado(pg));
 const paraFacturar = o => sinFacturar(o).reduce((a,pg) => a + Number(pg.monto), 0);
 const facturaDe = (o, fid) => (o.facturas||[]).find(f => f.id === fid);
 const debe    = o => Math.max(0, o.total - cobrado(o));
@@ -184,6 +188,7 @@ function enVista(o, v){
   if(v === 'pendientes') return p !== 'saldado' && p !== 'cancelado';
   if(v === 'cobrar') return p !== 'cancelado' && debe(o) > 0 && (p === 'despachado' || p === 'saldado');
   if(v === 'saldado') return p === 'saldado' || p === 'cancelado';
+  if(v === 'repasar') return p !== 'cancelado' && sinMedio(o);
   if(v === 'facturar') return paraFacturar(o) > 0 || (o.facturas||[]).some(f => f.estado === 'pendiente');
   return p === v;
 }
@@ -297,7 +302,8 @@ function tarjeta(o){
         <p class="cname">${esc(nombre)}</p>
         <p class="cmeta">#${o.id} · ${cuando}${p!=='despachado'&&p!=='saldado' ? '' : ' · ' + uTxt}${
           faltaron(o) ? ' · <span class="debe">vino de menos ' + faltaron(o) + ' u.</span>' : ''}${
-          paraFacturar(o) ? '<span class="tg bl">' + fmt(paraFacturar(o)) + ' para facturar</span>' : ''}</p>
+          paraFacturar(o) ? '<span class="tg bl">' + fmt(paraFacturar(o)) + ' para facturar</span>' : ''}${
+          sinMedio(o) ? '<span class="tg pe">¿cómo pagó?</span>' : ''}</p>
       </div>
       <div class="cplata">${plata}</div>
     </div>
@@ -326,6 +332,7 @@ function accionPrincipal(o, p){
     <button class="b" onclick="etiqueta(${o.id})">Etiqueta</button>`;
   if(p === 'despachado') return `<button class="b p" onclick="modalPago(${o.id},true)">Me pagó todo</button>
     <button class="b" onclick="modalPago(${o.id})">Una parte</button>`;
+  if(sinMedio(o)) return `<button class="b p" onclick="modalComoPago(${o.id})">Decir cómo pagó</button>`;
   if(paraFacturar(o)) return `<button class="b p" onclick="modalFacturar(${o.id})">Facturar ${fmt(paraFacturar(o))}</button>`;
   return `<button class="b q" style="flex:1" onclick="verDetalle(${o.id})">Ver el pedido</button>`;
 }
@@ -343,6 +350,7 @@ function menu(o, p){
     <button onclick="editarNota(${o.id})">${o.nota ? 'Cambiar la nota' : 'Agregar una nota'}</button>
     <button onclick="cambiarCuenta(${o.id})">Pasar a otra cuenta</button>
     ${p !== 'despachado' && p !== 'cancelado' ? `<button onclick="modalPago(${o.id})">Registrar un cobro</button>` : ''}
+    ${cobrado(o) ? `<button onclick="modalComoPago(${o.id})"><b>Cómo pagó</b> (repartir en partes)</button>` : ''}
     ${paraFacturar(o) ? `<button onclick="modalFacturar(${o.id})">Facturar lo cobrado en blanco</button>` : ''}
     ${cobrado(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
     ${atras ? `<button onclick="mover(${o.id},'${atras}')">Volver un paso atrás</button>` : ''}
@@ -400,9 +408,10 @@ function detalle(o){
   const pagos = (o.pagos||[]).length ? `<div class="det"><h4>Cobros</h4>
     ${o.pagos.map(pg => `<div class="dato"><span>${fechaCorta(pg.fecha)} · ${pg.medio ? esc(pg.medio) : '<i>sin medio</i>'}${
         pg.usd ? ' ' + usd(pg.usd) + ' a ' + fmt(pg.cotiz) : ''}${pg.nota?' · '+esc(pg.nota):''}${tagPago(o, pg)}</span>
-      <span class="num">${fmt(pg.monto)}${pg.factura_id ? '' : `<button class="pgx" title="Cambiar o borrar" onclick="editarPago(${o.id},${pg.id})">✎</button>`}</span></div>`).join('')}
-    ${paraFacturar(o) ? `<div class="mfoot" style="margin-top:10px;justify-content:flex-start">
-      <button class="b sm p" onclick="modalFacturar(${o.id})">Facturar ${fmt(paraFacturar(o))}</button></div>` : ''}</div>` : '';
+      <span class="num">${fmt(pg.monto)}${facturado(pg) ? '' : `<button class="pgx" title="Cambiar o borrar" onclick="editarPago(${o.id},${pg.id})">✎</button>`}</span></div>`).join('')}
+    <div class="mfoot" style="margin-top:10px;justify-content:flex-start">
+      <button class="b sm${sinMedio(o) ? ' p' : ''}" onclick="modalComoPago(${o.id})">Cómo pagó</button>
+      ${paraFacturar(o) ? `<button class="b sm p" onclick="modalFacturar(${o.id})">Facturar ${fmt(paraFacturar(o))}</button>` : ''}</div></div>` : '';
 
   const facts = (o.facturas||[]).filter(f => f.estado !== 'rechazada');
   const facturas = facts.length ? `<div class="det"><h4>Facturas</h4>
@@ -710,6 +719,7 @@ async function guardarPago(id){
 
 // La etiqueta de cada cobro: en blanco / en negro / facturado. Tocándola se cambia.
 function tagPago(o, pg){
+  if(pg.facturado_aparte) return '<span class="tg fc">facturado aparte</span>';
   if(pg.factura_id){
     const f = facturaDe(o, pg.factura_id);
     return f && f.estado === 'pendiente' ? '<span class="tg pe">facturando…</span>'
@@ -718,6 +728,93 @@ function tagPago(o, pg){
   const bl = enBlanco(pg);
   return `<button class="tg ${bl ? 'bl' : 'ng'}" title="Tocá para cambiarlo"
     onclick="marcarBlanco(${o.id},${pg.id},${!bl})">${bl ? 'en blanco' : 'en negro'}</button>`;
+}
+// "Cómo pagó": se reparte lo cobrado en partes, cada una con su medio
+// (mitad echeq y mitad transferencia, una parte en dólares, etc.). Reemplaza
+// los cobros sin factura del pedido; lo ya facturado no se toca.
+let PARTES = [], PARTES_ID = 0;
+function modalComoPago(id){
+  const o = ORDERS.find(x => x.id === id);
+  PARTES_ID = id;
+  const libres = (o.pagos||[]).filter(pg => !pg.factura_id);
+  PARTES = libres.length
+    ? libres.map(pg => ({ medio: pg.medio || '', monto: pg.usd ? '' : pg.monto, usd: pg.usd || '', cotiz: pg.cotiz || '',
+        fecha: String(pg.fecha).slice(0,10), en_blanco: pg.medio ? enBlanco(pg) : false, facturado_aparte: !!pg.facturado_aparte }))
+    : [{ medio:'', monto: debe(o), usd:'', cotiz:'', fecha: hoyISO(), en_blanco:false, facturado_aparte:false }];
+  pintarPartes();
+}
+function objetivoPartes(o){
+  // Lo que tienen que sumar las partes: el total menos lo que ya tiene factura del panel.
+  const fijo = (o.pagos||[]).filter(pg => pg.factura_id).reduce((a,pg) => a + Number(pg.monto), 0);
+  return o.total - fijo;
+}
+const montoParte = p => p.medio === 'Dólares' ? Math.round((Number(p.usd)||0) * (Number(p.cotiz)||0)) : (Number(p.monto)||0);
+function pintarPartes(){
+  const o = ORDERS.find(x => x.id === PARTES_ID);
+  const meta = objetivoPartes(o);
+  const suma = PARTES.reduce((a,p) => a + montoParte(p), 0);
+  const dif = meta - suma;
+  abrirModal(`<h3>Cómo pagó · pedido #${o.id}</h3>
+    <p class="sub">${esc((o.ship&&o.ship.razon_social) || o.name)} · total ${fmt(o.total)}.
+      Repartilo en partes: cada una con su medio. Lo que va en blanco después se factura.</p>
+    ${PARTES.map((p,i) => `<div style="border:1px solid var(--ln);border-radius:12px;padding:4px 12px 10px;margin-bottom:10px">
+      <div class="fila">
+        <div><label>Medio</label><select onchange="parte(${i},'medio',this.value)">
+          <option value="">— elegí —</option>${MEDIOS.map(m => `<option${m===p.medio?' selected':''}>${m}</option>`).join('')}</select></div>
+        ${p.medio === 'Dólares'
+          ? `<div><label>US$</label><input type="number" value="${p.usd}" oninput="parte(${i},'usd',this.value,1)"></div>
+             <div><label>A cuánto</label><input type="number" value="${p.cotiz || USD.valor || ''}" oninput="parte(${i},'cotiz',this.value,1)"></div>`
+          : `<div><label>Monto</label><input type="number" value="${p.monto}" oninput="parte(${i},'monto',this.value,1)"></div>`}
+        <div><label>Fecha</label><input type="date" value="${p.fecha}" onchange="parte(${i},'fecha',this.value,1)"></div>
+      </div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <label class="chk"><input type="checkbox"${p.en_blanco?' checked':''} onchange="parte(${i},'en_blanco',this.checked,1)"> En blanco</label>
+        <label class="chk"><input type="checkbox"${p.facturado_aparte?' checked':''} onchange="parte(${i},'facturado_aparte',this.checked,1)"> Ya lo facturé aparte</label>
+        ${PARTES.length > 1 ? `<button class="b sm q" style="margin-left:auto;color:var(--no)" onclick="PARTES.splice(${i},1);pintarPartes()">Sacar</button>` : ''}
+      </div></div>`).join('')}
+    <div class="mfoot" style="justify-content:flex-start;margin-top:4px">
+      <button class="b sm q" onclick="agregarParte()">+ Otra parte</button>
+      ${PARTES.length === 1 ? `<button class="b sm q" onclick="mitadYMitad()">Mitad y mitad</button>` : ''}
+    </div>
+    <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
+      <span>Suman</span><span class="num" id="pSuma"><b>${fmt(suma)}</b> ${dif > 0 ? '· faltan ' + fmt(dif) : dif < 0 ? '· te pasás ' + fmt(-dif) : '✓'}</span></div>
+    <div class="mfoot">
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" onclick="guardarPartes()">Guardar</button>
+    </div>`);
+}
+// Cambia un dato de una parte. `quieto` = no redibujar (para no perder el foco al tipear).
+function parte(i, k, v, quieto){
+  PARTES[i][k] = v;
+  if(k === 'medio') PARTES[i].en_blanco = medioEnBlanco(v);
+  if(!quieto) return pintarPartes();
+  const o = ORDERS.find(x => x.id === PARTES_ID);
+  const suma = PARTES.reduce((a,p) => a + montoParte(p), 0), dif = objetivoPartes(o) - suma;
+  document.getElementById('pSuma').innerHTML = `<b>${fmt(suma)}</b> ` +
+    (dif > 0 ? '· faltan ' + fmt(dif) : dif < 0 ? '· te pasás ' + fmt(-dif) : '✓');
+}
+function agregarParte(){
+  const o = ORDERS.find(x => x.id === PARTES_ID);
+  const falta = Math.max(0, objetivoPartes(o) - PARTES.reduce((a,p) => a + montoParte(p), 0));
+  const ult = PARTES[PARTES.length-1] || {};
+  PARTES.push({ medio:'', monto: falta || '', usd:'', cotiz:'', fecha: ult.fecha || hoyISO(), en_blanco:false, facturado_aparte:false });
+  pintarPartes();
+}
+function mitadYMitad(){
+  const p = PARTES[0], tot = montoParte(p) || objetivoPartes(ORDERS.find(x => x.id === PARTES_ID));
+  const a = Math.round(tot / 2);
+  PARTES = [{ ...p, medio: p.medio === 'Dólares' ? '' : p.medio, monto: a }, { ...p, medio:'', monto: tot - a, en_blanco:false }];
+  pintarPartes();
+}
+async function guardarPartes(){
+  if(PARTES.some(p => !p.medio)) return alert('Elegí el medio de cada parte.');
+  if(PARTES.some(p => !(montoParte(p) > 0))) return alert('Cada parte tiene que tener un monto.');
+  try{
+    await post({ id: PARTES_ID, rehacerPagos: PARTES.map(p => ({ medio: p.medio, fecha: p.fecha, en_blanco: !!p.en_blanco,
+      facturado_aparte: !!p.facturado_aparte,
+      ...(p.medio === 'Dólares' ? { usd: Number(p.usd), cotiz: Number(p.cotiz || USD.valor) } : { monto: Number(p.monto) }) })) });
+    cerrarModal(); await cargar(); showToast('Guardado');
+  }catch(e){ alert(e.message); }
 }
 async function marcarBlanco(id, pid, valor){
   try{ await post({ id, pagoEdit:{ id: pid, en_blanco: valor } }); await cargar(); }catch(e){ alert(e.message); }
@@ -956,7 +1053,7 @@ async function modalFacturar(id){
   const o = ORDERS.find(x => x.id === id);
   try{ if(!FACT) await cargarFact(); }catch(e){ return alert(e.message); }
   const sh = o.ship || {};
-  const libres = (o.pagos||[]).filter(pg => !pg.factura_id);
+  const libres = (o.pagos||[]).filter(pg => !facturado(pg));
   const doc = docDigitos(sh.dni_cuit);
   // Condición de IVA: la que se usó la última vez; sin CUIT, consumidor final.
   const cond = o.cond_iva || (doc.length === 11 ? '' : 5);
@@ -1099,10 +1196,36 @@ async function abrirFacturacion(){
     </div>
     <div class="mfoot">
       <button class="b q" style="margin-right:auto" onclick="probarArca()">Probar conexión con ARCA</button>
+      <button class="b q" onclick="bajarCobros()">Bajar ventas y cobros</button>
       <button class="b q" onclick="cerrarModal()">Cerrar</button>
       <button class="b p" style="flex:none" onclick="guardarEmisor()">Guardar datos</button>
     </div>`);
 }
+// Para cruzar con los extractos del banco y de Mercado Pago: una fila por cada
+// cobro y una por cada pedido sin cobros. Se abre en Excel (separador ;).
+function bajarCobros(){
+  const filas = [['pedido','fecha_pedido','etapa','cliente','dni_cuit','email','total_pedido','cobrado','debe',
+                  'fecha_cobro','monto_cobro','medio','en_blanco','usd','factura','nota_cobro']];
+  const facturaTxt = (o, pg) => { const f = pg.factura_id && facturaDe(o, pg.factura_id); return f ? nroFactura(f, true) : ''; };
+  ORDERS.forEach(o => {
+    const sh = o.ship || {};
+    const base = [o.id, String(o.created_at).slice(0,10), o.etapa, sh.razon_social || o.name || '', sh.dni_cuit || '', o.email || '',
+                  o.total, cobrado(o), debe(o)];
+    const pagos = o.pagos || [];
+    if(!pagos.length) filas.push([...base, '', '', '', '', '', '', '']);
+    pagos.forEach(pg => filas.push([...base, String(pg.fecha).slice(0,10), pg.monto, pg.medio || '',
+      enBlanco(pg) ? 'si' : 'no', pg.usd || '', facturaTxt(o, pg), pg.nota || '']));
+  });
+  const csv = '\ufeff' + filas.map(r => r.map(v => {
+    const t = String(v == null ? '' : v);
+    return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  a.download = 'rec-ventas-y-cobros-' + hoyISO() + '.csv';
+  a.click();
+}
+
 async function guardarEmisor(){
   const emisor = { razon_social: document.getElementById('emRs').value, domicilio: document.getElementById('emDom').value,
     iibb: document.getElementById('emIibb').value, inicio: document.getElementById('emIni').value };

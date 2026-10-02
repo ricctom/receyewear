@@ -95,7 +95,8 @@ module.exports = async (req, res) => {
                    o.usd_rate, o.nota, u.email, u.name,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = o.id), 0) AS cobrado,
                    COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota,
-                                                         'en_blanco',p.en_blanco,'usd',p.usd,'cotiz',p.cotiz,'factura_id',p.factura_id) ORDER BY p.id)
+                                                         'en_blanco',p.en_blanco,'usd',p.usd,'cotiz',p.cotiz,'factura_id',p.factura_id,
+                                                         'facturado_aparte',p.facturado_aparte) ORDER BY p.id)
                              FROM order_payments p WHERE p.order_id = o.id), '[]'::json) AS pagos,
                    COALESCE((SELECT json_agg(f ORDER BY f.id) FROM facturas f WHERE f.order_id = o.id), '[]'::json) AS facturas,
                    u.cond_iva
@@ -385,6 +386,41 @@ module.exports = async (req, res) => {
       if (medio !== undefined) await sql`UPDATE order_payments SET medio = ${medio} WHERE id = ${pid}`;
       if (b.pagoEdit.en_blanco !== undefined) {
         await sql`UPDATE order_payments SET en_blanco = ${!!b.pagoEdit.en_blanco} WHERE id = ${pid}`;
+      }
+      return res.status(200).json({ ok: true });
+    }
+    // "Cómo pagó": se reemplazan los cobros sin factura por las partes que se
+    // digan (mitad echeq y mitad transferencia, etc.). Lo ya facturado queda.
+    if (Array.isArray(b.rehacerPagos)) {
+      const [row] = await sql`SELECT total,
+          COALESCE((SELECT sum(monto)::int FROM order_payments WHERE order_id = ${id} AND factura_id IS NOT NULL), 0) AS fijo
+        FROM orders WHERE id = ${id}`;
+      if (!row) return res.status(404).json({ error: 'No existe el pedido' });
+      const partes = [];
+      for (const p of b.rehacerPagos) {
+        const usd = Number(p.usd) > 0 ? Number(p.usd) : null;
+        const cotiz = usd && Number(p.cotiz) > 0 ? Number(p.cotiz) : null;
+        if (usd && !cotiz) return res.status(400).json({ error: 'Falta la cotización del dólar' });
+        const monto = usd ? Math.round(usd * cotiz) : Math.round(Number(p.monto) || 0);
+        if (!(monto > 0)) return res.status(400).json({ error: 'Cada parte tiene que tener un monto' });
+        const medio = String(p.medio || '').slice(0, 40) || (usd ? 'Dólares' : null);
+        partes.push({
+          monto, medio, usd, cotiz,
+          fecha: /^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha || '')) ? p.fecha : null,
+          en_blanco: p.en_blanco !== undefined ? !!p.en_blanco : enBlancoPorMedio(medio),
+          aparte: !!p.facturado_aparte,
+          nota: p.nota ? String(p.nota).slice(0, 200) : null,
+        });
+      }
+      const suma = partes.reduce((a, p) => a + p.monto, 0);
+      if (!partes.some((p) => p.usd) && row.fijo + suma > row.total) {
+        return res.status(400).json({ error: 'Te pasás: el pedido es de ' + row.total + ' y suman ' + (row.fijo + suma) });
+      }
+      await sql`DELETE FROM order_payments WHERE order_id = ${id} AND factura_id IS NULL`;
+      for (const p of partes) {
+        await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota, en_blanco, usd, cotiz, facturado_aparte)
+          VALUES (${id}, COALESCE(${p.fecha}::date, CURRENT_DATE), ${p.monto}, ${p.medio}, ${p.nota},
+                  ${p.en_blanco}, ${p.usd}, ${p.cotiz}, ${p.aparte})`;
       }
       return res.status(200).json({ ok: true });
     }

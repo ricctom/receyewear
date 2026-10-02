@@ -99,7 +99,7 @@ module.exports = async (req, res) => {
                      sum(CASE WHEN NOT COALESCE(en_blanco, false) AND usd IS NULL THEN monto ELSE 0 END)::bigint AS negro,
                      sum(COALESCE(usd, 0))::numeric AS usd,
                      sum(CASE WHEN usd IS NOT NULL THEN monto ELSE 0 END)::bigint AS usd_pesos,
-                     sum(CASE WHEN en_blanco AND factura_id IS NULL THEN monto ELSE 0 END)::bigint AS sin_facturar
+                     sum(CASE WHEN en_blanco AND factura_id IS NULL AND NOT COALESCE(facturado_aparte, false) THEN monto ELSE 0 END)::bigint AS sin_facturar
                 FROM order_payments GROUP BY 1),
             f AS (
               SELECT to_char(fecha, 'YYYY-MM') AS mes,
@@ -172,10 +172,10 @@ module.exports = async (req, res) => {
           ': ARCA no deja hacer una con fecha anterior. Usá esa fecha o una posterior.' });
       }
 
-      const pagos = await sql`SELECT id, monto, factura_id FROM order_payments
+      const pagos = await sql`SELECT id, monto, factura_id, facturado_aparte FROM order_payments
         WHERE order_id = ${orderId} AND id = ANY(${ids}::int[])`;
       if (pagos.length !== ids.length) return res.status(400).json({ error: 'Algún cobro no es de este pedido' });
-      if (pagos.some((p) => p.factura_id)) return res.status(400).json({ error: 'Algún cobro ya está facturado' });
+      if (pagos.some((p) => p.factura_id || p.facturado_aparte)) return res.status(400).json({ error: 'Algún cobro ya está facturado' });
       const total = pagos.reduce((a, p) => a + Number(p.monto), 0);
       if (!(total > 0)) return res.status(400).json({ error: 'El total tiene que ser mayor a cero' });
 

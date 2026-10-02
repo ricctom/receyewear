@@ -137,6 +137,8 @@ function ensureTables() {
     await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS usd NUMERIC`;
     await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS cotiz NUMERIC`;
     await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS factura_id INTEGER`;
+    // Facturado por fuera del panel (a mano en ARCA, antes de tener esto).
+    await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS facturado_aparte BOOLEAN DEFAULT false`;
     // Los cobros viejos (y los que carga consignación o el CRM sin decirlo) se
     // marcan solos según el medio. Después se pueden cambiar a mano.
     await sql`UPDATE order_payments
