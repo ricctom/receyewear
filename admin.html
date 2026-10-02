@@ -960,6 +960,10 @@ async function modalFacturar(id){
   const doc = docDigitos(sh.dni_cuit);
   // Condición de IVA: la que se usó la última vez; sin CUIT, consumidor final.
   const cond = o.cond_iva || (doc.length === 11 ? '' : 5);
+  // Fecha: la del último cobro, si ARCA todavía la acepta (hasta 5 días atrás).
+  const { desde, hasta } = FACT.fechas;
+  const ultimoCobro = libres.filter(enBlanco).map(pg => String(pg.fecha).slice(0,10)).sort().pop() || hasta;
+  const fechaDef = ultimoCobro < desde ? desde : ultimoCobro > hasta ? hasta : ultimoCobro;
   abrirModal(`<h3>Facturar · pedido #${o.id}</h3>
     <p class="sub">Factura C a nombre tuyo. Marcá los cobros que entran en esta factura.</p>
     ${avisoConfig()}
@@ -970,6 +974,10 @@ async function modalFacturar(id){
       <b>${fmt(pg.monto)}</b></label>`).join('')}
     <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
       <span>Total de la factura</span><span class="num"><b id="fTot"></b></span></div>
+    <div class="fila">
+      <div><label>Fecha de la factura</label><input type="date" id="fFecha" value="${fechaDef}" min="${desde}" max="${hasta}"></div>
+      <div><p class="sub" style="margin:38px 0 0">ARCA deja hasta el ${fechaCorta(desde)}. Si hacés varias, de la más vieja a la más nueva.</p></div>
+    </div>
     <label>A nombre de</label><input type="text" id="fNombre" value="${esc(sh.razon_social || o.name || '')}">
     <div class="fila">
       <div><label>CUIT o DNI</label><input type="text" id="fDoc" value="${esc(sh.dni_cuit || '')}" placeholder="Vacío = consumidor final sin identificar"></div>
@@ -996,12 +1004,12 @@ async function emitirFactura(id){
   if(!cond) return alert('Elegí la condición frente al IVA del cliente.');
   if(cond !== '5' && docDigitos(doc).length !== 11) return alert('A un ' + COND_IVA[cond].toLowerCase() + ' hay que facturarle con CUIT (11 números).');
   const tot = document.getElementById('fTot').textContent;
-  if(!confirm(`¿Emitir la Factura C por ${tot} a ${document.getElementById('fNombre').value || 'consumidor final'}?` +
+  if(!confirm(`¿Emitir la Factura C del ${fechaCorta(document.getElementById('fFecha').value)} por ${tot} a ${document.getElementById('fNombre').value || 'consumidor final'}?` +
     (FACT && FACT.config.homologacion ? '\n\n(Entorno de PRUEBA)' : '\n\nSe emite de verdad en ARCA.'))) return;
   const btn = document.getElementById('fBtn'); btn.disabled = true; btn.textContent = 'Hablando con ARCA…';
   try{
     const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ facturar:{
-      order_id: id, pagos, cond_iva: Number(cond), doc, nombre: document.getElementById('fNombre').value } }) });
+      order_id: id, pagos, cond_iva: Number(cond), doc, fecha: document.getElementById('fFecha').value, nombre: document.getElementById('fNombre').value } }) });
     cerrarModal(); FACT = null; await cargar();
     showToast('Factura emitida · CAE ' + r.cae);
   }catch(e){

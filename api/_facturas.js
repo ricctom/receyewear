@@ -14,6 +14,14 @@ const { getSession } = require('./_auth');
 const arca = require('./_arca');
 
 const FACTURA_C = 11, NOTA_CREDITO_C = 13;
+// ARCA acepta factura de productos con fecha hasta 5 días antes de hoy (y no
+// anterior a la última emitida de ese tipo en el punto de venta).
+const DIAS_ATRAS = 5;
+// "AAAA-MM-DD" de hoy en Argentina, corrido `dias` días.
+const diaAR = (dias = 0) => new Date(Date.now() - 3 * 3600000 + dias * 86400000).toISOString().slice(0, 10);
+// "2026-09-27" -> Date al mediodía de Argentina, para que ningún huso lo corra de día.
+const mediodia = (f) => new Date(String(f).slice(0, 10) + 'T15:00:00Z');
+const isoDe = (f) => (f instanceof Date ? f.toISOString() : String(f)).slice(0, 10);
 
 async function emisor() {
   const [row] = await sql`SELECT value FROM settings WHERE key = 'factura_emisor'`;
@@ -32,7 +40,7 @@ async function emitir(f, asociado) {
     return { ok: false, error: 'No pude hablar con ARCA: ' + e.message };
   }
   await sql`UPDATE facturas SET numero = ${numero} WHERE id = ${f.id}`;
-  const pedido = { cbteTipo: f.tipo, numero, fecha: new Date(), docTipo: f.doc_tipo, docNro: f.doc_nro,
+  const pedido = { cbteTipo: f.tipo, numero, fecha: mediodia(isoDe(f.fecha)), docTipo: f.doc_tipo, docNro: f.doc_nro,
                    condIva: f.cond_iva, total: f.total, asociado };
   let r;
   try {
@@ -108,6 +116,7 @@ module.exports = async (req, res) => {
         emisor(),
       ]);
       return res.status(200).json({
+        fechas: { desde: diaAR(-DIAS_ATRAS), hasta: diaAR() },
         config: { falta: arca.faltaConfigurar(), homologacion: arca.HOMOLOGACION,
                   cuit: arca.cuit(), pto_vta: arca.puntoVenta() },
         emisor: datos, meses, facturas,
@@ -149,6 +158,20 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'A un ' + arca.IVA_RECEPTOR[condIva].toLowerCase() + ' hay que facturarle con CUIT (11 números)' });
       }
 
+      // Fecha de la factura: hoy, o hasta DIAS_ATRAS para atrás.
+      const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(b.facturar.fecha || '')) ? b.facturar.fecha : diaAR();
+      if (fecha > diaAR() || fecha < diaAR(-DIAS_ATRAS)) {
+        return res.status(400).json({ error: 'ARCA acepta fechas entre el ' + diaAR(-DIAS_ATRAS).split('-').reverse().join('/') +
+          ' y hoy' });
+      }
+      const [ultima] = await sql`SELECT max(fecha) AS fecha FROM facturas
+        WHERE tipo = ${FACTURA_C} AND pto_vta = ${arca.puntoVenta()} AND estado <> 'rechazada'
+          AND homologacion = ${arca.HOMOLOGACION}`;
+      if (ultima && ultima.fecha && fecha < isoDe(ultima.fecha)) {
+        return res.status(400).json({ error: 'Ya hay una factura del ' + isoDe(ultima.fecha).split('-').reverse().join('/') +
+          ': ARCA no deja hacer una con fecha anterior. Usá esa fecha o una posterior.' });
+      }
+
       const pagos = await sql`SELECT id, monto, factura_id FROM order_payments
         WHERE order_id = ${orderId} AND id = ANY(${ids}::int[])`;
       if (pagos.length !== ids.length) return res.status(400).json({ error: 'Algún cobro no es de este pedido' });
@@ -156,8 +179,8 @@ module.exports = async (req, res) => {
       const total = pagos.reduce((a, p) => a + Number(p.monto), 0);
       if (!(total > 0)) return res.status(400).json({ error: 'El total tiene que ser mayor a cero' });
 
-      const [f] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, total, doc_tipo, doc_nro, nombre, cond_iva, homologacion)
-        VALUES (${orderId}, ${FACTURA_C}, ${arca.puntoVenta()}, ${total}, ${doc.docTipo}, ${doc.docNro},
+      const [f] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, fecha, total, doc_tipo, doc_nro, nombre, cond_iva, homologacion)
+        VALUES (${orderId}, ${FACTURA_C}, ${arca.puntoVenta()}, ${fecha}, ${total}, ${doc.docTipo}, ${doc.docNro},
                 ${String(b.facturar.nombre || '').trim().slice(0, 120) || null}, ${condIva}, ${arca.HOMOLOGACION})
         RETURNING *`;
       // Se atan los cobros ANTES de mandarla: si llega otro clic, ya no los encuentra libres.
