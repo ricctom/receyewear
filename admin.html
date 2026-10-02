@@ -933,7 +933,7 @@ async function guardarItems(id){
 // Se factura lo cobrado en blanco: se eligen los cobros y sale UNA factura por
 // la suma. Cada cobro queda atado a su factura y no se puede facturar dos veces.
 let FACT = null;   // lo que devuelve GET /api/facturas: config, emisor, resumen, QR
-async function cargarFact(){ FACT = await api('/api/facturas'); return FACT; }
+async function cargarFact(){ FACT = await api('/api/admin?facturas=1'); return FACT; }
 
 const COND_IVA = { 5:'Consumidor final', 6:'Monotributo', 1:'Responsable inscripto', 4:'Exento' };
 const pad = (n, l) => String(n || 0).padStart(l, '0');
@@ -1000,7 +1000,7 @@ async function emitirFactura(id){
     (FACT && FACT.config.homologacion ? '\n\n(Entorno de PRUEBA)' : '\n\nSe emite de verdad en ARCA.'))) return;
   const btn = document.getElementById('fBtn'); btn.disabled = true; btn.textContent = 'Hablando con ARCA…';
   try{
-    const r = await api('/api/facturas', { method:'POST', body: JSON.stringify({ facturar:{
+    const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ facturar:{
       order_id: id, pagos, cond_iva: Number(cond), doc, nombre: document.getElementById('fNombre').value } }) });
     cerrarModal(); FACT = null; await cargar();
     showToast('Factura emitida · CAE ' + r.cae);
@@ -1011,7 +1011,7 @@ async function emitirFactura(id){
 }
 async function revisarFactura(fid){
   try{
-    await api('/api/facturas', { method:'POST', body: JSON.stringify({ revisar: fid }) });
+    await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ revisar: fid }) });
     FACT = null; await cargar(); showToast('ARCA la tiene: quedó emitida');
   }catch(e){ await cargar(); alert(e.message); }
 }
@@ -1019,7 +1019,7 @@ async function anularFactura(id, fid){
   const o = ORDERS.find(x => x.id === id), f = facturaDe(o, fid);
   if(!confirm(`¿Anular la ${nroFactura(f)} por ${fmt(f.total)}?\n\nSe emite una Nota de crédito C en ARCA y sus cobros vuelven a quedar sin facturar.`)) return;
   try{
-    await api('/api/facturas', { method:'POST', body: JSON.stringify({ anular: fid }) });
+    await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ anular: fid }) });
     FACT = null; await cargar(); showToast('Factura anulada');
   }catch(e){ await cargar(); alert(e.message); }
 }
@@ -1098,11 +1098,11 @@ async function abrirFacturacion(){
 async function guardarEmisor(){
   const emisor = { razon_social: document.getElementById('emRs').value, domicilio: document.getElementById('emDom').value,
     iibb: document.getElementById('emIibb').value, inicio: document.getElementById('emIni').value };
-  try{ await api('/api/facturas', { method:'POST', body: JSON.stringify({ emisor }) }); FACT = null; showToast('Guardado'); }
+  try{ await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ emisor }) }); FACT = null; showToast('Guardado'); }
   catch(e){ alert(e.message); }
 }
 async function probarArca(){
-  try{ const r = await api('/api/facturas', { method:'POST', body: JSON.stringify({ probar:true }) }); alert(r.msg); }
+  try{ const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ probar:true }) }); alert(r.msg); }
   catch(e){ alert(e.message); }
 }
 

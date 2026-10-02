@@ -8,11 +8,12 @@
 //   POST { id, pago:{...} }            -> registra un cobro
 //   POST { id, pagoEdit:{ id, medio?, en_blanco? } } / { id, pagoBorrar: pagoId }
 //   POST { id, resetPagos|borrar|nota|items }
-// La facturación en ARCA está en /api/facturas.
+// La facturación en ARCA: /api/admin?facturas=1 (api/_facturas.js).
 //   POST { usd:{...} } / { costmap:{...} }
 const { sql, ensureTables, splitNombre, norm, setSetting, usdRate,
         costTables, costoDe, costoLineasDe, enBlancoPorMedio } = require('./_db');
 const { getSession } = require('./_auth');
+const facturas = require('./_facturas');
 
 const ETAPAS = ['nuevo', 'pedido', 'recibido', 'despachado', 'cancelado'];
 // Se sigue escribiendo el viejo "status" para que "Mis pedidos" del cliente
@@ -79,6 +80,8 @@ function quedaronEnPie(pedidos, recibir) {
 module.exports = async (req, res) => {
   const s = getSession(req);
   if (!s || !s.admin) return res.status(403).json({ error: 'Solo el administrador' });
+  // La facturación vive en _facturas.js (ver ahí) para no sumar otra función.
+  if (req.query && req.query.facturas) return facturas(req, res);
   try {
     await ensureTables();
 

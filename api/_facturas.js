@@ -1,4 +1,5 @@
-// /api/facturas — facturación en ARCA (solo el email admin).
+// Facturación en ARCA. No es una función propia (el plan de Vercel permite 12):
+// la atiende /api/admin cuando viene ?facturas=1.
 // Se factura lo que se cobró en blanco: se eligen cobros de un pedido y se
 // emite UNA Factura C por la suma. Cada cobro queda atado a su factura
 // (order_payments.factura_id), así nada se factura dos veces.
