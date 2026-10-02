@@ -345,8 +345,14 @@ async function consultarPadron(cuitCliente) {
   if (texto(r, 'datosMonotributo')) condIva = 6;
   else if (impuestos.includes('30')) condIva = 1;
   else if (impuestos.includes('32')) condIva = 4;
+  // Inicio de actividades: el período (AAAAMM) más viejo de sus impuestos
+  // (monotributo o IVA). ARCA no da el día, solo mes y año.
+  const periodos = [...String(r).matchAll(/<periodo>(\d{6})<\/periodo>/g)].map((m) => m[1]).sort();
+  const inicio = periodos.length ? periodos[0].slice(4) + '/' + periodos[0].slice(0, 4) : '';
+  const categoria = texto(texto(r, 'datosMonotributo') || '', 'descripcionCategoria');
   const errorConstancia = texto(r, 'errorConstancia');
   return { cuit: n, nombre: desescapar(nombre), domicilio: desescapar(domicilio), cond_iva: condIva,
+           inicio, categoria: categoria ? desescapar(categoria) : null,
            aviso: errorConstancia ? desescapar(texto(errorConstancia, 'error') || '') : null };
 }
 

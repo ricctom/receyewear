@@ -1259,6 +1259,12 @@ async function abrirFacturacion(){
     <tbody>${FACT.meses.map(m => `<tr><td>${mes(m.mes)}</td><td>${fmt(m.blanco)}</td><td>${fmt(m.facturado)}</td>
       <td style="${Number(m.sin_facturar) ? 'color:var(--no);font-weight:600' : ''}">${Number(m.sin_facturar) ? fmt(m.sin_facturar) : '—'}</td>
       <td>${fmt(m.negro)}</td><td>${Number(m.usd) ? usd(m.usd) : '—'}</td></tr>`).join('') || '<tr><td colspan="6">Sin cobros todavía.</td></tr>'}</tbody></table>
+    ${(FACT.facturas||[]).filter(f => f.estado === 'ok').length ? `<h3 style="margin-top:26px;font-size:16px">Facturas emitidas</h3>
+    <table class="ftab"><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Total</th><th></th></tr></thead>
+    <tbody>${FACT.facturas.filter(f => f.estado === 'ok').map(f => `<tr><td>${nroFactura(f)}</td><td>${fechaCorta(f.fecha)}</td>
+      <td style="white-space:normal">${esc(f.nombre || f.cliente || 'Consumidor final')}${f.homologacion ? ' <span class="tg pe">PRUEBA</span>' : ''}</td>
+      <td>${f.tipo === 13 ? '−' : ''}${fmt(f.total)}</td>
+      <td>${f.order_id && ORDERS.some(o => o.id === f.order_id) ? `<button class="b sm q" onclick="imprimirFactura(${f.order_id},${f.id})">Ver / PDF</button>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
     <h3 style="margin-top:26px;font-size:16px">Datos impresos en la factura</h3>
     <label>Razón social / nombre</label><input type="text" id="emRs" value="${esc(em.razon_social || '')}">
     <label>Domicilio comercial</label><input type="text" id="emDom" value="${esc(em.domicilio || '')}">
@@ -1269,6 +1275,7 @@ async function abrirFacturacion(){
     <div class="mfoot">
       <button class="b q" style="margin-right:auto" onclick="probarArca()">Probar conexión con ARCA</button>
       <button class="b q" onclick="bajarCobros()">Bajar ventas y cobros</button>
+      <button class="b q" onclick="emisorDeArca()">Completar con ARCA</button>
       <button class="b q" onclick="cerrarModal()">Cerrar</button>
       <button class="b p" style="flex:none" onclick="guardarEmisor()">Guardar datos</button>
     </div>`);
@@ -1298,6 +1305,19 @@ function bajarCobros(){
   a.click();
 }
 
+// Tus datos de la factura, como los tiene ARCA para tu CUIT. Ingresos Brutos
+// no lo da ARCA (es de la provincia): si está vacío se usa el CUIT, que es el
+// número de IIBB en el régimen simplificado de ARBA.
+async function emisorDeArca(){
+  try{
+    const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ padron: FACT.config.cuit }) });
+    if(!r.ok) return alert(r.error);
+    const set = (id, v) => { if(v) document.getElementById(id).value = v; };
+    set('emRs', r.nombre); set('emDom', r.domicilio); set('emIni', r.inicio);
+    if(!document.getElementById('emIibb').value) set('emIibb', r.cuit);
+    showToast('Completado con ARCA' + (r.categoria ? ' · ' + r.categoria : '') + '. Revisalo y guardá.');
+  }catch(e){ alert(e.message); }
+}
 async function guardarEmisor(){
   const emisor = { razon_social: document.getElementById('emRs').value, domicilio: document.getElementById('emDom').value,
     iibb: document.getElementById('emIibb').value, inicio: document.getElementById('emIni').value };
