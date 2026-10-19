@@ -149,10 +149,33 @@ const cobrado = o => Number(o.cobrado) || 0;
 const medioEnBlanco = m => /^(transferencia|mercado ?pago|cheque|echeq)/i.test(m || '');
 const enBlanco = pg => pg.en_blanco == null ? medioEnBlanco(pg.medio) : !!pg.en_blanco;
 const facturado = pg => !!pg.factura_id || !!pg.facturado_aparte;
-const sinFacturar = o => (o.pagos||[]).filter(pg => enBlanco(pg) && !facturado(pg));
+// Facturas C que valen (ni rechazadas ni anuladas). Las "sin_cobro" se hicieron
+// antes de cobrar, por un monto del pedido.
+const facturasVivas = o => (o.facturas||[]).filter(f => f.tipo === 11 && f.estado !== 'rechazada' && !anulada(o, f));
+const facturadoTotal = o => facturasVivas(o).reduce((a,f) => a + Number(f.total), 0);
+// Lo que todavía se puede facturar del pedido, cobrado o no.
+const quedaFacturar = o => Math.max(0, Number(o.total) - facturadoTotal(o));
+// Cuánto de cada cobro en blanco sin factura ya está cubierto por una factura
+// hecha antes de cobrar: { idCobro: monto cubierto }. Con alguna de esas, la
+// cuenta es del pedido entero: falta facturar lo cobrado en blanco menos lo
+// facturado, y el resto de los cobros libres ya está cubierto (del más viejo
+// al más nuevo). Igual que cubiertos() en api/_facturas.js.
+function cubiertos(o){
+  const m = {};
+  if(!facturasVivas(o).some(f => f.sin_cobro)) return m;
+  const blanco = (o.pagos||[]).filter(pg => enBlanco(pg) && !pg.facturado_aparte);
+  const libres = blanco.filter(pg => !pg.factura_id)
+    .sort((a,b) => String(a.fecha).localeCompare(String(b.fecha)) || a.id - b.id);
+  const falta = Math.max(0, blanco.reduce((a,pg) => a + Number(pg.monto), 0) - facturadoTotal(o));
+  let r = Math.max(0, libres.reduce((a,pg) => a + Number(pg.monto), 0) - falta);
+  libres.forEach(pg => { const usa = Math.min(r, Number(pg.monto)); if(usa > 0){ m[pg.id] = usa; r -= usa; } });
+  return m;
+}
+const resto = (o, pg) => Number(pg.monto) - (cubiertos(o)[pg.id] || 0);
+const sinFacturar = o => (o.pagos||[]).filter(pg => enBlanco(pg) && !facturado(pg) && resto(o, pg) > 0);
 // Cobrado pero sin decir cómo: hay que repasarlo para saber qué facturar.
 const sinMedio = o => (o.pagos||[]).some(pg => !pg.medio && !facturado(pg));
-const paraFacturar = o => sinFacturar(o).reduce((a,pg) => a + Number(pg.monto), 0);
+const paraFacturar = o => sinFacturar(o).reduce((a,pg) => a + resto(o, pg), 0);
 const facturaDe = (o, fid) => (o.facturas||[]).find(f => f.id === fid);
 const debe    = o => Math.max(0, o.total - cobrado(o));
 // Si el pedido bajó después de cobrarlo, esa plata le quedó a favor al cliente.
@@ -357,6 +380,7 @@ function menu(o, p){
     ${p !== 'despachado' && p !== 'cancelado' ? `<button onclick="modalPago(${o.id})">Registrar un cobro</button>` : ''}
     ${cobrado(o) ? `<button onclick="modalComoPago(${o.id})"><b>Cómo pagó</b> (repartir en partes)</button>` : ''}
     ${paraFacturar(o) ? `<button onclick="modalFacturar(${o.id})">Facturar lo cobrado en blanco</button>` : ''}
+    ${p !== 'cancelado' && quedaFacturar(o) ? `<button onclick="modalFacturar(${o.id}, null, 'monto')"><b>Facturar sin cobrar</b> (una parte, otro CUIT)</button>` : ''}
     ${cobrado(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
     ${atras ? `<button onclick="mover(${o.id},'${atras}')">Volver un paso atrás</button>` : ''}
     <hr>
@@ -408,6 +432,9 @@ function detalle(o){
     ${cobrado(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobrado(o))}</span></div>` : ''}
     ${debe(o) && (p==='despachado'||p==='saldado') ? `<div class="dato"><span>Te debe</span><span class="num debe"><b>${fmt(debe(o))}</b></span></div>` : ''}
     ${aFavor(o) ? `<div class="dato"><span>Le quedó a favor</span><span class="num debe"><b>${fmt(aFavor(o))}</b></span></div>` : ''}
+    ${facturadoTotal(o) ? `<div class="dato"><span>Facturado</span><span class="num">${fmt(facturadoTotal(o))}</span></div>` : ''}
+    ${p !== 'cancelado' && quedaFacturar(o) ? `<div class="mfoot" style="margin-top:10px;justify-content:flex-start">
+      <button class="b sm" onclick="modalFacturar(${o.id}, null, 'monto')">Facturar sin cobrar</button></div>` : ''}
     </div>`;
 
   const pagos = (o.pagos||[]).length ? `<div class="det"><h4>Cobros</h4>
@@ -421,6 +448,8 @@ function detalle(o){
   const facts = (o.facturas||[]).filter(f => f.estado !== 'rechazada');
   const facturas = facts.length ? `<div class="det"><h4>Facturas</h4>
     ${facts.map(f => `<div class="dato"><span>${nroFactura(f)} · ${fechaCorta(f.fecha)}${
+        f.nombre || f.doc_nro ? ' · ' + esc(f.nombre || f.doc_nro) : ''}${
+        f.sin_cobro ? ' <span class="tg bl">antes de cobrar</span>' : ''}${
         f.homologacion ? ' <span class="tg pe">PRUEBA</span>' : ''}${
         f.estado === 'pendiente' ? ' <span class="tg pe">sin confirmar</span>' : ''}${
         anulada(o, f) ? ' <span class="tg ng">anulada</span>' : ''}</span>
@@ -759,6 +788,7 @@ function tagPago(o, pg){
     return f && f.estado === 'pendiente' ? '<span class="tg pe">facturando…</span>'
       : `<span class="tg fc">facturado${f && f.numero ? ' · ' + nroFactura(f, true) : ''}</span>`;
   }
+  if(enBlanco(pg) && resto(o, pg) <= 0) return '<span class="tg fc">facturado antes de cobrar</span>';
   const bl = enBlanco(pg);
   return `<button class="tg ${bl ? 'bl' : 'ng'}" title="Tocá para cambiarlo"
     onclick="marcarBlanco(${o.id},${pg.id},${!bl})">${bl ? 'en blanco' : 'en negro'}</button>`;
@@ -1084,11 +1114,17 @@ function avisoConfig(){
 }
 
 // `previo` = lo que ya estaba cargado, cuando se vuelve de la vista previa.
-async function modalFacturar(id, previo){
+// `modo` = 'cobros' (lo que ya pagó) o 'monto' (un monto del pedido, antes de
+// cobrarlo: una parte, o el pedido repartido en varios CUIT, de a una factura).
+async function modalFacturar(id, previo, modo){
   const o = ORDERS.find(x => x.id === id);
   try{ if(!FACT) await cargarFact(); }catch(e){ return alert(e.message); }
   const sh = o.ship || {};
-  const libres = (o.pagos||[]).filter(pg => !facturado(pg));
+  // Los cobros que ya cubre una factura hecha antes de cobrar no se ofrecen.
+  const libres = (o.pagos||[]).filter(pg => !facturado(pg) && !(enBlanco(pg) && resto(o, pg) <= 0));
+  modo = previo ? previo.modo : (modo || (libres.length ? 'cobros' : 'monto'));
+  const queda = quedaFacturar(o);
+  const montoDef = previo && previo.modo === 'monto' ? previo.total : queda;
   const doc = previo ? previo.doc : (sh.dni_cuit || '');
   // Condición de IVA: la consulta a ARCA la completa sola con el CUIT. Si no
   // hay CUIT, consumidor final.
@@ -1098,16 +1134,34 @@ async function modalFacturar(id, previo){
   const ultimoCobro = libres.filter(enBlanco).map(pg => String(pg.fecha).slice(0,10)).sort().pop() || hasta;
   const fechaDef = previo ? previo.fecha : (ultimoCobro < desde ? desde : ultimoCobro > hasta ? hasta : ultimoCobro);
   const marcado = pg => previo ? previo.pagos.includes(pg.id) : enBlanco(pg);
+  const cambiar = libres.length && !previo
+    ? `<div class="mfoot" style="justify-content:flex-start;margin:0 0 12px">
+        <button class="b sm${modo === 'cobros' ? ' p' : ''}" onclick="modalFacturar(${o.id}, null, 'cobros')">Lo que ya cobré</button>
+        <button class="b sm${modo === 'monto' ? ' p' : ''}" onclick="modalFacturar(${o.id}, null, 'monto')">Un monto, sin cobrar</button></div>` : '';
+  const queFacturo = modo === 'monto'
+    ? `<p class="sub">Factura C por un monto del pedido, aunque todavía no te lo pagó. Para repartirlo entre
+        varios CUIT, hacé una factura por cada uno; lo que no factures queda afuera. Cuando te pague en blanco,
+        ese cobro ya figura facturado.</p>
+      <div class="dato"><span>El pedido</span><span class="num">${fmt(o.total)}</span></div>
+      ${facturadoTotal(o) ? `<div class="dato"><span>Ya facturado</span><span class="num">−${fmt(facturadoTotal(o))}</span></div>` : ''}
+      <div class="dato"><span>Queda para facturar</span><span class="num"><b>${fmt(queda)}</b></span></div>
+      <label>¿Cuánto va en esta factura?</label>
+      <input type="number" id="fMonto" inputmode="numeric" min="1" max="${queda}" value="${montoDef || ''}" oninput="totFactura()">
+      <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
+        <span>Total de la factura</span><span class="num"><b id="fTot"></b></span></div>`
+    : `<p class="sub">Factura C a nombre tuyo. Marcá los cobros que entran en esta factura.</p>
+      ${libres.map(pg => `<label class="chk" style="justify-content:space-between">
+        <span style="display:flex;gap:9px;align-items:center"><input type="checkbox" class="fPago" value="${pg.id}" data-monto="${resto(o, pg)}"
+          ${marcado(pg) ? 'checked' : ''} onchange="totFactura()">
+          ${fechaCorta(pg.fecha)} · ${esc(pg.medio || 'sin medio')}${enBlanco(pg) ? '' : ' <span class="tg ng">en negro</span>'}${
+          resto(o, pg) < Number(pg.monto) ? ' <span class="g">(' + fmt(Number(pg.monto) - resto(o, pg)) + ' ya facturados antes)</span>' : ''}</span>
+        <b>${fmt(resto(o, pg))}</b></label>`).join('')}
+      <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
+        <span>Total de la factura</span><span class="num"><b id="fTot"></b></span></div>`;
   abrirModal(`<h3>Facturar · pedido #${o.id}</h3>
-    <p class="sub">Factura C a nombre tuyo. Marcá los cobros que entran en esta factura.</p>
     ${avisoConfig()}
-    ${libres.map(pg => `<label class="chk" style="justify-content:space-between">
-      <span style="display:flex;gap:9px;align-items:center"><input type="checkbox" class="fPago" value="${pg.id}" data-monto="${pg.monto}"
-        ${marcado(pg) ? 'checked' : ''} onchange="totFactura()">
-        ${fechaCorta(pg.fecha)} · ${esc(pg.medio || 'sin medio')}${enBlanco(pg) ? '' : ' <span class="tg ng">en negro</span>'}</span>
-      <b>${fmt(pg.monto)}</b></label>`).join('')}
-    <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px">
-      <span>Total de la factura</span><span class="num"><b id="fTot"></b></span></div>
+    ${cambiar}
+    ${queFacturo}
     <div class="fila">
       <div><label>Fecha de la factura</label><input type="date" id="fFecha" value="${fechaDef}" min="${desde}" max="${hasta}"></div>
       <div><p class="sub" style="margin:38px 0 0">ARCA deja hasta el ${fechaCorta(desde)}. Si hacés varias, de la más vieja a la más nueva.</p></div>
@@ -1128,9 +1182,14 @@ async function modalFacturar(id, previo){
   totFactura();
   if(!previo && docDigitos(doc).length === 11) buscarPadron();
 }
+// Lo que suma la factura: el monto escrito, o los cobros marcados.
+function totalFactura(){
+  const m = document.getElementById('fMonto');
+  if(m) return Math.max(0, Math.round(Number(m.value) || 0));
+  return [...document.querySelectorAll('.fPago:checked')].reduce((a,x) => a + Number(x.dataset.monto), 0);
+}
 function totFactura(){
-  const t = [...document.querySelectorAll('.fPago:checked')].reduce((a,x) => a + Number(x.dataset.monto), 0);
-  document.getElementById('fTot').textContent = fmt(t);
+  document.getElementById('fTot').textContent = fmt(totalFactura());
 }
 let padronT = null;
 function docCambio(){
@@ -1164,11 +1223,17 @@ async function buscarPadron(){
 
 // Lo cargado en el modal, validado. null si falta algo (ya avisó).
 function leerFactura(){
+  const montoInp = document.getElementById('fMonto');
   const pagos = [...document.querySelectorAll('.fPago:checked')].map(x => Number(x.value));
-  const f = { pagos, cond: document.getElementById('fCond').value, doc: document.getElementById('fDoc').value,
+  const f = { modo: montoInp ? 'monto' : 'cobros', pagos: montoInp ? [] : pagos,
+    cond: document.getElementById('fCond').value, doc: document.getElementById('fDoc').value,
     fecha: document.getElementById('fFecha').value, nombre: document.getElementById('fNombre').value,
-    total: [...document.querySelectorAll('.fPago:checked')].reduce((a,x) => a + Number(x.dataset.monto), 0) };
-  if(!pagos.length){ alert('Marcá al menos un cobro.'); return null; }
+    total: totalFactura() };
+  if(montoInp){
+    if(!(f.total > 0)){ alert('Poné cuánto va en esta factura.'); return null; }
+    if(f.total > Number(montoInp.max)){ alert('Del pedido queda para facturar ' + fmt(Number(montoInp.max)) + '.'); return null; }
+  }
+  else if(!pagos.length){ alert('Marcá al menos un cobro.'); return null; }
   if(!f.cond){ alert('Elegí la condición frente al IVA del cliente.'); return null; }
   if(f.cond !== '5' && docDigitos(f.doc).length !== 11){ alert('A un ' + COND_IVA[f.cond].toLowerCase() + ' hay que facturarle con CUIT (11 números).'); return null; }
   return f;
@@ -1213,7 +1278,9 @@ function vistaPrevia(id){
       <div style="padding:10px 12px;display:flex;justify-content:space-between;border-top:1.5px solid var(--tx);font-size:16px">
         <b>Total</b><b>${fmt(f.total)}</b></div>
     </div>
-    <p class="sub" style="margin:12px 0 0">Cobros que entran: ${cobros.map(pg => fechaCorta(pg.fecha) + ' ' + esc(pg.medio || 'sin medio') + ' ' + fmt(pg.monto)).join(' · ')}</p>
+    <p class="sub" style="margin:12px 0 0">${f.modo === 'monto'
+      ? 'Todavía sin cobrar. Del pedido quedan ' + fmt(Math.max(0, quedaFacturar(o) - f.total)) + ' sin facturar.'
+      : 'Cobros que entran: ' + cobros.map(pg => fechaCorta(pg.fecha) + ' ' + esc(pg.medio || 'sin medio') + ' ' + fmt(resto(o, pg))).join(' · ')}</p>
     ${!em.razon_social ? '<div class="aviso" style="margin-top:12px">Faltan tus datos de la factura: cargalos en <b>Facturación</b>.</div>' : ''}
     <div class="mfoot">
       <button class="b q" onclick="modalFacturar(${o.id}, PREVIA)">Volver a editar</button>
@@ -1225,7 +1292,8 @@ async function emitirFactura(id){
   const btn = document.getElementById('fBtn'); btn.disabled = true; btn.textContent = 'Hablando con ARCA…';
   try{
     const r = await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ facturar:{
-      order_id: id, pagos: f.pagos, cond_iva: Number(f.cond), doc: f.doc, fecha: f.fecha, nombre: f.nombre } }) });
+      order_id: id, pagos: f.pagos, cond_iva: Number(f.cond), doc: f.doc, fecha: f.fecha, nombre: f.nombre,
+      ...(f.modo === 'monto' ? { monto: f.total } : {}) } }) });
     cerrarModal(); FACT = null; PREVIA = null; await cargar();
     showToast('Factura emitida · CAE ' + r.cae);
   }catch(e){

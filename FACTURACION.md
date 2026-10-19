@@ -12,6 +12,10 @@ El panel de pedidos factura con el CUIT de Tomás (monotributo, Factura C).
 - **Facturar.** En un pedido con cobros en blanco sin facturar aparece el botón *Facturar $X*.
   - Se eligen los cobros, el nombre, el CUIT o DNI y la condición de IVA del cliente, y sale **una** Factura C por la suma.
   - Cada cobro queda atado a esa factura, así no se factura dos veces.
+- **Facturar sin cobrar** (menú ⋯ del pedido, o en *Números*). Factura un **monto** del pedido aunque todavía no te pagó.
+  - Sirve para facturar solo una parte, o para repartir el pedido entre varios CUIT: una factura por cada uno.
+  - No deja facturar más de lo que queda del pedido.
+  - Cuando después cargás el cobro en blanco, figura *facturado antes de cobrar* y no vuelve a pedir factura.
 - **Anular.** Emite una Nota de crédito C por el total, y los cobros quedan otra vez sin facturar.
 - **Facturación** (botón de arriba) muestra, por mes, cuánto entró en blanco, cuánto se facturó, cuánto falta facturar, cuánto entró en negro y cuánto en dólares. También muestra lo facturado en los últimos 12 meses, que es lo que mira ARCA para la categoría del monotributo, y ahí se cargan los datos que salen impresos en la factura.
 

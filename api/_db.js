@@ -167,6 +167,9 @@ function ensureTables() {
       homologacion BOOLEAN DEFAULT false,
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
+    // Factura hecha antes de cobrar (un monto del pedido, no cobros): lo que se
+    // cobre en blanco después de ese pedido ya está cubierto por ella, hasta su total.
+    await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS sin_cobro BOOLEAN DEFAULT false`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS cond_iva INTEGER`;
 
     /* ---------- Configuración (dólar, etc.) ---------- */

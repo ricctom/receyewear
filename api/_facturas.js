@@ -7,6 +7,9 @@
 //   POST { emisor:{...} }                 -> datos que van impresos en la factura
 //   POST { probar:true }                  -> prueba la conexión con ARCA (no emite nada)
 //   POST { facturar:{ order_id, pagos:[ids], cond_iva, doc, nombre } }  ⚠ emite
+//   POST { facturar:{ order_id, monto, cond_iva, doc, nombre } }  ⚠ emite, antes de cobrar:
+//          un monto del pedido (una parte, o una por CUIT). Queda sin_cobro y lo
+//          que el pedido cobre en blanco después ya cuenta como facturado.
 //   POST { revisar: facturaId }           -> pregunta a ARCA qué pasó con una pendiente
 //   POST { anular: facturaId }            ⚠ emite la nota de crédito C
 const { sql, ensureTables, setSetting } = require('./_db');
@@ -57,6 +60,37 @@ async function emitir(f, asociado) {
   const motivo = arca.enTexto(r.errores.concat(r.observaciones)) || 'ARCA la rechazó sin decir por qué';
   await rechazar(f.id, motivo);
   return { ok: false, error: 'ARCA la rechazó: ' + motivo };
+}
+
+// Cuánto de cada cobro en blanco sin factura ya está cubierto por facturas
+// hechas antes de cobrar, por pedido: Map(idCobro -> monto). Con alguna de
+// esas, la cuenta es del pedido entero: falta facturar lo cobrado en blanco
+// menos lo facturado, y lo demás de los cobros libres ya está cubierto, del
+// más viejo al más nuevo. Igual que cubiertos() en admin.html.
+async function cubiertos(orderId) {
+  const [ords, pagos] = await Promise.all([
+    sql`SELECT f.order_id, sum(f.total)::bigint AS facturado FROM facturas f
+         WHERE f.tipo = ${FACTURA_C} AND f.estado <> 'rechazada' AND f.homologacion = ${arca.HOMOLOGACION}
+           AND NOT EXISTS (SELECT 1 FROM facturas n WHERE n.anula_id = f.id AND n.estado = 'ok')
+           AND (${orderId}::int IS NULL OR f.order_id = ${orderId})
+         GROUP BY f.order_id HAVING bool_or(COALESCE(f.sin_cobro, false))`,
+    sql`SELECT id, order_id, to_char(fecha, 'YYYY-MM') AS mes, monto, factura_id FROM order_payments
+         WHERE en_blanco AND NOT COALESCE(facturado_aparte, false)
+           AND (${orderId}::int IS NULL OR order_id = ${orderId})
+         ORDER BY fecha, id`,
+  ]);
+  const m = new Map();
+  ords.forEach((o) => {
+    const blanco = pagos.filter((p) => p.order_id === o.order_id);
+    const libres = blanco.filter((p) => !p.factura_id);
+    const falta = Math.max(0, blanco.reduce((a, p) => a + Number(p.monto), 0) - Number(o.facturado));
+    let r = Math.max(0, libres.reduce((a, p) => a + Number(p.monto), 0) - falta);
+    libres.forEach((p) => {
+      const usa = Math.min(r, Number(p.monto));
+      if (usa > 0) { m.set(p.id, { monto: usa, mes: p.mes }); r -= usa; }
+    });
+  });
+  return m;
 }
 
 async function rechazar(fid, motivo) {
@@ -115,6 +149,11 @@ module.exports = async (req, res) => {
              ORDER BY f.id DESC LIMIT 300`,
         emisor(),
       ]);
+      // Lo facturado antes de cobrar cubre lo que ese pedido cobre en blanco
+      // después: eso ya no falta facturar.
+      const cubierto = new Map();
+      (await cubiertos(null)).forEach((c) => cubierto.set(c.mes, (cubierto.get(c.mes) || 0) + c.monto));
+      meses.forEach((m) => { m.sin_facturar = Math.max(0, Number(m.sin_facturar) - (cubierto.get(m.mes) || 0)); });
       return res.status(200).json({
         fechas: { desde: diaAR(-DIAS_ATRAS), hasta: diaAR() },
         config: { falta: arca.faltaConfigurar(), homologacion: arca.HOMOLOGACION,
@@ -163,7 +202,9 @@ module.exports = async (req, res) => {
     if (b.facturar) {
       const orderId = parseInt(b.facturar.order_id, 10);
       const ids = (Array.isArray(b.facturar.pagos) ? b.facturar.pagos : []).map((x) => parseInt(x, 10)).filter(Boolean);
-      if (!orderId || !ids.length) return res.status(400).json({ error: 'Elegí qué cobros facturar' });
+      // Sin cobros: se factura un monto del pedido antes de cobrarlo.
+      const sinCobro = !ids.length && b.facturar.monto != null;
+      if (!orderId || (!ids.length && !sinCobro)) return res.status(400).json({ error: 'Elegí qué cobros facturar' });
       const condIva = parseInt(b.facturar.cond_iva, 10);
       if (!arca.IVA_RECEPTOR[condIva]) return res.status(400).json({ error: 'Falta la condición de IVA del cliente' });
       const doc = arca.documentoDe(b.facturar.doc);
@@ -185,23 +226,46 @@ module.exports = async (req, res) => {
           ': ARCA no deja hacer una con fecha anterior. Usá esa fecha o una posterior.' });
       }
 
-      const pagos = await sql`SELECT id, monto, factura_id, facturado_aparte FROM order_payments
-        WHERE order_id = ${orderId} AND id = ANY(${ids}::int[])`;
-      if (pagos.length !== ids.length) return res.status(400).json({ error: 'Algún cobro no es de este pedido' });
-      if (pagos.some((p) => p.factura_id || p.facturado_aparte)) return res.status(400).json({ error: 'Algún cobro ya está facturado' });
-      const total = pagos.reduce((a, p) => a + Number(p.monto), 0);
-      if (!(total > 0)) return res.status(400).json({ error: 'El total tiene que ser mayor a cero' });
+      let total;
+      if (sinCobro) {
+        total = Math.round(Number(b.facturar.monto) || 0);
+        if (!(total > 0)) return res.status(400).json({ error: 'El monto tiene que ser mayor a cero' });
+        // No se factura más que el pedido: lo que ya tiene facturado (con o sin
+        // cobro, sin contar las anuladas) se descuenta.
+        const [o] = await sql`SELECT total,
+            COALESCE((SELECT sum(f.total) FROM facturas f
+                       WHERE f.order_id = o.id AND f.tipo = ${FACTURA_C} AND f.estado <> 'rechazada'
+                         AND f.homologacion = ${arca.HOMOLOGACION}
+                         AND NOT EXISTS (SELECT 1 FROM facturas n WHERE n.anula_id = f.id AND n.estado = 'ok')), 0)::int AS facturado
+          FROM orders o WHERE o.id = ${orderId}`;
+        if (!o) return res.status(404).json({ error: 'No existe el pedido' });
+        const queda = Number(o.total) - Number(o.facturado);
+        if (total > queda) {
+          return res.status(400).json({ error: 'Del pedido queda para facturar ' + Math.max(0, queda) + ' y querés facturar ' + total });
+        }
+      } else {
+        const pagos = await sql`SELECT id, monto, factura_id, facturado_aparte FROM order_payments
+          WHERE order_id = ${orderId} AND id = ANY(${ids}::int[])`;
+        if (pagos.length !== ids.length) return res.status(400).json({ error: 'Algún cobro no es de este pedido' });
+        if (pagos.some((p) => p.factura_id || p.facturado_aparte)) return res.status(400).json({ error: 'Algún cobro ya está facturado' });
+        // Lo que ya cubre una factura hecha antes de cobrar no se vuelve a facturar.
+        const cub = await cubiertos(orderId);
+        total = pagos.reduce((a, p) => a + Number(p.monto) - ((cub.get(p.id) || {}).monto || 0), 0);
+        if (!(total > 0)) return res.status(400).json({ error: 'Eso ya está facturado (se facturó antes de cobrarlo)' });
+      }
 
-      const [f] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, fecha, total, doc_tipo, doc_nro, nombre, cond_iva, homologacion)
+      const [f] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, fecha, total, doc_tipo, doc_nro, nombre, cond_iva, homologacion, sin_cobro)
         VALUES (${orderId}, ${FACTURA_C}, ${arca.puntoVenta()}, ${fecha}, ${total}, ${doc.docTipo}, ${doc.docNro},
-                ${String(b.facturar.nombre || '').trim().slice(0, 120) || null}, ${condIva}, ${arca.HOMOLOGACION})
+                ${String(b.facturar.nombre || '').trim().slice(0, 120) || null}, ${condIva}, ${arca.HOMOLOGACION}, ${sinCobro})
         RETURNING *`;
       // Se atan los cobros ANTES de mandarla: si llega otro clic, ya no los encuentra libres.
-      const atados = await sql`UPDATE order_payments SET factura_id = ${f.id}
-        WHERE id = ANY(${ids}::int[]) AND factura_id IS NULL RETURNING id`;
-      if (atados.length !== ids.length) {
-        await rechazar(f.id, 'Se facturó dos veces a la vez: se canceló esta');
-        return res.status(409).json({ error: 'Esos cobros se estaban facturando en otra pestaña' });
+      if (!sinCobro) {
+        const atados = await sql`UPDATE order_payments SET factura_id = ${f.id}
+          WHERE id = ANY(${ids}::int[]) AND factura_id IS NULL RETURNING id`;
+        if (atados.length !== ids.length) {
+          await rechazar(f.id, 'Se facturó dos veces a la vez: se canceló esta');
+          return res.status(409).json({ error: 'Esos cobros se estaban facturando en otra pestaña' });
+        }
       }
       // Para la próxima: se recuerda la condición de IVA del cliente.
       await sql`UPDATE users SET cond_iva = ${condIva}
