@@ -149,6 +149,11 @@ header h1{font-size:13px;margin:0;letter-spacing:2px;text-transform:uppercase;fo
 .otrocosto{grid-column:1/-1;display:grid;grid-template-columns:1fr 120px;gap:10px;align-items:center;
   margin-top:8px;padding:9px 12px;background:var(--albg);border-radius:10px;font-size:13.5px;color:#7d5417}
 .otrocosto input{padding:8px 10px;font-size:13.5px;border-radius:8px;text-align:center}
+/* lo que no llegó y pongo yo de la consignación (recepción de pedidos) */
+.destock{grid-column:1/-1;display:grid;grid-template-columns:1fr 108px;gap:10px;align-items:center;
+  padding:9px 12px;background:var(--azbg);border-radius:10px;font-size:13.5px;color:#2c4d70}
+.destock input{padding:8px 10px;font-size:13.5px;border-radius:8px}
+.destock .qg{color:#2c4d70;opacity:.8}
 .qtot{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--ln2);
   margin-top:14px;padding-top:13px;font-size:16px;font-weight:600}
 .qtot .g{font-size:13px;font-weight:400;color:var(--mt)}

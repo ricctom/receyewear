@@ -127,7 +127,9 @@ module.exports = async (req, res) => {
               JOIN suppliers s ON s.id = v.supplier_id
               LEFT JOIN users u ON u.id = v.user_id
               LEFT JOIN orders o ON o.id = v.order_id
-             WHERE v.gira_id IS NOT NULL OR v.fecha >= (SELECT min(desde) FROM giras)
+             -- Lo que tapó un faltante de un pedido de la web no es de ninguna gira.
+             WHERE v.repone_order IS NULL
+               AND (v.gira_id IS NOT NULL OR v.fecha >= (SELECT min(desde) FROM giras))
              ORDER BY v.fecha, v.id`,
       ]);
 
@@ -470,7 +472,7 @@ module.exports = async (req, res) => {
           VALUES (${nombre}, ${desde}, ${hasta}, ${nota}) RETURNING id`;
       }
       const sumadas = await sql`UPDATE consign_sales SET gira_id = ${id}
-        WHERE gira_id IS NULL AND fecha >= ${desde}::date AND (${hasta}::date IS NULL OR fecha <= ${hasta}::date)
+        WHERE gira_id IS NULL AND repone_order IS NULL AND fecha >= ${desde}::date AND (${hasta}::date IS NULL OR fecha <= ${hasta}::date)
         RETURNING id`;
       return res.status(200).json({ ok: true, id, sumadas: sumadas.length });
     }

@@ -323,6 +323,10 @@ function ensureTables() {
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS gira_id INTEGER`;
+    // Mercadería de consignación que tapó lo que no llegó de un pedido de la
+    // web ("Vino distinto" en Pedidos): el pedido queda entero para el cliente,
+    // a Martín no se le suma a la cuenta corriente y se le debe por consignación.
+    await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS repone_order INTEGER`;
     // Arreglo de la primera versión, que cargaba las ventas de consignación y
     // sus pagos en la cuenta corriente: los pagos se pasan a consign_payments y
     // todo eso sale de supplier_moves. Si ya no queda nada para mover, no hace nada.

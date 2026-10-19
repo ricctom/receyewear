@@ -5,6 +5,10 @@
 //   POST { id, recibir:{ lineas, items } } -> confirma lo que llegó: genera la deuda con
 //          el proveedor y le descuenta al cliente lo que no vino (items = [{ i, qty }],
 //          una por item del pedido; si no viene, se saca del final de cada línea)
+//          + deStock:[{ linea, qty }] -> de lo que no llegó, cuánto pongo yo de la
+//          consignación: el cliente lo paga igual, a la cuenta corriente no va y
+//          sale del stock de consignación como venta (ahí queda debiéndose)
+//          + forzar:true -> aunque en consignación no alcance el stock
 //   POST { id, pago:{...} }            -> registra un cobro
 //   POST { id, pagoEdit:{ id, medio?, en_blanco? } } / { id, pagoBorrar: pagoId }
 //   POST { id, resetPagos|borrar|nota|items }
@@ -32,6 +36,13 @@ function porLinea(items) {
     m.get(linea).qty += qty;
   });
   return [...m.values()];
+}
+
+// Deshace lo que se puso de la consignación para tapar lo que no llegó de un
+// pedido: vuelve al stock y deja de debérsele por consignación.
+async function borrarRepuesto(orderId) {
+  await sql`DELETE FROM supplier_consign WHERE sale_id IN (SELECT id FROM consign_sales WHERE repone_order = ${orderId})`;
+  await sql`DELETE FROM consign_sales WHERE repone_order = ${orderId}`;
 }
 
 // Qué items del pedido quedan en pie después de confirmar lo que llegó.
@@ -92,6 +103,9 @@ module.exports = async (req, res) => {
                    o.supplier_move_id, o.pedido_original,
                    -- Venta de consignación: su deuda con el proveedor va en consignacion.html.
                    EXISTS (SELECT 1 FROM consign_sales cs WHERE cs.order_id = o.id) AS consignacion,
+                   -- Lo que no llegó y puse yo de la consignación: [{ articulo, cantidad }].
+                   (SELECT jsonb_agg(it) FROM consign_sales cs, jsonb_array_elements(cs.items) it
+                     WHERE cs.repone_order = o.id) AS repuesto,
                    o.usd_rate, o.nota, u.email, u.name,
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = o.id), 0) AS cobrado,
                    COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota,
@@ -272,25 +286,73 @@ module.exports = async (req, res) => {
 
     /* ----- Confirmar lo que llegó: acá se genera la deuda con Martín ----- */
     if (b.recibir) {
-      const [ped] = await sql`SELECT id, items, total, COALESCE(descuento, 0) AS descuento,
-                 etapa, supplier_move_id, ship, pedido_original FROM orders WHERE id = ${id}`;
+      const [ped] = await sql`SELECT o.id, o.items, o.total, COALESCE(o.descuento, 0) AS descuento,
+                 o.etapa, o.supplier_move_id, o.ship, o.pedido_original, o.user_id, u.email,
+                 COALESCE(u.razon_social, u.name) AS cliente
+            FROM orders o LEFT JOIN users u ON u.id = o.user_id WHERE o.id = ${id}`;
       if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
-      if (ped.supplier_move_id) return res.status(400).json({ error: 'Este pedido ya se cargó en la cuenta de Martín' });
+      const [yaRepuesto] = await sql`SELECT id FROM consign_sales WHERE repone_order = ${id} LIMIT 1`;
+      if (ped.supplier_move_id || yaRepuesto) return res.status(400).json({ error: 'Este pedido ya se cargó en la cuenta de Martín' });
       const [consig] = await sql`SELECT id FROM consign_sales WHERE order_id = ${id} LIMIT 1`;
       if (consig) {
         return res.status(400).json({ error: 'Este pedido es una venta de consignación: lo que se le debe va en Consignación, no en la cuenta corriente.' });
       }
 
       // Lo que llegó, item por item. Si no mandó nada, es "llegó tal cual".
+      // items = lo que le llega al cliente: lo que trajo el proveedor más lo que
+      // pongo yo de la consignación. A la cuenta corriente va solo lo que trajo.
       const pedidos = (Array.isArray(ped.items) ? ped.items : [])
         .map((it) => ({ ...it, qty: Math.max(1, parseInt(it.qty, 10) || 1) }));
       const items = quedaronEnPie(pedidos, b.recibir);
-      const lineas = porLinea(items);
-      if (!lineas.length) {
+      const alCliente = porLinea(items);
+      const tablas = await costTables();
+
+      // Lo que tapo con la consignación, por línea, sin pasarse de lo que va al cliente.
+      const deStock = [];
+      (Array.isArray(b.recibir.deStock) ? b.recibir.deStock : []).forEach((d) => {
+        const l = alCliente.find((x) => x.linea === String(d.linea));
+        const q = Math.min(l ? l.qty : 0, Math.max(0, parseInt(d.qty, 10) || 0));
+        if (q > 0) deStock.push({ linea: l.linea, qty: q });
+      });
+      const lineas = alCliente
+        .map((l) => ({ linea: l.linea, qty: l.qty - ((deStock.find((d) => d.linea === l.linea) || {}).qty || 0) }))
+        .filter((l) => l.qty > 0);
+      if (!lineas.length && !deStock.length) {
         return res.status(400).json({ error: 'No llegó nada de este pedido. Cancelalo o dejalo esperando.' });
       }
 
-      const tablas = await costTables();
+      // De qué artículo de consignación sale cada línea que pongo yo (el mismo
+      // mapeo que usa la cuenta corriente), con el precio al que la paga el cliente.
+      const repone = new Map();   // supplier_id -> [{ articulo, nombre, cantidad, precio, costo }]
+      for (const d of deStock) {
+        const m = tablas.mapa.get(norm(d.linea));
+        if (!m || !m.supplier_id || !m.articulo) {
+          return res.status(400).json({ error: 'No sé de qué artículo de consignación sale ' + d.linea
+            + ': decime primero de qué proveedor y artículo es esa línea.' });
+        }
+        const cantidad = d.qty * (m.factor || 1);
+        const deLinea = items.filter((it) => splitNombre(it.name).linea === d.linea);
+        const u = deLinea.reduce((a, it) => a + it.qty, 0);
+        const ventaU = u ? deLinea.reduce((a, it) => a + (Number(it.price) || 0) * it.qty, 0) / u : 0;
+        const costo = tablas.precios.get(m.supplier_id + '|' + String(m.articulo).toUpperCase()) || 0;
+        if (!repone.has(m.supplier_id)) repone.set(m.supplier_id, []);
+        repone.get(m.supplier_id).push({ articulo: m.articulo, nombre: d.linea, cantidad,
+          precio: Math.round(ventaU * d.qty / cantidad), costo });
+      }
+      // Igual que en Consignación: no se saca lo que no está en mano sin avisar.
+      if (repone.size && !b.recibir.forzar) {
+        const enMano = await sql`SELECT supplier_id, upper(articulo) AS k, sum(cantidad)::int AS n
+          FROM supplier_consign GROUP BY supplier_id, upper(articulo)`;
+        const faltan = [];
+        repone.forEach((its, sid) => its.forEach((it) => {
+          const hay = (enMano.find((x) => x.supplier_id === sid && x.k === it.articulo.toUpperCase()) || { n: 0 }).n;
+          if (it.cantidad > hay) faltan.push(`${it.articulo} (tenés ${hay}, sacás ${it.cantidad})`);
+        }));
+        if (faltan.length) {
+          return res.status(409).json({ error: 'En consignación no te alcanza el stock de ' + faltan.join(', ') });
+        }
+      }
+
       const { detalle, sinCosto } = costoLineasDe(lineas, tablas);
 
       // Lo que no llegó tampoco se le cobra al cliente: el pedido queda con lo
@@ -327,12 +389,34 @@ module.exports = async (req, res) => {
       await sql`UPDATE orders SET etapa = ${nuevaEtapa}, status = ${STATUS[nuevaEtapa]},
           recibido = ${JSON.stringify(lineas)}::jsonb, supplier_move_id = ${moveId}
         WHERE id = ${id}`;
+
+      // Lo que puse de la consignación: una venta por proveedor, que baja el
+      // stock y queda debiéndose en Consignación (no en la cuenta corriente).
+      // No lleva order_id: los cobros son del pedido entero, no de esta parte.
+      const quien = ped.cliente || ped.email || ('pedido #' + id);
+      const repuesto = [];
+      for (const [sid, its] of repone) {
+        const [venta] = await sql`
+          INSERT INTO consign_sales (supplier_id, fecha, user_id, email, cliente, items, total_venta, costo, nota, repone_order)
+          VALUES (${sid}, CURRENT_DATE, ${ped.user_id || null}, ${ped.email || null}, ${ped.cliente || null},
+                  ${JSON.stringify(its)}::jsonb,
+                  ${its.reduce((a, it) => a + it.precio * it.cantidad, 0)},
+                  ${Math.round(its.reduce((a, it) => a + it.costo * it.cantidad, 0) * 100) / 100},
+                  ${'Faltó en el pedido #' + id + ', lo puse de mi stock'}, ${id})
+          RETURNING id, fecha`;
+        for (const it of its) {
+          await sql`INSERT INTO supplier_consign (supplier_id, fecha, articulo, cantidad, precio_usd, precio, nota, privado, sale_id)
+            VALUES (${sid}, ${venta.fecha}, ${it.articulo}, ${-it.cantidad}, ${it.costo}, ${it.costo},
+                    ${'Pedido #' + id + ' · ' + quien}, true, ${venta.id})`;
+          repuesto.push({ articulo: it.articulo, cantidad: it.cantidad });
+        }
+      }
       // Si llegó todo, el pedido del cliente no se toca.
       if (faltaron > 0) {
         await sql`UPDATE orders SET items = ${JSON.stringify(items)}::jsonb, total = ${totalNuevo},
             pedido_original = ${JSON.stringify(original)}::jsonb WHERE id = ${id}`;
       }
-      return res.status(200).json({ ok: true, cargado, sin_costo: sinCosto, faltaron,
+      return res.status(200).json({ ok: true, cargado, sin_costo: sinCosto, faltaron, repuesto,
         total: faltaron > 0 ? totalNuevo : antes, antes,
         menos: faltaron > 0 ? Math.max(0, antes - totalNuevo) : 0 });
     }
@@ -344,8 +428,11 @@ module.exports = async (req, res) => {
       if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
       // Volver atrás de "recibido" deshace la deuda que se le había cargado a Martín
       // y le devuelve al pedido lo que se le había descontado por lo que no llegó.
-      if (ped.supplier_move_id && (b.etapa === 'nuevo' || b.etapa === 'pedido')) {
+      // Lo que se había puesto de la consignación vuelve al stock.
+      const [repuesto] = await sql`SELECT id FROM consign_sales WHERE repone_order = ${id} LIMIT 1`;
+      if ((ped.supplier_move_id || repuesto) && (b.etapa === 'nuevo' || b.etapa === 'pedido')) {
         await sql`DELETE FROM supplier_moves WHERE order_id = ${id}`;
+        await borrarRepuesto(id);
         const orig = ped.pedido_original;
         if (orig && Array.isArray(orig.items)) {
           await sql`UPDATE orders SET items = ${JSON.stringify(orig.items)}::jsonb,
@@ -363,6 +450,7 @@ module.exports = async (req, res) => {
       const [f] = await sql`SELECT count(*)::int AS n FROM facturas WHERE order_id = ${id} AND estado <> 'rechazada'`;
       if (f.n) return res.status(400).json({ error: 'El pedido tiene facturas: cancelalo en vez de borrarlo' });
       await sql`DELETE FROM supplier_moves WHERE order_id = ${id}`;
+      await borrarRepuesto(id);
       await sql`DELETE FROM order_payments WHERE order_id = ${id}`;
       await sql`DELETE FROM orders WHERE id = ${id}`;
       return res.status(200).json({ ok: true });

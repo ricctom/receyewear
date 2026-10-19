@@ -170,7 +170,11 @@ function faltaron(o){
 const cuponTxt = o => cupon(o) ? ' · cupón −' + fmt(cupon(o)) : '';
 // Los pedidos de consignación no se cargan a la cuenta corriente de Martín:
 // su deuda se lleva en consignacion.html. Para el panel cuentan como resueltos.
-const cargadoMartin = o => !!o.supplier_move_id || !!o.consignacion;
+// Si todo lo que faltó lo puse yo de la consignación, no hay movimiento con
+// Martín pero igual está resuelto.
+const cargadoMartin = o => !!o.supplier_move_id || !!o.consignacion || !!repuestas(o);
+// Cuántas unidades que no llegaron puse yo de la consignación.
+const repuestas = o => (o.repuesto||[]).reduce((a,it) => a + (Number(it.cantidad)||0), 0);
 const dolar   = o => Number(o.usd_rate) || Number(USD.valor) || 0;
 // El costo viene repartido por proveedor, cada uno en su moneda.
 const costo   = o => Math.round((o.costo || []).reduce((a,d) =>
@@ -302,6 +306,7 @@ function tarjeta(o){
         <p class="cname">${esc(nombre)}</p>
         <p class="cmeta">#${o.id} · ${cuando}${p!=='despachado'&&p!=='saldado' ? '' : ' · ' + uTxt}${
           faltaron(o) ? ' · <span class="debe">vino de menos ' + faltaron(o) + ' u.</span>' : ''}${
+          repuestas(o) ? ' · ' + repuestas(o) + ' u. de tu stock' : ''}${
           paraFacturar(o) ? '<span class="tg bl">' + fmt(paraFacturar(o)) + ' para facturar</span>' : ''}${
           sinMedio(o) ? '<span class="tg pe">¿cómo pagó?</span>' : ''}</p>
       </div>
@@ -511,7 +516,8 @@ let REC = null;
 function modalRecibir(id, quedan){
   const o = ORDERS.find(x => x.id === id);
   const lineas = porLinea(o.items);
-  if(!REC || REC.id !== id) REC = { id, quedan, lineas, cant: lineas.map(l => l.qty), amb: [] };
+  // stock = de lo que no llegó, cuánto pongo yo de la consignación.
+  if(!REC || REC.id !== id) REC = { id, quedan, lineas, cant: lineas.map(l => l.qty), stock: lineas.map(() => 0), amb: [] };
   REC.lineas = lineas; REC.quedan = quedan;
   const yaDespachado = paso(o) === 'despachado' || paso(o) === 'saldado';
   const varios = provsDe(o).length > 1, quien = esc(quienes(o));
@@ -519,11 +525,16 @@ function modalRecibir(id, quedan){
     <h3>${yaDespachado ? 'Cargar el pedido #' + id + ' a la cuenta de ' + quien : '¿Qué te trajo ' + quien + '?'}</h3>
     <p class="sub">${yaDespachado
       ? 'Este ya lo retiraste y lo despachaste, pero nunca se le cargó. Confirmá las cantidades y va a su deuda.'
-      : 'Dejá las que vinieron bien y corregí las que no. Lo que no llegó no se lo cobrás al cliente ni se lo pagás a ' + quien + '.'}
+      : 'Dejá las que vinieron bien y corregí las que no. Lo que no llegó no se lo pagás a ' + quien
+        + ': o no se lo cobrás al cliente, o lo ponés vos de la consignación.'}
       ${quedan > 1 ? `<br><b>Quedan ${quedan} por cargar.</b>` : ''}</p>
     ${lineas.map((l,i) => `<div class="qrow" id="q${i}">
       <div><span class="qn">${esc(l.linea)}</span><span class="qg">pediste ${l.qty}${varios ? ' · ' + esc(o.prov_linea[l.linea] || 'Martín') : ''}</span></div>
       <input type="number" min="0" id="qi${i}" value="${REC.cant[i]}" data-pedido="${l.qty}" oninput="marcarDif(${i})">
+      <div class="destock" id="qs${i}" style="display:none">
+        <div>¿Cuántas ponés de tu stock?<span class="qg" id="qsg${i}"></span></div>
+        <input type="number" min="0" id="qsi${i}" value="${REC.stock[i]}" oninput="marcarDif(${i})">
+      </div>
     </div>`).join('')}
     <div class="qtot"><span>Total</span><span><span id="qTot">0</span> <span class="g">anteojos</span></span></div>
     <div class="aviso" id="qMenos" style="display:none"></div>
@@ -544,12 +555,22 @@ function marcarDif(i){
   const inp = document.getElementById('qi'+i);
   REC.cant[i] = Math.max(0, parseInt(inp.value, 10) || 0);
   document.getElementById('q'+i).classList.toggle('dif', REC.cant[i] !== Number(inp.dataset.pedido));
+  // Lo que falta en esta línea se puede tapar con la consignación, nunca de más.
+  const falta = Math.max(0, REC.lineas[i].qty - REC.cant[i]);
+  const sInp = document.getElementById('qsi'+i);
+  REC.stock[i] = Math.min(falta, Math.max(0, parseInt(sInp.value, 10) || 0));
+  if(Number(sInp.value) > falta) sInp.value = REC.stock[i];
+  sInp.max = falta;
+  document.getElementById('qs'+i).style.display = falta ? '' : 'none';
+  document.getElementById('qsg'+i).textContent = 'faltan ' + falta + ' · salen de consignación, no de la cuenta corriente';
   const o = ORDERS.find(x => x.id === REC.id);
-  let total = 0, faltan = 0, menos = 0, aprox = false;
+  let total = 0, faltan = 0, menos = 0, aprox = false, puestas = 0;
   REC.lineas.forEach((l,k) => {
-    total += REC.cant[k];
-    if(REC.cant[k] >= l.qty) return;
-    const f = l.qty - REC.cant[k], p = precioUnif(l);
+    total += REC.cant[k] + REC.stock[k];
+    puestas += REC.stock[k];
+    const f = l.qty - REC.cant[k] - REC.stock[k];
+    if(f <= 0) return;
+    const p = precioUnif(l);
     faltan += f;
     menos += f * (p === null ? l.total / l.qty : p);
     if(p === null) aprox = true;
@@ -557,16 +578,20 @@ function marcarDif(i){
   menos = Math.round(menos);
   document.getElementById('qTot').textContent = total;
   const box = document.getElementById('qMenos');
-  box.style.display = faltan ? '' : 'none';
-  if(faltan) box.innerHTML = `Faltan <b>${faltan} u.</b> No se las cobrás: el pedido le baja `
-    + `${aprox ? '≈ ' : ''}<b>${fmt(menos)}</b>, de ${fmt(o.total)} a ${aprox ? '≈ ' : ''}`
-    + `<b>${fmt(Math.max(0, o.total - menos))}</b>.`;
+  box.style.display = faltan || puestas ? '' : 'none';
+  box.innerHTML = (puestas ? `Ponés <b>${puestas} u.</b> de tu stock: el cliente las paga igual, `
+      + `a ${esc(quienes(o))} no se le suman a la cuenta corriente y quedan debiéndose en Consignación.`
+      + (faltan ? '<br>' : '') : '')
+    + (faltan ? `Faltan <b>${faltan} u.</b> No se las cobrás: el pedido le baja `
+      + `${aprox ? '≈ ' : ''}<b>${fmt(menos)}</b>, de ${fmt(o.total)} a ${aprox ? '≈ ' : ''}`
+      + `<b>${fmt(Math.max(0, o.total - menos))}</b>.` : '');
 }
 
 // Paso 1 -> si una línea que vino de menos tiene más de un modelo, hay que saber
 // cuál faltó: el remito del cliente y lo que se le cobra dependen de eso.
 function guardarRecibido(){
-  REC.amb = REC.lineas.map((l,k) => ({ k, l, recib: REC.cant[k] }))
+  // Lo que le llega al cliente: lo que trajo el proveedor más lo que pongo yo.
+  REC.amb = REC.lineas.map((l,k) => ({ k, l, recib: REC.cant[k] + REC.stock[k] }))
     .filter(a => a.recib < a.l.qty && a.l.modelos.length > 1)
     .map(a => ({ k:a.k, l:a.l, recib:a.recib, elegido: sugerirModelos(a.l, a.recib) }));
   if(REC.amb.length) return modalCuales();
@@ -630,15 +655,23 @@ async function mandarRecibido(){
   // Cuánto llegó de cada item del pedido del cliente.
   const items = (o.items || []).map((it,i) => ({ i, qty: Math.max(1, parseInt(it.qty,10) || 1) }));
   REC.lineas.forEach((l,k) => {
-    if(REC.cant[k] >= l.qty) return;
+    const recib = REC.cant[k] + REC.stock[k];
+    if(recib >= l.qty) return;
     const a = (REC.amb || []).find(x => x.k === k);
     if(a) a.l.modelos.forEach((m,z) => { items[m.idx].qty = a.elegido[z]; });
-    else l.modelos.forEach(m => { items[m.idx].qty = REC.cant[k]; });
+    else l.modelos.forEach(m => { items[m.idx].qty = recib; });
   });
-  const lineas = REC.lineas.map((l,k) => ({ linea: l.linea, qty: REC.cant[k] }));
+  const lineas = REC.lineas.map((l,k) => ({ linea: l.linea, qty: REC.cant[k] + REC.stock[k] }));
+  const deStock = REC.lineas.map((l,k) => ({ linea: l.linea, qty: REC.stock[k] })).filter(d => d.qty > 0);
   const id = REC.id;
   try{
-    const r = await post({ id, recibir:{ items, lineas } });
+    let r;
+    try{ r = await post({ id, recibir:{ items, lineas, deStock } }); }
+    catch(e){
+      // En consignación no alcanza (el stock de ahí a veces está corrido): se puede sacar igual.
+      if(!/no te alcanza el stock/.test(e.message) || !confirm(e.message + '.\n\n¿Lo sacás igual?')) throw e;
+      r = await post({ id, recibir:{ items, lineas, deStock, forzar:true } });
+    }
     REC = null;
     cerrarModal(); await cargar();
     showToast(textoCargado(r));
@@ -652,10 +685,11 @@ async function mandarRecibido(){
 // "Sumado a Martín US$ 148 y a Fernando $39.800 · al cliente le sacaste $24.000"
 function textoCargado(r){
   const c = (r && r.cargado) || [];
-  const base = c.length
+  const puestas = ((r && r.repuesto) || []).reduce((a,x) => a + x.cantidad, 0);
+  const base = (c.length
     ? 'Sumado a ' + c.map(d =>
         d.nombre + ' ' + (d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) : fmt(d.monto))).join(' y a ')
-    : 'Recibido';
+    : 'Recibido') + (puestas ? ' · ' + puestas + ' u. salieron de consignación' : '');
   return r && r.faltaron > 0
     ? base + ' · no llegaron ' + r.faltaron + ' u., al cliente le sacaste ' + fmt(r.menos)
     : base;
