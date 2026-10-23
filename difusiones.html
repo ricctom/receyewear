@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex"/>
+<title>Difusiones · REC Eyewear</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="panel.css"/>
+<style>
+  .dif{background:var(--cd);border:1px solid var(--ln);border-radius:16px;padding:16px 18px;margin-bottom:9px;cursor:pointer}
+  .dif:hover{border-color:var(--ln2)}
+  .dif .f{font-size:12.5px;color:var(--mt);margin:0}
+  .dif .txt{font-size:14.5px;margin:5px 0 0;line-height:1.55;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:pre-line}
+  .dif .cnt{font-size:12.5px;color:var(--md);margin-top:9px;display:flex;gap:14px;flex-wrap:wrap}
+
+  .msj{background:var(--cd);border:1px solid var(--ln);border-radius:16px;padding:16px 18px;margin-bottom:16px}
+  .msj .txt{font-size:14px;line-height:1.6;white-space:pre-wrap;margin:0;max-height:4.8em;overflow:hidden}
+  .msj.abierto .txt{max-height:none}
+  .msj .acc{margin-top:10px;gap:6px}
+
+  .busca{border:1px solid var(--ln2);border-radius:11px;padding:9px 14px;font-size:14px;
+    font-family:inherit;background:var(--cd);color:var(--tx);min-width:200px;flex:1;max-width:320px}
+  .busca:focus{outline:none;border-color:var(--tx)}
+
+  .fil{background:var(--cd);border:1px solid var(--ln);border-radius:14px;padding:11px 14px;margin-bottom:7px;
+    display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .fil.marcado{border-color:var(--ln2)}
+  .fil .estr{background:none;border:none;font-size:22px;line-height:1;color:var(--ln2);padding:2px;flex:none}
+  .fil .estr.on{color:#e0a526}
+  .fil .nom{flex:1;min-width:150px}
+  .fil .nom b{font-size:14.5px;font-weight:600;display:block}
+  .fil .nom span{font-size:12px;color:var(--mt)}
+  .ops{display:flex;gap:5px;flex-wrap:wrap}
+  .op{border:1px solid var(--ln2);background:var(--cd);color:var(--md);border-radius:9px;
+    padding:0 11px;height:34px;font-size:13px;font-weight:500;white-space:nowrap}
+  .op:hover{border-color:var(--tx);color:var(--tx)}
+  .op.on.vio{background:var(--az);border-color:var(--az);color:#fff}
+  .op.on.reenvio{background:var(--al);border-color:var(--al);color:#fff}
+  .op.on.personal{background:var(--ok);border-color:var(--ok);color:#fff}
+  .op.on.nada{background:var(--mt);border-color:var(--mt);color:#fff}
+  .volver{background:none;border:none;color:var(--md);font-size:13.5px;padding:0;margin-bottom:10px}
+  .volver:hover{color:var(--tx)}
+  @media (max-width:640px){
+    .ops{width:100%;display:grid;grid-template-columns:1fr 1fr} .op{padding:0 6px;font-size:12.5px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>REC</h1>
+  <nav class="tabs">
+    <a href="admin.html">Pedidos</a>
+    <a href="carritos.html">Carritos</a>
+    <a href="crm.html">Clientes</a>
+    <a href="difusiones.html" class="on">Difusiones</a>
+    <a href="proveedor.html">Proveedores</a>
+    <a href="consignacion.html">Consignación</a>
+    <a href="cupones.html">Cupones</a>
+  </nav>
+  <div class="who" id="who"></div>
+</header>
+
+<div class="wrap" id="gate">
+  <div class="gate">
+    <h2>Difusiones</h2>
+    <p>Entrá con la cuenta de Google de siempre.</p>
+    <div id="gbtn"></div>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</div>
+
+<div class="wrap" id="panel" style="display:none">
+  <div id="vista"></div>
+</div>
+
+<div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+
+<script src="panel.js"></script>
+<script>
+const OPCIONES = [
+  ['vio', '¿Lo viste?'],
+  ['reenvio', 'Se lo reenvío'],
+  ['personal', 'Algo personal'],
+  ['nada', 'Nada'],
+];
+let DIF = null, CLIS = [], filtro = 'todos';
+
+function ruta(){ return parseInt(location.hash.slice(1), 10) || null; }
+window.addEventListener('hashchange', () => ruta() ? abrirDifusion(ruta()) : cargarLista());
+function arrancar(){ ruta() ? abrirDifusion(ruta()) : cargarLista(); }
+
+/* ---------------- listado de difusiones ---------------- */
+async function cargarLista(){
+  DIF = null;
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="empty">Cargando…</div>';
+  try{
+    const d = await api('/api/crm?difusiones=1');
+    const ds = d.difusiones || [];
+    v.innerHTML = `
+      <div class="top">
+        <div><h2>Difusiones</h2>
+          <div class="sub">${ds.length ? ds.length + ' enviadas' : 'Todavía no cargaste ninguna'} · ${d.clientes} clientes en la lista</div></div>
+        <div class="der"><button class="b sm" onclick="modalDifusion()">+ Difusión</button></div>
+      </div>
+      ${ds.length ? ds.map(x => `
+        <div class="dif" onclick="location.hash='${x.id}'">
+          <p class="f">${fechaCorta(x.fecha)}</p>
+          <p class="txt">${esc(x.mensaje)}</p>
+          <div class="cnt">
+            ${OPCIONES.map(([k, n]) => `<span>${n}: <b>${x[k]}</b></span>`).join('')}
+            ${x.destacados ? `<span>★ ${x.destacados}</span>` : ''}
+          </div>
+        </div>`).join('') : '<div class="empty">Tocá “+ Difusión”, pegá el mensaje que mandaste<br>y después marcá a cada cliente qué le mandás.</div>'}`;
+  }catch(e){
+    if(esSesion(e)) return logout();
+    v.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+function modalDifusion(editar){
+  const d = editar ? DIF : null;
+  abrirModal(`
+    <h3>${d ? 'Editar difusión' : 'Nueva difusión'}</h3>
+    <p class="sub">Pegá el mensaje tal cual lo mandaste.</p>
+    <label>Fecha</label>
+    <input type="date" id="dFecha" value="${d ? String(d.fecha).slice(0,10) : hoyISO()}">
+    <label>Mensaje</label>
+    <textarea id="dMsj" rows="9">${d ? esc(d.mensaje) : ''}</textarea>
+    <div class="mfoot">
+      ${d ? '<button class="b mal" onclick="borrarDifusion()">Borrar</button>' : ''}
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:0" onclick="guardarDifusion()">Guardar</button>
+    </div>`);
+  if(!d) setTimeout(() => document.getElementById('dMsj').focus(), 60);
+}
+
+async function guardarDifusion(){
+  const mensaje = document.getElementById('dMsj').value;
+  const fecha = document.getElementById('dFecha').value;
+  try{
+    const r = await api('/api/crm', { method:'POST',
+      body: JSON.stringify({ difusion: { id: DIF && DIF.id, fecha, mensaje } }) });
+    cerrarModal();
+    if(DIF) abrirDifusion(DIF.id); else location.hash = r.id;
+  }catch(e){ showToast(e.message); }
+}
+
+async function borrarDifusion(){
+  if(!confirm('¿Borrar esta difusión y todo lo que marcaste?')) return;
+  try{
+    await api('/api/crm', { method:'POST', body: JSON.stringify({ difusion_id: DIF.id, borrar: true }) });
+    cerrarModal();
+    location.hash = '';
+  }catch(e){ showToast(e.message); }
+}
+
+/* ---------------- una difusión: todos los clientes ---------------- */
+async function abrirDifusion(id){
+  const v = document.getElementById('vista');
+  if(!DIF || DIF.id !== id) v.innerHTML = '<div class="empty">Cargando…</div>';
+  try{
+    const d = await api('/api/crm?difusion=' + id);
+    DIF = d.difusion; CLIS = d.clientes || [];
+    v.innerHTML = `
+      <button class="volver" onclick="location.hash=''">← Difusiones</button>
+      <div class="top">
+        <div><h2>Difusión del ${fechaCorta(DIF.fecha)}</h2><div class="sub" id="subt"></div></div>
+      </div>
+      <div class="msj" id="msj">
+        <p class="txt">${esc(DIF.mensaje)}</p>
+        <div class="acc">
+          <button class="b sm q" onclick="document.getElementById('msj').classList.toggle('abierto')">Ver entero</button>
+          <button class="b sm q" onclick="copiar()">Copiar mensaje</button>
+          <button class="b sm q" onclick="modalDifusion(true)">Editar</button>
+        </div>
+      </div>
+      <div class="top" style="margin-bottom:14px">
+        <input class="busca" id="q" placeholder="Buscar cliente o zona…" oninput="pintarClientes()">
+      </div>
+      <div class="filtros" id="filtros"></div>
+      <div id="lista"></div>`;
+    pintarClientes();
+  }catch(e){
+    if(esSesion(e)) return logout();
+    v.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+
+function copiar(){
+  navigator.clipboard.writeText(DIF.mensaje).then(() => showToast('Mensaje copiado'), () => showToast('No se pudo copiar'));
+}
+
+function pintarClientes(){
+  const q = (document.getElementById('q').value || '').toLowerCase().trim();
+  const sinMarcar = CLIS.filter(c => !c.accion).length;
+  document.getElementById('subt').textContent =
+    CLIS.length + ' clientes · ' + (sinMarcar ? sinMarcar + ' sin marcar' : 'todos marcados');
+
+  const cuenta = { todos: CLIS.length, sin: sinMarcar, estrella: CLIS.filter(c => c.destacado).length };
+  OPCIONES.forEach(([k]) => { cuenta[k] = CLIS.filter(c => c.accion === k).length; });
+  const chips = [['todos','Todos'], ['sin','Sin marcar'], ...OPCIONES, ['estrella','★ Destacados']];
+  document.getElementById('filtros').innerHTML = chips.map(([k, n]) =>
+    `<button class="chip ${filtro === k ? 'on' : ''}" onclick="filtro='${k}';pintarClientes()">${n}<b>${cuenta[k]}</b></button>`).join('');
+
+  const lista = CLIS.filter(c => {
+    if(filtro === 'sin' && c.accion) return false;
+    if(filtro === 'estrella' && !c.destacado) return false;
+    if(OPCIONES.some(([k]) => k === filtro) && c.accion !== filtro) return false;
+    if(q && !(c.nombre + ' ' + (c.zona || '')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  document.getElementById('lista').innerHTML = lista.length ? lista.map(fila).join('')
+    : '<div class="empty">No hay clientes acá.</div>';
+}
+
+function fila(c){
+  return `<div class="fil ${c.accion ? 'marcado' : ''}" id="c${c.id}">
+    <button class="estr ${c.destacado ? 'on' : ''}" title="Destacar" onclick="estrella(${c.id})">${c.destacado ? '★' : '☆'}</button>
+    <div class="nom"><b>${esc(c.nombre)}</b><span>${esc([c.zona, c.telefono].filter(Boolean).join(' · '))}</span></div>
+    <div class="ops">${OPCIONES.map(([k, n]) =>
+      `<button class="op ${k} ${c.accion === k ? 'on' : ''}" onclick="marcar(${c.id},'${k}')">${n}</button>`).join('')}</div>
+  </div>`;
+}
+
+// Se pinta al toque y se guarda atrás; si falla, se vuelve a como estaba.
+async function guardarCliente(c, cambio, antes){
+  Object.assign(c, cambio);
+  pintarClientes();
+  try{
+    await api('/api/crm', { method:'POST',
+      body: JSON.stringify(Object.assign({ difusion_id: DIF.id, cliente_id: c.id }, cambio)) });
+  }catch(e){
+    Object.assign(c, antes); pintarClientes();
+    showToast(esSesion(e) ? 'Se cerró la sesión, volvé a entrar' : e.message);
+  }
+}
+function marcar(id, k){
+  const c = CLIS.find(x => x.id === id);
+  guardarCliente(c, { accion: c.accion === k ? null : k }, { accion: c.accion });
+}
+function estrella(id){
+  const c = CLIS.find(x => x.id === id);
+  guardarCliente(c, { destacado: !c.destacado }, { destacado: c.destacado });
+}
+
+bootPanel(arrancar);
+</script>
+</body>
+</html>

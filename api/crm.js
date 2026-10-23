@@ -5,10 +5,17 @@
 //   POST { id, evento:{...} }  -> registra un contacto y actualiza "último contacto"
 //   POST { importar:"texto" }  -> importa un listado pegado (CSV o TSV)
 //   POST { id, borrar:true }   -> borra el cliente
+// Difusiones (difusiones.html):
+//   GET ?difusiones=1                        -> las difusiones con sus conteos
+//   GET ?difusion=N                          -> una difusión con todos los clientes
+//   POST { difusion:{ id?, fecha, mensaje } } -> crea o edita una difusión
+//   POST { difusion_id, borrar:true }        -> borra la difusión
+//   POST { difusion_id, cliente_id, accion?, destacado? } -> marca a un cliente
 const { sql, ensureTables, enBlancoPorMedio } = require('./_db');
 const { getSession } = require('./_auth');
 
 const ESTADOS = ['compro', 'caliente', 'tibio', 'esperar', 'frio'];
+const ACCIONES = ['vio', 'reenvio', 'personal', 'nada'];
 
 // Los estados vienen escritos de mil formas; los llevamos a los 5 de arriba.
 function normEstado(v) {
@@ -169,6 +176,32 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const url = new URL(req.url, 'http://x');
+
+      if (url.searchParams.get('difusiones')) {
+        const difusiones = await sql`SELECT d.id, d.fecha, d.mensaje,
+            count(x.client_id) FILTER (WHERE x.accion = 'vio')::int AS vio,
+            count(x.client_id) FILTER (WHERE x.accion = 'reenvio')::int AS reenvio,
+            count(x.client_id) FILTER (WHERE x.accion = 'personal')::int AS personal,
+            count(x.client_id) FILTER (WHERE x.accion = 'nada')::int AS nada,
+            count(x.client_id) FILTER (WHERE x.destacado)::int AS destacados
+          FROM difusiones d LEFT JOIN difusion_clientes x ON x.difusion_id = d.id
+          GROUP BY d.id ORDER BY d.fecha DESC, d.id DESC`;
+        const [{ n }] = await sql`SELECT count(*)::int AS n FROM crm_clients WHERE NOT archivado`;
+        return res.status(200).json({ difusiones, clientes: n });
+      }
+
+      const difId = parseInt(url.searchParams.get('difusion') || '', 10);
+      if (difId) {
+        const [difusion] = await sql`SELECT id, fecha, mensaje FROM difusiones WHERE id = ${difId}`;
+        if (!difusion) return res.status(404).json({ error: 'No existe la difusión' });
+        const clientes = await sql`SELECT c.id, c.nombre, c.zona, c.telefono, c.estado,
+            x.accion, COALESCE(x.destacado, false) AS destacado
+          FROM crm_clients c
+          LEFT JOIN difusion_clientes x ON x.client_id = c.id AND x.difusion_id = ${difId}
+          WHERE NOT c.archivado ORDER BY lower(c.nombre)`;
+        return res.status(200).json({ difusion, clientes });
+      }
+
       const id = parseInt(url.searchParams.get('id') || '', 10);
       if (id) {
         const [cli] = await sql`SELECT * FROM crm_clients WHERE id = ${id}`;
@@ -210,6 +243,43 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       const b = req.body || {};
+
+      if (b.difusion) {
+        const mensaje = String(b.difusion.mensaje || '').trim().slice(0, 5000);
+        if (!mensaje) return res.status(400).json({ error: 'Pegá el mensaje de la difusión' });
+        const fecha = parseFecha(b.difusion.fecha);
+        const difId = parseInt(b.difusion.id, 10);
+        if (difId) {
+          await sql`UPDATE difusiones SET mensaje = ${mensaje},
+              fecha = COALESCE(${fecha}::date, fecha) WHERE id = ${difId}`;
+          return res.status(200).json({ ok: true, id: difId });
+        }
+        const [d] = await sql`INSERT INTO difusiones (fecha, mensaje)
+          VALUES (COALESCE(${fecha}::date, CURRENT_DATE), ${mensaje}) RETURNING id`;
+        return res.status(200).json({ ok: true, id: d.id });
+      }
+
+      if (b.difusion_id) {
+        const difId = parseInt(b.difusion_id, 10);
+        if (b.borrar) {
+          await sql`DELETE FROM difusiones WHERE id = ${difId}`;
+          return res.status(200).json({ ok: true });
+        }
+        const cliId = parseInt(b.cliente_id, 10);
+        if (!difId || !cliId) return res.status(400).json({ error: 'Datos inválidos' });
+        // Solo se toca lo que vino: tocar la estrellita no borra la acción y al revés.
+        const tocaAccion = 'accion' in b;
+        const accion = ACCIONES.includes(b.accion) ? b.accion : null;
+        const tocaDest = 'destacado' in b;
+        const destacado = !!b.destacado;
+        await sql`INSERT INTO difusion_clientes (difusion_id, client_id, accion, destacado)
+          VALUES (${difId}, ${cliId}, ${accion}, ${destacado})
+          ON CONFLICT (difusion_id, client_id) DO UPDATE SET
+            accion = CASE WHEN ${tocaAccion} THEN EXCLUDED.accion ELSE difusion_clientes.accion END,
+            destacado = CASE WHEN ${tocaDest} THEN EXCLUDED.destacado ELSE difusion_clientes.destacado END,
+            updated_at = now()`;
+        return res.status(200).json({ ok: true });
+      }
 
       if (b.importar) {
         const { filas, error } = parsearListado(b.importar, !!b.miles);

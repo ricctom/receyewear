@@ -206,6 +206,25 @@ function ensureTables() {
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
 
+    /* ---------- Difusiones de WhatsApp ---------- */
+    // Una fila por difusión mandada, y por cada cliente qué le mando después:
+    // accion = 'vio' (le pregunto si lo pudo ver) | 'reenvio' (se lo mando de
+    // vuelta porque no me tiene agendado) | 'personal' (otra cosa) | 'nada'.
+    await sql`CREATE TABLE IF NOT EXISTS difusiones (
+      id SERIAL PRIMARY KEY,
+      fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+      mensaje TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
+    await sql`CREATE TABLE IF NOT EXISTS difusion_clientes (
+      difusion_id INTEGER NOT NULL REFERENCES difusiones(id) ON DELETE CASCADE,
+      client_id INTEGER NOT NULL REFERENCES crm_clients(id) ON DELETE CASCADE,
+      accion TEXT,
+      destacado BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ DEFAULT now(),
+      PRIMARY KEY (difusion_id, client_id)
+    )`;
+
     /* ---------- Proveedores ---------- */
     await sql`CREATE TABLE IF NOT EXISTS suppliers (
       id SERIAL PRIMARY KEY,

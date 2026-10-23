@@ -552,6 +552,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
         <a href="#" class="dlbl-link" onclick="filterCat('sol');return false;">Sol</a>
         <a href="#" onclick="filterCat('sol-polarizados');return false;">Polarizados</a>
         <a href="#" onclick="filterCat('sol-clipper');return false;">Clipper Polarizados</a>
+        <a href="#" onclick="filterCat('sol-zilo');return false;">Zilo Polarizado</a>
         <a href="#" class="dlbl-link" onclick="filterCat('accesorios');return false;">Accesorios</a>
         <a href="#" onclick="filterCat('accesorios-estuches');return false;">Estuches</a>
         <a href="#" onclick="filterCat('accesorios-limpia');return false;">Limpia Cristales</a>
@@ -897,14 +898,18 @@ const PRODUCTS = [
   {id:30,name:'Clipper Polarizados (3026)',sku:'3026',price:20000,oldPrice:23529,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/edcd71f08c8ae5927391ae61604cf99649982b54e5f6476c4ea1a464b0c089f7461944.jpg'],cats:['sol','sol-clipper','ofertas'],desc:'Clipper polarizado sobre armazón de receta. Precio Contado.',colors:['Dorado/verde','Dorado/marrón','Plata/gris','Negro/gris']},
   {id:31,name:'Clipper Polarizados (3025)',sku:'3025',price:20000,oldPrice:23529,discount:15,imgs:['https://d22fxaf9t8d39k.cloudfront.net/46cdd01c187122977bfed6eddf366cf1ff3bb7b61b53b75a8fd95915019e604c461944.jpg'],cats:['sol','sol-clipper','ofertas'],desc:'Clipper polarizado sobre armazón de receta. Precio Contado.',colors:['Dorado/verde','Dorado/marrón','Plata/gris','Negro/gris']},
 
+  // ── SOL > ZILO POLARIZADO (23-10-26) ─────────────────────
+  {id:429,name:'Zilo Polarizado (AT6073)',sku:'AT6073',price:27600,oldPrice:32471,discount:14,imgs:['imgs/zilo_AT6073.jpeg'],cats:['sol','sol-zilo','ofertas'],desc:'Anteojos de sol Zilo polarizados, 54-21-150. Precio Contado.',colors:['Negro','Azul','Gris','Marrón']},
+  {id:430,name:'Zilo Polarizado (G2072)',sku:'G2072',price:27600,oldPrice:32471,discount:14,imgs:['imgs/zilo_G2072.jpeg'],cats:['sol','sol-zilo','ofertas'],desc:'Anteojos de sol Zilo polarizados, 53-23-148. Precio Contado.',colors:['Negro','Verde','Gris']},
+  {id:431,name:'Zilo Polarizado (AT6022)',sku:'AT6022',price:27600,oldPrice:32471,discount:14,imgs:['imgs/zilo_AT6022.jpeg'],cats:['sol','sol-zilo','ofertas'],desc:'Anteojos de sol Zilo polarizados, 54-20-150. Precio Contado.',colors:['Verde','Gris','Marrón','Azul']},
+  {id:432,name:'Zilo Polarizado (AT6086)',sku:'AT6086',price:27600,oldPrice:32471,discount:14,imgs:['imgs/zilo_AT6086.jpeg'],cats:['sol','sol-zilo','ofertas'],desc:'Anteojos de sol Zilo polarizados, 54-18-145. Precio Contado.',colors:['Gris','Azul/verde','Carey']},
+  {id:433,name:'Zilo Polarizado (AT6088)',sku:'AT6088',price:27600,oldPrice:32471,discount:14,imgs:['imgs/zilo_AT6088.jpeg'],cats:['sol','sol-zilo','ofertas'],desc:'Anteojos de sol Zilo polarizados, 52-19-145. Precio Contado.',colors:['Negro','Gris','Carey verde','Carey']},
+  {id:434,name:'Zilo Polarizado (AT6032)',sku:'AT6032',price:27600,oldPrice:32471,discount:14,imgs:['imgs/zilo_AT6032.jpeg'],cats:['sol','sol-zilo','ofertas'],desc:'Anteojos de sol Zilo polarizados, 55-18-145. Precio Contado.',colors:['Carey','Negro','Violeta']},
+
   // ── CLIPON > 5 PLACAS ────────────────────────────────────
 
   // ── CLIPON > 1 PLACA ─────────────────────────────────────
-  {id:58,name:'UNA PLACA (6817)',sku:'6817',price:27600,oldPrice:32471,discount:14,imgs:['imgs/6817.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Marrón caramelo','Carey rosado','Celeste','Rosa/nude']},
-  {id:59,name:'UNA PLACA (6154)',sku:'6154',price:27600,oldPrice:32471,discount:14,imgs:['imgs/6154.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Bordó/cristal','Negro','Negro/cristal degradé','Carey blanco y negro']},
   {id:63,name:'UNA PLACA (3102)',sku:'3102',price:27600,oldPrice:32471,discount:14,imgs:['imgs/3102.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Azul','Negro','Gris']},
-  {id:65,name:'UNA PLACA (3030)',sku:'3030',price:27600,oldPrice:32471,discount:14,imgs:['imgs/3030.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/cristal','Rosa/cristal','Carey/cristal']},
-  {id:334,name:'UNA PLACA (C5103)',sku:'C5103',price:27600,oldPrice:32471,discount:14,imgs:['imgs/C5103.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Marrón','Negro','Azul']},
   {id:339,name:'UNA PLACA (68811)',sku:'68811',price:27600,oldPrice:32471,discount:14,imgs:['imgs/68811.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Marrón degradé','Gris degradé']},
   {id:340,name:'UNA PLACA (68812)',sku:'68812',price:27600,oldPrice:32471,discount:14,imgs:['imgs/68812.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Gris/carey','Marrón/carey','Negro']},
   {id:341,name:'UNA PLACA (233)',sku:'233',price:27600,oldPrice:32471,discount:14,imgs:['imgs/233.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro/dorado','Gris/plata','Rosa/dorado','Beige/dorado','Carey']},
@@ -1125,6 +1130,14 @@ const PRODUCTS = [
   {id:387,name:'UNA PLACA (6136)',sku:'6136',price:27600,oldPrice:32471,discount:14,imgs:['imgs/6136.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Dama, 54-17-145. Precio Contado.',colors:['Gris/rosa','Nude','Negro','Transparente','Rosa']},
   {id:388,name:'UNA PLACA (6133)',sku:'6133',price:27600,oldPrice:32471,discount:14,imgs:['imgs/6133.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Dama, 54-16-145. Precio Contado.',colors:['Negro','Gris/rosa','Transparente','Rosa','Nude']},
   {id:389,name:'UNA PLACA (6132)',sku:'6132',price:27600,oldPrice:32471,discount:14,imgs:['imgs/6132.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Dama. Precio Contado.',colors:['Rosa','Nude','Transparente','Gris/rosa']},
+
+  // -- NUEVOS (23-10-26): Clipon 1 placa TJ / metálico sin código --
+  {id:423,name:'UNA PLACA (TJ2181)',sku:'TJ2181',price:27600,oldPrice:32471,discount:14,imgs:['imgs/TJ2181.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Cristal/rosa degradé','Rosa/violeta degradé','Rosa/azul degradé']},
+  {id:424,name:'UNA PLACA (TJ2182)',sku:'TJ2182',price:27600,oldPrice:32471,discount:14,imgs:['imgs/TJ2182.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Cristal/azul degradé','Caramelo/marrón degradé','Rosa/marrón degradé','Rosa/azul degradé']},
+  {id:425,name:'UNA PLACA (TJ2183)',sku:'TJ2183',price:27600,oldPrice:32471,discount:14,imgs:['imgs/TJ2183.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Cristal/gris degradé','Nude/marrón degradé','Cristal/azul degradé']},
+  {id:426,name:'UNA PLACA (TJ2184)',sku:'TJ2184',price:27600,oldPrice:32471,discount:14,imgs:['imgs/TJ2184.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Negro','Cristal/gris degradé','Rosa/violeta degradé','Rosa/azul degradé']},
+  {id:427,name:'UNA PLACA (TJ2518)',sku:'TJ2518',price:27600,oldPrice:32471,discount:14,imgs:['imgs/TJ2518.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Verde oliva','Gris','Cristal gris','Negro mate']},
+  {id:428,name:'UNA PLACA (SC010)',sku:'SC010',price:27600,oldPrice:32471,discount:14,imgs:['imgs/SC010.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Gris/lente gris','Gris/lente marrón','Azul','Negro']},
 
 ];
 
