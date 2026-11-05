@@ -1460,8 +1460,12 @@ function imprimir(html){
   document.body.appendChild(caja);
   // El botón propio del documento sobra: el visor ya tiene el suyo.
   document.getElementById('visorDoc').srcdoc = html.replace('<body>', '<body><style>.noprint{display:none!important}</style>');
+  // Chrome nombra el PDF con el título de la página de arriba, no con el del
+  // documento del visor: sin esto todos se guardan como "Pedidos · REC Eyewear".
+  document.title = new DOMParser().parseFromString(html, 'text/html').title || TITULO_PANEL;
 }
-function cerrarVisor(){ const v = document.getElementById('visor'); if(v) v.remove(); }
+const TITULO_PANEL = document.title;
+function cerrarVisor(){ const v = document.getElementById('visor'); if(v) v.remove(); document.title = TITULO_PANEL; }
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape') cerrarVisor(); });
 const HOJA = `*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0 auto;padding:18px;font-size:12px}
 h1{font-size:18px;margin:0;letter-spacing:.5px;text-transform:uppercase}
@@ -1530,7 +1534,9 @@ function pdfCliente(id){
   const o = ORDERS.find(x => x.id === id); if(!o) return;
   const sh = o.ship || {}, dir = sh.direccion || {};
   const lineas = porLinea(o.items);
-  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id}</title>
+  // Sin puntos: Chrome toma lo que sigue a un punto ("S.A.") como la extensión del archivo.
+  const cliente = (sh.razon_social || o.name || '').replace(/\./g, '').trim();
+  imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ${o.id}${cliente ? ' - ' + esc(cliente) : ''}</title>
 <style>@page{size:A4;margin:14mm 12mm}${HOJA}body{max-width:190mm}
 .cli{background:#f5f5f5;border:1px solid #e2e2e2;border-radius:6px;padding:11px 13px;margin-bottom:16px;line-height:1.7}</style></head><body>
 <div class="noprint"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>

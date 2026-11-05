@@ -49,7 +49,7 @@ module.exports = async (req, res) => {
       }
 
       const faltante = ['cambiar', 'consultar', 'baja'].includes(body.faltante)
-        ? body.faltante : (ship.faltante || 'consultar');
+        ? body.faltante : (ship.faltante || 'cambiar');
 
       // Total recalculado en el server (no se confía en el precio del cliente).
       const clean = items.map((it) => ({

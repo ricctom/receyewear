@@ -224,7 +224,7 @@ module.exports = async (req, res) => {
         const [u] = await sql`SELECT dni_cuit, razon_social, telefono, direccion, faltante, faltante_detalle
           FROM users WHERE id = ${c.uid}`;
         const ship = u || {};
-        const faltante = ship.faltante || 'consultar';
+        const faltante = ship.faltante || 'cambiar';
         const total = Math.round(items.reduce((a, it) => a + (Number(it.price) || 0) * (parseInt(it.qty, 10) || 1), 0));
         let rate = null;
         try { rate = (await usdRate()).valor || null; } catch { rate = null; }

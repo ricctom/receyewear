@@ -342,7 +342,7 @@ module.exports = async (req, res) => {
       try { rate = (await usdRate()).valor || null; } catch { rate = null; }
       const ship = {
         dni_cuit: u.dni_cuit, razon_social: u.razon_social, telefono: u.telefono,
-        direccion: u.direccion, faltante: u.faltante || 'consultar', faltante_detalle: u.faltante_detalle,
+        direccion: u.direccion, faltante: u.faltante || 'cambiar', faltante_detalle: u.faltante_detalle,
       };
       const [o] = await sql`
         INSERT INTO orders (user_id, items, total, descuento, ship, faltante, usd_rate, nota,
