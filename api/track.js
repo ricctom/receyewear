@@ -15,13 +15,27 @@ const TIPOS = [
   'carrito_add',       // puso el primer producto en el carrito
   'checkout_abierto',  // llegó a los datos de envío
   'pedido_ok',         // confirmó el pedido
+  'llegada',           // entró por un link o QR con ?d= (ver abajo)
 ];
+
+// Ciudad y provincia aproximadas, según la IP (los headers los pone Vercel).
+// Con datos del celular a veces marca la ciudad de la antena o de la empresa,
+// así que es orientativo.
+function lugar(req) {
+  const h = (k) => {
+    const v = req.headers[k];
+    if (!v) return null;
+    try { return decodeURIComponent(String(v)).slice(0, 60); } catch { return String(v).slice(0, 60); }
+  };
+  const l = { ciudad: h('x-vercel-ip-city'), provincia: h('x-vercel-ip-country-region'), pais: h('x-vercel-ip-country') };
+  return l.ciudad || l.provincia || l.pais ? l : null;
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
   try {
     const b = req.body || {};
-    const tipo = String(b.tipo || '');
+    let tipo = String(b.tipo || '');
     if (!TIPOS.includes(tipo)) return res.status(400).json({ error: 'tipo' });
 
     // El sid lo genera el navegador y vive en su localStorage: no identifica a
@@ -43,6 +57,19 @@ module.exports = async (req, res) => {
           typeof v === 'number' || typeof v === 'boolean' ? v : String(v).slice(0, 120);
       }
       if (!Object.keys(meta).length) meta = null;
+    }
+
+    // La llegada se guarda como "llegada:mendoza": así la misma persona cuenta
+    // una vez por cada QR o link, aunque ya hubiera entrado antes al sitio
+    // (la "visita" se registra una sola vez en la vida de cada navegador).
+    if (tipo === 'llegada') {
+      const origen = String(ref || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+      if (!origen) return res.status(400).json({ error: 'ref' });
+      tipo = 'llegada:' + origen;
+    }
+    if (tipo === 'visita' || tipo.startsWith('llegada:')) {
+      const l = lugar(req);
+      if (l) meta = Object.assign(meta || {}, l);
     }
 
     const s = getSession(req);   // si ya inició sesión, queda enganchado

@@ -139,7 +139,7 @@ module.exports = async (req, res) => {
         return { ...o, costo: c.detalle, sin_costo: c.sinCosto, prov_linea };
       });
 
-      const [precios, mapa, provs, cupones, embudo, origenes, carritos, clientes] = await Promise.all([
+      const [precios, mapa, provs, cupones, embudo, origenes, carritos, clientes, llegadas] = await Promise.all([
         sql`SELECT supplier_id, articulo, precio FROM supplier_prices WHERE activo ORDER BY articulo`,
         sql`SELECT patron, articulo, factor, supplier_id FROM cost_map ORDER BY patron`,
         sql`SELECT id, nombre, moneda FROM suppliers ORDER BY id`,
@@ -182,13 +182,32 @@ module.exports = async (req, res) => {
                    (SELECT count(*)::int FROM orders o WHERE o.user_id = u.id) AS pedidos
               FROM users u WHERE u.email IS NOT NULL AND u.email <> ''
              ORDER BY lower(COALESCE(NULLIF(u.razon_social, ''), u.name, u.email))`,
+        // Los que entraron por un QR o link con ?d= (una fila por persona y
+        // origen). Si alguna vez inició sesión desde ese navegador, se sabe
+        // quién es; los pedidos se cuentan desde que llegó por ese QR.
+        sql`SELECT substr(l.tipo, 9) AS origen, l.created_at AS llego,
+                   l.meta->>'ciudad' AS ciudad, l.meta->>'provincia' AS provincia,
+                   u.id AS user_id, u.email, u.telefono,
+                   COALESCE(NULLIF(u.razon_social, ''), u.name) AS nombre,
+                   (SELECT count(*)::int FROM orders o
+                     WHERE o.user_id = u.id AND o.created_at >= l.created_at) AS pedidos,
+                   (SELECT COALESCE(sum(o.total), 0)::int FROM orders o
+                     WHERE o.user_id = u.id AND o.created_at >= l.created_at) AS vendido,
+                   (SELECT c.total FROM carts c
+                     WHERE c.sid = l.sid AND c.estado = 'abierto' AND c.total > 0) AS carrito
+              FROM events l
+              LEFT JOIN users u ON u.id = (SELECT e.user_id FROM events e
+                  WHERE e.sid = l.sid AND e.user_id IS NOT NULL
+                  ORDER BY e.id DESC LIMIT 1)
+             WHERE l.tipo LIKE 'llegada:%'
+             ORDER BY l.created_at DESC LIMIT 1000`,
       ]);
       return res.status(200).json({
         orders, usd, proveedores: provs,
         articulos: precios,
         cost_map: mapa,
         sin_mapear: [...sinMapear.values()],
-        cupones, embudo, origenes, carritos, clientes,
+        cupones, embudo, origenes, carritos, clientes, llegadas,
       });
     }
 

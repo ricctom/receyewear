@@ -705,7 +705,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 <div class="modal promo-modal" id="promoModal">
   <button class="modal-cls" onclick="closePromo()">✕</button>
   <div class="promo-gift">🎁</div>
-  <h3 id="promoTitle">Llevate <b>$50.000</b></h3>
+  <h3 id="promoTitle">Llevate <b>$30.000</b></h3>
   <p class="promo-lead" id="promoLead">Iniciá sesión con Google y te dejamos el cupón cargado en tu cuenta. Tarda 2 segundos y no hace falta contraseña.</p>
   <div class="gbtn-wrap" id="gbtnPromo"></div>
   <div class="promo-ok" id="promoOk" style="display:none"></div>
@@ -2339,6 +2339,8 @@ function closeOrders() {
 }
 
 track('visita');
+// Si entró por un QR o un link con ?d=, se anota aparte (ver api/track.js).
+try { if (new URLSearchParams(location.search).get('d')) track('llegada'); } catch {}
 bootAuth();
 
 /* ============================================================

@@ -14,21 +14,20 @@
 //  de acá se escribe como las 03:00 del día siguiente en UTC.
 // ============================================================================
 const PROMO = {
-  codigo:  'BIENVENIDA50',
-  monto:   50000,   // lo que descuenta del total
-  minimo:  600000,  // compra mínima para poder usarlo
+  codigo:  'NOVIEMBRE30',
+  monto:   30000,   // lo que descuenta del total
+  minimo:  300000,  // compra mínima para poder usarlo
 
-  // Se entrega desde el lunes 31/8/2026 a las 00:00 de Argentina...
-  desde:  new Date('2026-08-31T03:00:00Z'),
-  // ...y se puede reclamar hasta el jueves 1/10/2026 a las 23:59 de Argentina.
-  // (Reflotada el 10/9: la campaña original cerraba el 7/9. Estirada el 29/9 hasta el 1/10.)
-  vence:  new Date('2026-10-02T02:59:59Z'),
+  // Campaña de noviembre (armada el 8/11/2026 para la gira por Mendoza y San
+  // Juan; el QR que muestra el vendedor lleva ?d=gira). Antes fue BIENVENIDA50.
+  // Se entrega desde el domingo 8/11/2026 a las 00:00 de Argentina...
+  desde:  new Date('2026-11-08T03:00:00Z'),
+  // ...y se puede reclamar hasta el lunes 30/11/2026 a las 23:59 de Argentina.
+  vence:  new Date('2026-12-01T02:59:59Z'),
 
-  // El que ya se lo llevó tiene tiempo de usarlo hasta fin de octubre:
-  // sábado 31/10/2026 a las 23:59 de Argentina. Así el que lo reclama el
-  // último día igual tiene un mes para usarlo. Esta es la fecha que queda
-  // guardada en cada cupón y la que se le muestra al cliente.
-  venceUso: new Date('2026-11-01T02:59:59Z'),
+  // Se puede usar hasta el mismo día: así el "vence el 30/11" es parejo para
+  // todos y sirve de apuro.
+  venceUso: new Date('2026-12-01T02:59:59Z'),
 };
 
 // El acceso a la base se pide recién cuando hace falta, para que /api/config
@@ -67,7 +66,7 @@ async function vigente(userId) {
 }
 
 // Cuánto descuenta este cupón sobre un subtotal dado.
-// Es todo o nada: o llega al mínimo y descuenta los $50.000, o no descuenta.
+// Es todo o nada: o llega al mínimo y descuenta el monto entero, o no descuenta.
 function descuentoDe(subtotal, v) {
   if (!v) return 0;
   if (subtotal < Number(v.minimo)) return 0;

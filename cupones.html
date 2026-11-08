@@ -38,6 +38,12 @@
   .orig b{font-size:14px}
   .nada{background:#fdf3e3;border:1px solid #f0dfbb;border-radius:10px;padding:14px 16px;
     font-size:13px;color:#8a6413;line-height:1.6;margin-top:14px}
+  .qr-res{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}
+  .qr-res div{background:#f4f3ee;border-radius:10px;padding:10px 14px;min-width:110px}
+  .qr-res .r1{font-size:11.5px;color:var(--mt);margin:0}
+  .qr-res .r2{font-size:20px;font-weight:600;margin:2px 0 0}
+  .qr-sub{font-size:12.5px;font-weight:600;margin:16px 0 0}
+  .qr-tbl{margin-top:12px}
 </style>
 </head>
 <body>
@@ -75,6 +81,7 @@
       <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
     </div>
   </div>
+  <div class="emb" id="qr"></div>
   <div class="emb" id="embudo"></div>
   <div class="resumen" id="resumen"></div>
   <div class="filtros" id="filtros"></div>
@@ -92,6 +99,8 @@
 let CUP = [];
 let EMB = [];
 let ORIG = [];
+let LLEG = [];
+let qrOrigen = null;   // qué QR o link se está mirando (null = el más reciente)
 let filtro = 'todos';
 
 const FILTROS = {
@@ -108,6 +117,8 @@ async function cargar() {
     CUP = d.cupones || [];
     EMB = d.embudo || [];
     ORIG = d.origenes || [];
+    LLEG = d.llegadas || [];
+    pintarQr();
     pintarEmbudo();
     pintar();
   } catch (e) {
@@ -161,6 +172,89 @@ function pintarEmbudo(){
     + (vacio ? '<div class="nada"><b>Todavía no hay ni una visita registrada.</b><br>'
       + 'Si ya mandaste la difusión y acá sigue en cero, es que el mensaje no le llegó a nadie: '
       + 'no es que entraron y no tocaron. Probá mandándote el mensaje a vos mismo.</div>' : '');
+}
+
+/* ---------- Accesos por QR (o cualquier link con ?d=) ----------
+   Una fila por persona y QR: el que escanea dos veces cuenta una sola. La
+   ciudad sale de la IP y es aproximada. Nombre y teléfono aparecen solo si
+   esa persona inició sesión alguna vez desde ese celular. */
+const PROVINCIAS = { A:'Salta', B:'Buenos Aires', C:'CABA', D:'San Luis', E:'Entre Ríos',
+  F:'La Rioja', G:'Santiago del Estero', H:'Chaco', J:'San Juan', K:'Catamarca', L:'La Pampa',
+  M:'Mendoza', N:'Misiones', P:'Formosa', Q:'Neuquén', R:'Río Negro', S:'Santa Fe', T:'Tucumán',
+  U:'Chubut', V:'Tierra del Fuego', W:'Corrientes', X:'Córdoba', Y:'Jujuy', Z:'Santa Cruz' };
+
+function lugarDe(l) {
+  const prov = PROVINCIAS[l.provincia] || l.provincia || '';
+  if (l.ciudad && prov && l.ciudad !== prov) return l.ciudad + ', ' + prov;
+  return l.ciudad || prov || 'Sin dato';
+}
+
+function contar(arr, fn) {
+  const m = new Map();
+  arr.forEach(x => { const k = fn(x); m.set(k, (m.get(k) || 0) + 1); });
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function setQr(o) { qrOrigen = o; pintarQr(); }
+
+function pintarQr() {
+  const box = document.getElementById('qr');
+  const origenes = contar(LLEG, l => l.origen);
+  if (!origenes.length) {
+    box.innerHTML = '<h3>Accesos por QR</h3>'
+      + '<p class="ayuda">Acá van a aparecer los que entren escaneando un QR (por ejemplo el de la gira '
+      + 'por Mendoza y San Juan, que lleva a visionline.com.ar/?d=gira): cuándo entraron, desde qué ciudad y si compraron.</p>'
+      + '<div class="nada">Todavía nadie entró por un QR.</div>';
+    return;
+  }
+  if (!qrOrigen || !origenes.some(([o]) => o === qrOrigen)) qrOrigen = LLEG[0].origen;
+  const rows = LLEG.filter(l => l.origen === qrOrigen);
+  const conNombre = rows.filter(l => l.user_id);
+  const compraron = rows.filter(l => l.pedidos > 0);
+  const vendido = rows.reduce((s, l) => s + (Number(l.vendido) || 0), 0);
+  const ultimo = rows[0] && rows[0].llego;
+
+  const chips = origenes.length > 1
+    ? '<div class="filtros">' + origenes.map(([o, n]) =>
+        `<button class="chip ${o === qrOrigen ? 'on' : ''}" onclick="setQr('${esc(o)}')">${esc(o)}<b>${n}</b></button>`).join('') + '</div>'
+    : '';
+
+  const resumen = [
+    ['Entraron', rows.length],
+    ['Sabemos quién es', conNombre.length],
+    ['Compraron', compraron.length],
+    ['Vendido', fmt(vendido)],
+    ['Último', fechaHora(ultimo)],
+  ].map(([t, v]) => `<div><p class="r1">${t}</p><p class="r2">${v}</p></div>`).join('');
+
+  const lugares = contar(rows, lugarDe).map(([k, n]) => `<div>${esc(k)} <b>${n}</b></div>`).join('');
+  const dias = contar(rows, l => new Date(l.llego).toLocaleDateString('es-AR',
+      { weekday: 'short', day: '2-digit', month: '2-digit' }))
+    .map(([k, n]) => `<div>${esc(k)} <b>${n}</b></div>`).join('');
+
+  const tabla = rows.length ? `<div class="cup-scroll qr-tbl"><table class="cup-tbl"><thead><tr>
+      <th>Entró</th><th>Desde</th><th>Cliente</th><th>Teléfono</th><th>Compró</th></tr></thead><tbody>`
+    + rows.map(l => `<tr>
+        <td>${fechaHora(l.llego)}</td>
+        <td>${esc(lugarDe(l))}</td>
+        <td>${l.user_id ? `<div class="cup-nom">${esc(l.nombre || '—')}</div><div class="cup-mail">${esc(l.email || '')}</div>`
+                        : '<span class="cup-mail">No inició sesión</span>'}</td>
+        <td>${esc(l.telefono || '—')}</td>
+        <td>${l.pedidos ? `<span class="tag usado">${l.pedidos} pedido${l.pedidos > 1 ? 's' : ''} · ${fmt(l.vendido)}</span>`
+             : l.carrito ? `<span class="tag libre">Carrito ${fmt(l.carrito)}</span>` : '—'}</td>
+      </tr>`).join('')
+    + '</tbody></table></div>' : '';
+
+  box.innerHTML = '<h3>Accesos por QR · ' + esc(qrOrigen) + '</h3>'
+    + '<p class="ayuda">Personas distintas que entraron escaneando el QR (o tocando un link con ?d=' + esc(qrOrigen) + '). '
+    + 'Como escanean delante del vendedor, la hora sirve para saber quién fue cruzándola con el recorrido del día. '
+    + 'La ciudad sale de la conexión del celular y es aproximada (a veces marca la capital de la provincia). '
+    + 'Nombre y teléfono aparecen solo si inició sesión.</p>'
+    + chips
+    + '<div class="qr-res">' + resumen + '</div>'
+    + '<p class="qr-sub">De dónde</p><div class="orig">' + lugares + '</div>'
+    + '<p class="qr-sub">Por día</p><div class="orig">' + dias + '</div>'
+    + tabla;
 }
 
 function pintar() {
