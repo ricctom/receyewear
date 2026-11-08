@@ -401,6 +401,51 @@ body{color:var(--ink);-webkit-font-smoothing:antialiased}
 .search-bar input{border-radius:var(--radius-sm);border-color:var(--line)}
 .search-bar input:focus{border-color:var(--accent)}
 
+/* Resumen "¿Qué estás buscando?" (lo arma renderResumen): una tarjeta por
+   sublínea, con un collage de 4 fotos, "Línea › Sublínea" y el precio. */
+.resumen{max-width:1280px;margin:28px auto 0;padding:0 24px}
+.resumen h2{font-size:20px;font-weight:700;letter-spacing:-.3px;margin:0 0 16px}
+.rs-wrap{position:relative}
+/* Carrusel: en la compu una fila de 5; en el celu 2 filas de 2 (4 por pantalla).
+   Se desliza con el dedo o las flechas y frena de a una "página". */
+.rs-grid{--rs-n:5;--rs-gap:14px;display:grid;grid-auto-flow:column;gap:var(--rs-gap);
+  grid-auto-columns:calc((100% - (var(--rs-n) - 1) * var(--rs-gap)) / var(--rs-n));
+  overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none;padding:2px 0 6px}
+.rs-grid::-webkit-scrollbar{display:none}
+.rs-grid>.rs-card:nth-child(5n+1){scroll-snap-align:start;scroll-snap-stop:always}
+.rs-flecha{position:absolute;top:38%;transform:translateY(-50%);z-index:2;width:40px;height:40px;border-radius:50%;
+  border:1px solid var(--line);background:#fff;box-shadow:var(--shadow-sm);font-size:24px;line-height:1;cursor:pointer;color:var(--ink)}
+.rs-flecha.prev{left:-14px}.rs-flecha.next{right:-14px}
+.rs-flecha[disabled]{opacity:0;pointer-events:none}
+.rs-dots{display:flex;justify-content:center;gap:6px;margin-top:10px}
+.rs-dots button{width:7px;height:7px;border-radius:50%;border:0;padding:0;background:var(--line);cursor:pointer}
+.rs-dots button.on{background:var(--ink);width:18px;border-radius:4px}
+.rs-card{display:block;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;cursor:pointer;text-align:left;padding:0;font:inherit;color:inherit;
+  transition:transform var(--ease),box-shadow var(--ease),border-color var(--ease)}
+.rs-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:#ded9d0}
+.rs-fotos{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;aspect-ratio:1/1;background:var(--line);overflow:hidden}
+.rs-fotos img{width:100%;height:100%;object-fit:cover;background:#fff;display:block;min-height:0}
+.rs-fotos.una{grid-template-columns:1fr;grid-template-rows:1fr}
+.rs-fotos.una img{object-fit:contain}
+.rs-t{padding:10px 12px 12px}
+.rs-t b{display:block;font-size:14px;font-weight:600;line-height:1.3}
+.rs-t b i{font-style:normal;color:var(--muted);font-weight:500;margin:0 3px}
+.rs-t span{display:block;font-size:13px;color:var(--accent-dark);font-weight:600;margin-top:3px}
+@media(max-width:1024px){.rs-grid{--rs-n:4}.rs-grid>.rs-card:nth-child(5n+1){scroll-snap-align:none}
+  .rs-grid>.rs-card:nth-child(4n+1){scroll-snap-align:start;scroll-snap-stop:always}}
+@media(max-width:700px){
+  .resumen{padding:0 12px;margin-top:18px}
+  .resumen h2{font-size:17px;margin-bottom:12px}
+  .rs-grid{--rs-n:2;--rs-gap:10px;grid-template-rows:auto auto}
+  .rs-grid>.rs-card:nth-child(4n+1){scroll-snap-align:start;scroll-snap-stop:always}
+  .rs-flecha{display:none}
+  .rs-fotos{aspect-ratio:4/3}
+  .rs-t{padding:8px 10px 10px}
+  .rs-t b{font-size:13px}
+  .rs-t span{font-size:12px}
+}
+
 /* Separador / orden */
 .carousel-sep span{color:var(--muted);letter-spacing:.22em}
 .carousel-sep::before,.carousel-sep::after{background:var(--line)}
@@ -583,15 +628,21 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
         <img src="imgs/banner-metal.png" alt="Metal Receta Diseño"/>
       </div>
 
-      <div class="carousel-slide" onclick="filterCat('receta-acetato')">
-        <img src="imgs/banner-acetato.png" alt="Acetato Laminado"/>
-      </div>
-
     </div>
     <button class="carousel-arrow prev" onclick="carouselMove(-1)">&#8249;</button>
     <button class="carousel-arrow next" onclick="carouselMove(1)">&#8250;</button>
     <div class="carousel-dots" id="carouselDots"></div>
   </div>
+
+  <section class="resumen" id="resumen">
+    <h2>¿Qué estás buscando?</h2>
+    <div class="rs-wrap">
+      <button class="rs-flecha prev" onclick="rsMover(-1)" aria-label="Anteriores">&#8249;</button>
+      <div class="rs-grid" id="rsGrid"></div>
+      <button class="rs-flecha next" onclick="rsMover(1)" aria-label="Siguientes">&#8250;</button>
+    </div>
+    <div class="rs-dots" id="rsDots"></div>
+  </section>
 
   <div class="carousel-sep"><span>COLECCIONES</span></div>
   <div class="prod-section" id="grid-anchor">
@@ -918,9 +969,7 @@ const PRODUCTS = [
   // ── RECETA > METAL DISEÑO ────────────────────────────────
   {id:281,name:'Metal Receta Diseño (8004)',sku:'8004',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_8004.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Rojo coral','Rosa','Verde/gris','Violeta','Dorado']},
   {id:286,name:'Metal Receta Diseño (1009)',sku:'1009',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_1009.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro','Bordó/dorado','Gris/plata','Celeste/plata']},
-  {id:345,name:'Metal Receta Diseño (MS17)',sku:'MS17',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MS17.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Azul','Gris/plata','Negro/plata','Negro/dorado']},
   {id:346,name:'Metal Receta Diseño (8801)',sku:'8801',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_8801.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Beige/dorado','Rosa/dorado','Lila/dorado','Negro/dorado','Dorado']},
-  {id:347,name:'Metal Receta Diseño (9004)',sku:'9004',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_9004.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Gunmetal','Marrón','Negro']},
   {id:348,name:'Metal Receta Diseño (5213)',sku:'5213',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_5213.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Bordó/dorado','Negro/plata','Beige/dorado','Marrón/plata']},
   {id:349,name:'Metal Receta Diseño (5217)',sku:'5217',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_5217.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Negro/dorado','Topo/dorado','Bordó/dorado']},
   {id:381,name:'Metal Receta Diseño (2030)',sku:'2030',price:19200,oldPrice:22588,discount:15,imgs:['imgs/MET_2030.jpeg'],cats:['receta','receta-metal','ofertas'],desc:'Armazón metal fino para receta. Precio Contado.',colors:['Marrón','Gris oscuro','Negro']},
@@ -1013,7 +1062,7 @@ const PRODUCTS = [
   // ── RECETA > CLIPON RUNFLEX ──────────────────────────────
   {id:271,name:'Clipon Runflex (8835)',sku:'8835',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8835.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Transparente','Rosa','Violeta','Negro']},
   {id:272,name:'Clipon Runflex (8834)',sku:'8834',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8834.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Transparente','Rosa','Violeta','Negro']},
-  {id:273,name:'Clipon Runflex (8837)',sku:'8837',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8837.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Gris','Azul','Negro','Negro mate']},
+  {id:273,name:'Clipon Runflex (8837)',sku:'8837',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8837.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Gris mate']},
   {id:274,name:'Clipon Runflex (8836)',sku:'8836',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8836.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Gris','Azul','Negro','Negro mate']},
   {id:275,name:'Clipon Runflex (8838)',sku:'8838',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8832.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Azul/negro','Nude','Transparente']},
   {id:276,name:'Clipon Runflex (8832)',sku:'8832',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8838.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Transparente','Nude','Marrón','Rosa/violeta','Negro']},
@@ -1022,17 +1071,6 @@ const PRODUCTS = [
   {id:279,name:'Clipon Runflex (8829)',sku:'8829',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8829.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Transparente','Gris','Azul','Negro']},
   {id:280,name:'Clipon Runflex (8828B)',sku:'8828B',price:34500,oldPrice:null,discount:null,imgs:['imgs/clipon_8828B.jpg'],cats:['receta','receta-tr90','clipon','clipon-runflex'],desc:'Armazón Clipon Runflex. Incluye dos placas: cristal negro polarizado y cristal amarillo. Precio Contado.',colors:['Transparente','Negro/gris','Azul/naranja','Negro']},
 
-  // ── RECETA > ACETATO > LAVANETT ──────────────────────────
-  {id:160,name:'Lavanett (1207)',sku:'1207',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1218.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
-  {id:163,name:'Lavanett (1203)',sku:'1203',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1210.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
-  {id:164,name:'Lavanett (1209)',sku:'1209',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1209.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/gris (C4)','Negro/azul (C3)','Negro/blanco (C2)','Negro/bordó (C1)']},
-  {id:165,name:'Lavanett (1208)',sku:'1208',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1208.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro/gris (C4)','Negro/azul (C3)','Negro/blanco (C2)','Negro/bordó (C1)']},
-  {id:166,name:'Lavanett (1202)',sku:'1202',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1207.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
-  {id:167,name:'Lavanett (1205)',sku:'1205',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1205.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/gris claro (C4)','Negro/azul (C3)']},
-  {id:168,name:'Lavanett (1213)',sku:'1213',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1203.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Azul marino (C5)']},
-  {id:169,name:'Lavanett (1200)',sku:'1200',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1202.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Negro/violeta (C5)']},
-  {id:170,name:'Lavanett (1218)',sku:'1218',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1201.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/azul (C3)','Negro/gris claro (C4)','Azul marino (C5)']},
-  {id:171,name:'Lavanett (1210)',sku:'1210',price:20000,oldPrice:23529,discount:15,imgs:['imgs/lav_1200.jpeg'],cats:['receta','receta-acetato','ofertas'],desc:'Armazón acetato Lavanett. Precio Contado.',colors:['Negro (C1)','Negro/gris (C2)','Negro/gris claro (C4)','Negro/azul (C3)','Azul marino (C5)']},
 
   // ── RECETA > ACETATO LAMINADO ────────────────────────────
 
@@ -1241,7 +1279,8 @@ function goBack() {
    CAROUSEL
 ============================================================ */
 (function(){
-  let cur = 0, total = 3, timer;
+  let cur = 0, timer;
+  const total = document.querySelectorAll('#carouselTrack .carousel-slide').length;
   const track = document.getElementById('carouselTrack');
   const dotsEl = document.getElementById('carouselDots');
 
@@ -1267,6 +1306,136 @@ function goBack() {
   window.carouselMove = function(dir){ goTo(cur+dir); resetTimer(); };
   resetTimer();
 })();
+
+/* ============================================================
+   RESUMEN DEL INICIO
+   Una tarjeta por sublínea que lleva directo a esa parte del catálogo, con
+   un collage de 4 fotos, el título "Línea › Sublínea" y el precio desde.
+   Fotos y precios salen de PRODUCTS, así que se actualizan solos; una
+   sublínea que se queda sin productos desaparece del resumen.
+   "fotos" son los id de los 4 productos que se muestran: los más vendidos
+   según los pedidos #3, 5, 6, 9, 16, 23 y 24 (contado el 8/11/2026); donde
+   no hubo ventas, los primeros 4 del catálogo. Sin "fotos" usa los primeros
+   4 de la categoría; "imgs" pone imágenes sueltas en vez de productos.
+============================================================ */
+const RESUMEN = [
+  { cat: 'receta-metal',        linea: 'Receta',     sub: 'Metal',
+    fotos: [281, 404, 386, 384] },
+  { cat: 'receta-acetato',      linea: 'Receta',     sub: 'Acetato',
+    fotos: [301, 241, 367, 368] },
+  { cat: 'receta-tr90',         linea: 'Receta',     sub: 'TR90',
+    fotos: [260, 263, 265, 267] },
+  { cat: 'receta-nino',         linea: 'Receta',     sub: 'Niño',
+    fotos: [210, 211, 212, 213] },
+  // Los packs repiten la misma foto de portada: se eligen fotos de adentro.
+  { cat: 'receta-economicos',   linea: 'Receta',     sub: 'Económicos', precio: 'unidad',
+    imgs: ['imgs/pack_met_1.jpg', 'imgs/pack_pasta_1.jpg', 'imgs/pack_pasta_2.jpg', 'imgs/pack_met_2.jpg'] },
+  { cat: 'clipon-1placa',       linea: 'Clipon',     sub: 'Una placa',
+    fotos: [341, 342, 387, 340] },
+  { cat: 'clipon-runflex',      linea: 'Clipon',     sub: 'Runflex',
+    fotos: [277, 273, 278, 279] },
+  { cat: 'clipon-tr90',         linea: 'Clipon',     sub: 'TR90',
+    fotos: [319, 320, 321, 322] },
+  { cat: 'sol-polarizados',     linea: 'Sol',        sub: 'Polarizados',
+    fotos: [10, 12, 15, 17] },
+  { cat: 'sol-clipper',         linea: 'Sol',        sub: 'Clipper polarizados',
+    fotos: [1, 30, 31] },
+  { cat: 'sol-zilo',            linea: 'Sol',        sub: 'Zilo polarizado',
+    fotos: [429, 430, 431, 432] },
+  { cat: 'accesorios-estuches', linea: 'Accesorios', sub: 'Estuches', precio: 'pack' },
+  { cat: 'accesorios-limpia',   linea: 'Accesorios', sub: 'Limpia cristales', precio: 'pack' },
+  { cat: 'accesorios-franelas', linea: 'Accesorios', sub: 'Franelas', precio: 'pack' },
+];
+
+function productosDe(cat) {
+  return PRODUCTS.filter(p => p.cats.some(c => c === cat || c.startsWith(cat)));
+}
+
+// Hasta 4 fotos distintas: la primera de cada producto y, si hay menos de 4
+// productos, las otras fotos de esos mismos productos.
+function fotosDe(r, lista) {
+  if (r.imgs) return r.imgs.slice(0, 4);
+  const elegidos = r.fotos ? r.fotos.map(id => PRODUCTS.find(p => p.id === id)).filter(Boolean) : lista;
+  const out = [];
+  elegidos.forEach(p => { if (p.imgs && p.imgs[0] && !out.includes(p.imgs[0])) out.push(p.imgs[0]); });
+  elegidos.forEach(p => (p.imgs || []).forEach(i => { if (!out.includes(i)) out.push(i); }));
+  return out.slice(0, 4);
+}
+
+function precioDe(r, lista) {
+  const desde = Math.min(...lista.map(p => p.price));
+  if (r.precio === 'unidad') {
+    // Los packs dicen "Precio por unidad: $X" en la descripción.
+    const xu = lista.map(p => /unidad:\s*\$([\d.]+)/i.exec(p.desc || '')).filter(Boolean)
+                    .map(m => Number(m[1].replace(/\./g, '')));
+    if (xu.length) return 'Desde ' + fmtR(Math.min(...xu)) + ' por unidad';
+  }
+  if (r.precio === 'pack') return 'Pack x100 desde ' + fmtR(desde);
+  return 'Desde ' + fmtR(desde);
+}
+
+const RS_CELU = matchMedia('(max-width:700px)');
+
+function renderResumen() {
+  const grid = document.getElementById('rsGrid');
+  if (!grid) return;
+  // En el celu el carrusel tiene 2 filas y se llena por columnas: para que
+  // cada pantalla de 4 se lea en orden (izq-der, arriba-abajo) se intercalan.
+  let items = RESUMEN;
+  if (RS_CELU.matches) {
+    items = [];
+    for (let i = 0; i < RESUMEN.length; i += 4) {
+      const g = RESUMEN.slice(i, i + 4);
+      [0, 2, 1, 3].forEach(k => { if (g[k]) items.push(g[k]); });
+    }
+  }
+  grid.innerHTML = items.map(r => {
+    const lista = productosDe(r.cat);
+    if (!lista.length) return '';
+    const fotos = fotosDe(r, lista);
+    const collage = fotos.length >= 4 ? fotos : fotos.slice(0, 1);
+    return `<button class="rs-card" onclick="filterCat('${r.cat}')">
+      <div class="rs-fotos${collage.length === 1 ? ' una' : ''}">
+        ${collage.map(f => `<img src="${f}" alt="" loading="lazy"/>`).join('')}
+      </div>
+      <div class="rs-t"><b>${r.linea}<i>›</i>${r.sub}</b><span>${precioDe(r, lista)}</span></div>
+    </button>`;
+  }).join('');
+  grid.onscroll = () => { clearTimeout(grid._t); grid._t = setTimeout(rsEstado, 60); };
+  rsEstado();
+}
+window.addEventListener('resize', rsEstado);
+RS_CELU.addEventListener('change', renderResumen);
+
+// Páginas del carrusel: lo que entra a lo ancho de una vez.
+function rsPaginas() {
+  const g = document.getElementById('rsGrid');
+  return Math.max(1, Math.round(g.scrollWidth / g.clientWidth));
+}
+function rsMover(dir) {
+  const g = document.getElementById('rsGrid');
+  g.scrollBy({ left: dir * g.clientWidth, behavior: 'smooth' });
+}
+function rsEstado() {
+  const g = document.getElementById('rsGrid');
+  if (!g) return;
+  const n = rsPaginas();
+  const fin = g.scrollWidth - g.clientWidth;
+  const actual = fin <= 0 ? 0 : Math.round((g.scrollLeft / fin) * (n - 1));
+  document.querySelector('.rs-flecha.prev').disabled = g.scrollLeft <= 2;
+  document.querySelector('.rs-flecha.next').disabled = g.scrollLeft >= fin - 2;
+  const dots = document.getElementById('rsDots');
+  if (dots.children.length !== n) {
+    dots.innerHTML = n > 1 ? Array.from({ length: n }, (_, i) =>
+      `<button aria-label="Página ${i + 1}" onclick="rsIr(${i})"></button>`).join('') : '';
+  }
+  [...dots.children].forEach((d, i) => d.classList.toggle('on', i === actual));
+}
+function rsIr(i) {
+  const g = document.getElementById('rsGrid');
+  g.scrollTo({ left: i * g.clientWidth, behavior: 'smooth' });
+}
+renderResumen();
 
 /* ============================================================
    SEARCH
@@ -2008,6 +2177,19 @@ async function bootAuth() {
     authEnabled = !!cfg.googleClientId;
     promo = cfg.promo || null;
   } catch { authEnabled = false; promo = null; }
+  // Volvió de iniciar sesión con Google desde el celular.
+  const vuelta = vueltaDeGoogle();
+  if (vuelta && vuelta.r.error) showToast('No se pudo iniciar sesión: ' + vuelta.r.error);
+  if (vuelta && vuelta.r.token) {
+    pendingCheckout = !!vuelta.ctx.pendingCheckout;
+    pendingOrderShip = vuelta.ctx.pendingOrderShip || null;
+    if (vuelta.ctx.desdePromo) {
+      document.getElementById('promoOv').classList.add('open');
+      document.getElementById('promoModal').classList.add('open');
+    }
+    despuesDelLogin(vuelta.r, !!vuelta.ctx.desdePromo);
+    return;
+  }
   renderAcct();
   // El carrito que ya estaba armado de antes se guarda apenas abre la página.
   if (cart.length) enviarCarrito();
@@ -2184,7 +2366,7 @@ async function openPromo() {
   const wrap = document.getElementById('gbtnPromo');
   wrap.innerHTML = '';
   wrap.style.display = '';
-  if (ok) google.accounts.id.renderButton(wrap, { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280 });
+  if (ok) google.accounts.id.renderButton(wrap, BOTON_GOOGLE);
 }
 
 function closePromo() {
@@ -2247,30 +2429,70 @@ async function onCredential(resp) {
   document.getElementById('promoMsg').textContent = '';
   try {
     const data = await api('/api/auth', { method: 'POST', body: JSON.stringify({ credential: resp.credential }) });
-    saveSession(data); renderAcct(); closeLogin();
-    if (cart.length) enviarCarrito();   // el carrito queda a nombre de este usuario
-    // El cupón viene en la misma respuesta del login: si la campaña está viva,
-    // el servidor ya se lo asignó a este usuario (sea cuenta nueva o vieja).
-    miVoucher = data.voucher || null;
-    if (data.promo) promo = data.promo;
-    track('login_ok', { nueva: !!data.cuentaNueva });
-    if (miVoucher) track('cupon_dado');
-    updateCartUI();
-
-    if (pendingOrderShip && cart.length) {
-      const ship = pendingOrderShip;
-      pendingOrderShip = null; pendingCheckout = false;
-      showToast('Enviando tu pedido…');
-      placeOrder(ship);
-      return;
-    }
-    if (desdePromo && miVoucher) { promoConfirmado(); return; }
-    showToast(miVoucher ? '🎁 Tu cupón de ' + fmtR(miVoucher.monto) + ' quedó guardado' : '✓ Sesión iniciada');
-    if (pendingCheckout) { pendingCheckout = false; openShip(); }
+    despuesDelLogin(data, desdePromo);
   } catch (e) {
     document.getElementById(desdePromo ? 'promoMsg' : 'loginMsg').textContent = e.message;
   }
 }
+
+// Lo que pasa apenas inicia sesión, venga del popup de Google (compu) o de la
+// vuelta del redirect (celular).
+function despuesDelLogin(data, desdePromo) {
+  saveSession(data); renderAcct(); closeLogin();
+  if (cart.length) enviarCarrito();   // el carrito queda a nombre de este usuario
+  // El cupón viene en la misma respuesta del login: si la campaña está viva,
+  // el servidor ya se lo asignó a este usuario (sea cuenta nueva o vieja).
+  miVoucher = data.voucher || null;
+  if (data.promo) promo = data.promo;
+  track('login_ok', { nueva: !!data.cuentaNueva });
+  if (miVoucher) track('cupon_dado');
+  updateCartUI();
+
+  if (pendingOrderShip && cart.length) {
+    const ship = pendingOrderShip;
+    pendingOrderShip = null; pendingCheckout = false;
+    showToast('Enviando tu pedido…');
+    placeOrder(ship);
+    return;
+  }
+  if (desdePromo && miVoucher) { promoConfirmado(); return; }
+  showToast(miVoucher ? '🎁 Tu cupón de ' + fmtR(miVoucher.monto) + ' quedó guardado' : '✓ Sesión iniciada');
+  if (pendingCheckout) { pendingCheckout = false; openShip(); }
+}
+
+/* En el celular el popup de Google falla seguido (sobre todo si la página se
+   abrió desde la cámara o un lector de QR): queda una pestaña en blanco y el
+   login nunca vuelve. Ahí se usa el modo "redirect": la página entera va a
+   Google, Google le manda el resultado a /api/auth y esa ruta devuelve al
+   cliente a la tienda con la sesión en sessionStorage ('rec4_login').
+   Antes de irse se guarda lo que estaba haciendo, para seguir donde quedó. */
+const LOGIN_REDIRECT = (() => {
+  try { return matchMedia('(pointer: coarse)').matches; } catch { return false; }
+})();
+
+function guardarAntesDeGoogle() {
+  if (!LOGIN_REDIRECT) return;
+  try {
+    sessionStorage.setItem('rec4_post_login', JSON.stringify({
+      desdePromo: document.getElementById('promoModal').classList.contains('open'),
+      pendingCheckout, pendingOrderShip,
+    }));
+  } catch {}
+}
+
+function vueltaDeGoogle() {
+  try {
+    const raw = sessionStorage.getItem('rec4_login');
+    if (!raw) return null;
+    sessionStorage.removeItem('rec4_login');
+    const ctx = JSON.parse(sessionStorage.getItem('rec4_post_login') || '{}');
+    sessionStorage.removeItem('rec4_post_login');
+    return { r: JSON.parse(raw), ctx };
+  } catch { return null; }
+}
+
+const BOTON_GOOGLE = { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280,
+                       click_listener: guardarAntesDeGoogle };
 
 async function initGoogle(msgId) {
   const err = (t) => { const el = document.getElementById(msgId || 'loginMsg'); if (el) el.textContent = t; };
@@ -2278,7 +2500,9 @@ async function initGoogle(msgId) {
   try {
     const cfg = await api('/api/config');
     if (!cfg.googleClientId) { err('El login todavía no está configurado.'); return false; }
-    const start = () => { google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onCredential }); googleReady = true; };
+    const opts = { client_id: cfg.googleClientId, callback: onCredential };
+    if (LOGIN_REDIRECT) Object.assign(opts, { ux_mode: 'redirect', login_uri: location.origin + '/api/auth' });
+    const start = () => { google.accounts.id.initialize(opts); googleReady = true; };
     if (window.google && google.accounts) start();
     else await new Promise(res => {
       const t = setInterval(() => { if (window.google && google.accounts) { clearInterval(t); start(); res(); } }, 150);
@@ -2298,7 +2522,7 @@ async function openLogin(forCheckout) {
   document.getElementById('loginModal').classList.add('open');
   const ok = await initGoogle();
   const wrap = document.getElementById('gbtnHome'); wrap.innerHTML = '';
-  if (ok) google.accounts.id.renderButton(wrap, { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280 });
+  if (ok) google.accounts.id.renderButton(wrap, BOTON_GOOGLE);
 }
 function closeLogin() {
   document.getElementById('loginOv').classList.remove('open');
