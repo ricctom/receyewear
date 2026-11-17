@@ -170,6 +170,22 @@ function ensureTables() {
     // Factura hecha antes de cobrar (un monto del pedido, no cobros): lo que se
     // cobre en blanco después de ese pedido ya está cubierto por ella, hasta su total.
     await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS sin_cobro BOOLEAN DEFAULT false`;
+    // Una factura de varios pedidos: la fila "madre" (order_id = el primero) es la
+    // que va a ARCA por el total, con sus renglones (lineas) y cuánto le toca a cada
+    // pedido (reparto). aplica = lo que cubre de SU pedido. Emitida, cada uno de los
+    // otros pedidos recibe una fila "parte" (parte_de = la madre) por su monto, con
+    // el mismo número y CAE, para que su cuenta sepa que ya está facturado.
+    await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS lineas JSONB`;
+    await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS reparto JSONB`;
+    await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS aplica INTEGER`;
+    await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS parte_de INTEGER`;
+    // Nota de crédito por una parte de una factura (garantía): asociada_id = la
+    // factura. No la anula (eso es anula_id): le descuenta ese monto.
+    await sql`ALTER TABLE facturas ADD COLUMN IF NOT EXISTS asociada_id INTEGER`;
+    // Garantía: un "cobro" que no es plata, sino lo que se le descuenta al cliente
+    // por un anteojo fallado. Baja lo que debe, pero no cuenta como ingreso.
+    // Si se le hizo nota de crédito en ARCA, factura_id = esa nota.
+    await sql`ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS garantia BOOLEAN DEFAULT false`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS cond_iva INTEGER`;
 
     /* ---------- Configuración (dólar, etc.) ---------- */

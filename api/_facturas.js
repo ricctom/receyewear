@@ -12,6 +12,8 @@
 //          que el pedido cobre en blanco después ya cuenta como facturado.
 //   POST { revisar: facturaId }           -> pregunta a ARCA qué pasó con una pendiente
 //   POST { anular: facturaId }            ⚠ emite la nota de crédito C
+//   POST { notaCredito:{ pago_id, factura_id } }  ⚠ emite una nota de crédito C por una
+//          garantía (un cobro marcado garantia), asociada a esa factura del pedido.
 const { sql, ensureTables, setSetting } = require('./_db');
 const { getSession } = require('./_auth');
 const arca = require('./_arca');
@@ -55,6 +57,7 @@ async function emitir(f, asociado) {
     const obs = r.observaciones.length ? arca.enTexto(r.observaciones) : null;
     await sql`UPDATE facturas SET estado = 'ok', cae = ${r.cae}, cae_vence = ${r.caeVence}, errores = ${obs}
       WHERE id = ${f.id}`;
+    if (f.reparto) await crearPartes(f.id);
     return { ok: true, numero, cae: r.cae };
   }
   const motivo = arca.enTexto(r.errores.concat(r.observaciones)) || 'ARCA la rechazó sin decir por qué';
@@ -69,7 +72,7 @@ async function emitir(f, asociado) {
 // más viejo al más nuevo. Igual que cubiertos() en admin.html.
 async function cubiertos(orderId) {
   const [ords, pagos] = await Promise.all([
-    sql`SELECT f.order_id, sum(f.total)::bigint AS facturado FROM facturas f
+    sql`SELECT f.order_id, sum(COALESCE(f.aplica, f.total))::bigint AS facturado FROM facturas f
          WHERE f.tipo = ${FACTURA_C} AND f.estado <> 'rechazada' AND f.homologacion = ${arca.HOMOLOGACION}
            AND NOT EXISTS (SELECT 1 FROM facturas n WHERE n.anula_id = f.id AND n.estado = 'ok')
            AND (${orderId}::int IS NULL OR f.order_id = ${orderId})
@@ -93,6 +96,30 @@ async function cubiertos(orderId) {
   return m;
 }
 
+// Factura de varios pedidos ya emitida: cada pedido que no es el de la madre
+// recibe su fila "parte" por lo que le toca (mismo número y CAE). Si ya están, nada.
+async function crearPartes(madreId) {
+  const [m] = await sql`SELECT * FROM facturas WHERE id = ${madreId}`;
+  if (!m || m.estado !== 'ok' || !Array.isArray(m.reparto)) return;
+  const [ya] = await sql`SELECT count(*)::int AS n FROM facturas WHERE parte_de = ${m.id}`;
+  if (ya.n) return;
+  for (const r of m.reparto) {
+    if (r.order_id === m.order_id || !(r.monto > 0)) continue;
+    await sql`INSERT INTO facturas (order_id, tipo, pto_vta, numero, fecha, total, doc_tipo, doc_nro, nombre, cond_iva,
+                                    cae, cae_vence, estado, homologacion, sin_cobro, parte_de, reparto)
+      VALUES (${r.order_id}, ${m.tipo}, ${m.pto_vta}, ${m.numero}, ${isoDe(m.fecha)}, ${r.monto}, ${m.doc_tipo}, ${m.doc_nro},
+              ${m.nombre}, ${m.cond_iva}, ${m.cae}, ${m.cae_vence ? isoDe(m.cae_vence) : null}, 'ok', ${m.homologacion}, true, ${m.id},
+              ${JSON.stringify(m.reparto)}::jsonb)`;
+  }
+}
+
+// Lo que ya le descontaron a una factura las notas de crédito por garantía.
+async function acreditado(facturaId) {
+  const [r] = await sql`SELECT COALESCE(sum(total), 0)::int AS n FROM facturas
+    WHERE asociada_id = ${facturaId} AND tipo = ${NOTA_CREDITO_C} AND estado <> 'rechazada'`;
+  return r.n;
+}
+
 async function rechazar(fid, motivo) {
   await sql`UPDATE facturas SET estado = 'rechazada', errores = ${motivo} WHERE id = ${fid}`;
   await sql`UPDATE order_payments SET factura_id = NULL WHERE factura_id = ${fid}`;
@@ -107,7 +134,12 @@ async function revisar(fid, numero, porQue) {
     if (c && c.cae && Math.round(c.total) === f.total) {
       await sql`UPDATE facturas SET estado = 'ok', numero = ${n}, cae = ${c.cae}, cae_vence = ${c.caeVence}
         WHERE id = ${fid}`;
-      if (f.anula_id) await sql`UPDATE order_payments SET factura_id = NULL WHERE factura_id = ${f.anula_id}`;
+      if (f.anula_id) {
+        await sql`UPDATE order_payments SET factura_id = NULL WHERE factura_id = ${f.anula_id}`;
+        await sql`DELETE FROM facturas WHERE parte_de = ${f.anula_id}`;
+      } else {
+        await crearPartes(fid);
+      }
       return { ok: true, numero: n, cae: c.cae };
     }
     await rechazar(fid, porQue || 'ARCA no la tiene');
@@ -134,11 +166,11 @@ module.exports = async (req, res) => {
                      sum(COALESCE(usd, 0))::numeric AS usd,
                      sum(CASE WHEN usd IS NOT NULL THEN monto ELSE 0 END)::bigint AS usd_pesos,
                      sum(CASE WHEN en_blanco AND factura_id IS NULL AND NOT COALESCE(facturado_aparte, false) THEN monto ELSE 0 END)::bigint AS sin_facturar
-                FROM order_payments GROUP BY 1),
+                FROM order_payments WHERE NOT COALESCE(garantia, false) GROUP BY 1),
             f AS (
               SELECT to_char(fecha, 'YYYY-MM') AS mes,
                      sum(CASE WHEN tipo = 13 THEN -total ELSE total END)::bigint AS facturado
-                FROM facturas WHERE estado = 'ok' AND NOT homologacion GROUP BY 1)
+                FROM facturas WHERE estado = 'ok' AND NOT homologacion AND parte_de IS NULL GROUP BY 1)
             SELECT COALESCE(c.mes, f.mes) AS mes, COALESCE(blanco, 0) AS blanco, COALESCE(negro, 0) AS negro,
                    COALESCE(usd, 0) AS usd, COALESCE(usd_pesos, 0) AS usd_pesos,
                    COALESCE(sin_facturar, 0) AS sin_facturar, COALESCE(facturado, 0) AS facturado
@@ -146,6 +178,7 @@ module.exports = async (req, res) => {
              ORDER BY 1 DESC LIMIT 24`,
         sql`SELECT f.*, COALESCE(NULLIF(u.razon_social, ''), u.name) AS cliente
               FROM facturas f LEFT JOIN orders o ON o.id = f.order_id LEFT JOIN users u ON u.id = o.user_id
+             WHERE f.parte_de IS NULL
              ORDER BY f.id DESC LIMIT 300`,
         emisor(),
       ]);
@@ -200,10 +233,24 @@ module.exports = async (req, res) => {
     }
 
     if (b.facturar) {
-      const orderId = parseInt(b.facturar.order_id, 10);
-      const ids = (Array.isArray(b.facturar.pagos) ? b.facturar.pagos : []).map((x) => parseInt(x, 10)).filter(Boolean);
+      // Varios pedidos en una factura (siempre antes de cobrar), con renglones propios:
+      //   { pedidos:[24,25], lineas:[{ desc, qty, unit }], cond_iva, doc, nombre, fecha }
+      const pedidos = Array.isArray(b.facturar.pedidos)
+        ? [...new Set(b.facturar.pedidos.map((x) => parseInt(x, 10)).filter(Boolean))] : null;
+      let lineas = null;
+      if (pedidos) {
+        if (!pedidos.length) return res.status(400).json({ error: 'Elegí qué pedidos facturar' });
+        lineas = (Array.isArray(b.facturar.lineas) ? b.facturar.lineas : []).map((l) => ({
+          desc: String(l.desc || '').trim().slice(0, 120), qty: Number(l.qty), unit: Number(l.unit) }));
+        if (!lineas.length || lineas.some((l) => !l.desc || !(l.qty > 0) || !(l.unit > 0))) {
+          return res.status(400).json({ error: 'Cada renglón necesita descripción, cantidad y precio' });
+        }
+        lineas.forEach((l) => { l.sub = Math.round(l.qty * l.unit); });
+      }
+      const orderId = pedidos ? pedidos[0] : parseInt(b.facturar.order_id, 10);
+      const ids = pedidos ? [] : (Array.isArray(b.facturar.pagos) ? b.facturar.pagos : []).map((x) => parseInt(x, 10)).filter(Boolean);
       // Sin cobros: se factura un monto del pedido antes de cobrarlo.
-      const sinCobro = !ids.length && b.facturar.monto != null;
+      const sinCobro = !!pedidos || (!ids.length && b.facturar.monto != null);
       if (!orderId || (!ids.length && !sinCobro)) return res.status(400).json({ error: 'Elegí qué cobros facturar' });
       const condIva = parseInt(b.facturar.cond_iva, 10);
       if (!arca.IVA_RECEPTOR[condIva]) return res.status(400).json({ error: 'Falta la condición de IVA del cliente' });
@@ -226,22 +273,43 @@ module.exports = async (req, res) => {
           ': ARCA no deja hacer una con fecha anterior. Usá esa fecha o una posterior.' });
       }
 
-      let total;
+      let total, reparto = null;
       if (sinCobro) {
-        total = Math.round(Number(b.facturar.monto) || 0);
+        total = lineas ? lineas.reduce((a, l) => a + l.sub, 0) : Math.round(Number(b.facturar.monto) || 0);
         if (!(total > 0)) return res.status(400).json({ error: 'El monto tiene que ser mayor a cero' });
         // No se factura más que el pedido: lo que ya tiene facturado (con o sin
         // cobro, sin contar las anuladas) se descuenta.
-        const [o] = await sql`SELECT total,
-            COALESCE((SELECT sum(f.total) FROM facturas f
+        const lista = pedidos || [orderId];
+        const ords = await sql`SELECT o.id, o.total,
+            COALESCE((SELECT sum(COALESCE(f.aplica, f.total)) FROM facturas f
                        WHERE f.order_id = o.id AND f.tipo = ${FACTURA_C} AND f.estado <> 'rechazada'
                          AND f.homologacion = ${arca.HOMOLOGACION}
-                         AND NOT EXISTS (SELECT 1 FROM facturas n WHERE n.anula_id = f.id AND n.estado = 'ok')), 0)::int AS facturado
-          FROM orders o WHERE o.id = ${orderId}`;
-        if (!o) return res.status(404).json({ error: 'No existe el pedido' });
-        const queda = Number(o.total) - Number(o.facturado);
-        if (total > queda) {
-          return res.status(400).json({ error: 'Del pedido queda para facturar ' + Math.max(0, queda) + ' y querés facturar ' + total });
+                         AND NOT EXISTS (SELECT 1 FROM facturas n WHERE n.anula_id = COALESCE(f.parte_de, f.id) AND n.estado = 'ok')), 0)::int AS facturado,
+            COALESCE((SELECT sum(p.monto) FROM order_payments p
+                       WHERE p.order_id = o.id AND COALESCE(p.facturado_aparte, false)), 0)::int AS aparte
+          FROM orders o WHERE o.id = ANY(${lista}::int[])`;
+        if (ords.length !== lista.length) return res.status(404).json({ error: 'No existe algún pedido' });
+        if (pedidos) {
+          // Lo que queda de cada pedido, en el orden en que vinieron; tiene que cerrar justo.
+          let resto = total;
+          reparto = pedidos.map((id) => {
+            const o = ords.find((x) => x.id === id);
+            const queda = Math.max(0, Number(o.total) - Number(o.facturado) - Number(o.aparte));
+            const monto = Math.min(queda, resto); resto -= monto;
+            return { order_id: id, monto };
+          });
+          if (resto > 0) {
+            return res.status(400).json({ error: 'De esos pedidos queda para facturar ' + (total - resto) + ' y los renglones suman ' + total });
+          }
+          if (reparto.some((r) => !(r.monto > 0))) {
+            return res.status(400).json({ error: 'Algún pedido no tiene nada para facturar en esta factura' });
+          }
+        } else {
+          const o = ords[0];
+          const queda = Number(o.total) - Number(o.facturado);
+          if (total > queda) {
+            return res.status(400).json({ error: 'Del pedido queda para facturar ' + Math.max(0, queda) + ' y querés facturar ' + total });
+          }
         }
       } else {
         const pagos = await sql`SELECT id, monto, factura_id, facturado_aparte FROM order_payments
@@ -254,9 +322,12 @@ module.exports = async (req, res) => {
         if (!(total > 0)) return res.status(400).json({ error: 'Eso ya está facturado (se facturó antes de cobrarlo)' });
       }
 
-      const [f] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, fecha, total, doc_tipo, doc_nro, nombre, cond_iva, homologacion, sin_cobro)
+      const [f] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, fecha, total, doc_tipo, doc_nro, nombre, cond_iva, homologacion, sin_cobro,
+                                                  lineas, reparto, aplica)
         VALUES (${orderId}, ${FACTURA_C}, ${arca.puntoVenta()}, ${fecha}, ${total}, ${doc.docTipo}, ${doc.docNro},
-                ${String(b.facturar.nombre || '').trim().slice(0, 120) || null}, ${condIva}, ${arca.HOMOLOGACION}, ${sinCobro})
+                ${String(b.facturar.nombre || '').trim().slice(0, 120) || null}, ${condIva}, ${arca.HOMOLOGACION}, ${sinCobro},
+                ${lineas ? JSON.stringify(lineas) : null}::jsonb, ${reparto ? JSON.stringify(reparto) : null}::jsonb,
+                ${reparto ? reparto[0].monto : null})
         RETURNING *`;
       // Se atan los cobros ANTES de mandarla: si llega otro clic, ya no los encuentra libres.
       if (!sinCobro) {
@@ -269,7 +340,7 @@ module.exports = async (req, res) => {
       }
       // Para la próxima: se recuerda la condición de IVA del cliente.
       await sql`UPDATE users SET cond_iva = ${condIva}
-        WHERE id = (SELECT user_id FROM orders WHERE id = ${orderId})`;
+        WHERE id IN (SELECT user_id FROM orders WHERE id = ANY(${pedidos || [orderId]}::int[]))`;
 
       const r = await emitir(f);
       return res.status(r.ok ? 200 : 400).json(r);
@@ -283,21 +354,70 @@ module.exports = async (req, res) => {
       return res.status(r.ok ? 200 : 400).json(r);
     }
 
+    if (b.notaCredito) {
+      const [pg] = await sql`SELECT * FROM order_payments WHERE id = ${parseInt(b.notaCredito.pago_id, 10)}`;
+      if (!pg || !pg.garantia) return res.status(400).json({ error: 'Eso no es una garantía' });
+      if (pg.factura_id) return res.status(400).json({ error: 'Esa garantía ya tiene su nota de crédito' });
+      let [f] = await sql`SELECT * FROM facturas WHERE id = ${parseInt(b.notaCredito.factura_id, 10)}`;
+      // La parte de una factura de varios pedidos: la nota va contra la factura entera.
+      if (f && f.parte_de) [f] = await sql`SELECT * FROM facturas WHERE id = ${f.parte_de}`;
+      if (!f || f.tipo !== FACTURA_C || f.estado !== 'ok') return res.status(400).json({ error: 'Elegí una factura emitida' });
+      if (f.homologacion !== arca.HOMOLOGACION) return res.status(400).json({ error: 'Esa factura es de otro entorno (prueba/real)' });
+      const pedidosDe = [f.order_id].concat((f.reparto || []).map((r) => r.order_id));
+      if (!pedidosDe.includes(pg.order_id)) return res.status(400).json({ error: 'Esa factura no es de este pedido' });
+      const [anul] = await sql`SELECT id FROM facturas WHERE anula_id = ${f.id} AND estado <> 'rechazada'`;
+      if (anul) return res.status(400).json({ error: 'Esa factura está anulada' });
+      const disponible = f.total - (await acreditado(f.id));
+      if (Number(pg.monto) > disponible) {
+        return res.status(400).json({ error: 'A esa factura le quedan ' + disponible + ' para descontar y la garantía es de ' + pg.monto });
+      }
+      const fecha = diaAR();
+      const [ultima] = await sql`SELECT max(fecha) AS fecha FROM facturas
+        WHERE tipo = ${NOTA_CREDITO_C} AND pto_vta = ${f.pto_vta} AND estado <> 'rechazada' AND homologacion = ${arca.HOMOLOGACION}`;
+      if (ultima && ultima.fecha && fecha < isoDe(ultima.fecha)) {
+        return res.status(400).json({ error: 'Ya hay una nota de crédito con fecha posterior a hoy' });
+      }
+      const lineas = [{ desc: 'Bonificación por garantía: ' + (pg.nota || 'anteojo'), qty: 1, unit: Number(pg.monto), sub: Number(pg.monto) }];
+      const [nc] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, fecha, total, doc_tipo, doc_nro, nombre, cond_iva,
+                                                   asociada_id, homologacion, lineas)
+        VALUES (${pg.order_id}, ${NOTA_CREDITO_C}, ${f.pto_vta}, ${fecha}, ${pg.monto}, ${f.doc_tipo}, ${f.doc_nro}, ${f.nombre},
+                ${f.cond_iva}, ${f.id}, ${arca.HOMOLOGACION}, ${JSON.stringify(lineas)}::jsonb)
+        RETURNING *`;
+      // La garantía queda atada a su nota ANTES de mandarla: otro clic ya no la encuentra libre.
+      const atada = await sql`UPDATE order_payments SET factura_id = ${nc.id} WHERE id = ${pg.id} AND factura_id IS NULL RETURNING id`;
+      if (!atada.length) {
+        await rechazar(nc.id, 'Se hizo dos veces a la vez: se canceló esta');
+        return res.status(409).json({ error: 'Esa garantía se estaba haciendo en otra pestaña' });
+      }
+      const r = await emitir(nc, { tipo: FACTURA_C, numero: f.numero, fecha: isoDe(f.fecha) });
+      return res.status(r.ok ? 200 : 400).json(r);
+    }
+
     if (b.anular) {
       const [f] = await sql`SELECT * FROM facturas WHERE id = ${parseInt(b.anular, 10)}`;
       if (!f || f.tipo !== FACTURA_C || f.estado !== 'ok') return res.status(400).json({ error: 'Solo se anula una factura emitida' });
+      if (f.parte_de) {
+        const [m] = await sql`SELECT order_id FROM facturas WHERE id = ${f.parte_de}`;
+        return res.status(400).json({ error: 'Esta factura es de varios pedidos: anulala desde el pedido #' + (m && m.order_id) });
+      }
       if (f.homologacion !== arca.HOMOLOGACION) return res.status(400).json({ error: 'Esa factura es de otro entorno (prueba/real)' });
       const [ya] = await sql`SELECT id FROM facturas WHERE anula_id = ${f.id} AND estado <> 'rechazada'`;
       if (ya) return res.status(400).json({ error: 'Esa factura ya tiene su nota de crédito' });
 
+      // Si ya tiene notas de crédito por garantía, se anula lo que queda.
+      const queda = f.total - (await acreditado(f.id));
+      if (!(queda > 0)) return res.status(400).json({ error: 'Esa factura ya está toda descontada con notas de crédito' });
       const [nc] = await sql`INSERT INTO facturas (order_id, tipo, pto_vta, total, doc_tipo, doc_nro, nombre, cond_iva, anula_id, homologacion)
-        VALUES (${f.order_id}, ${NOTA_CREDITO_C}, ${f.pto_vta}, ${f.total}, ${f.doc_tipo}, ${f.doc_nro}, ${f.nombre},
+        VALUES (${f.order_id}, ${NOTA_CREDITO_C}, ${f.pto_vta}, ${queda}, ${f.doc_tipo}, ${f.doc_nro}, ${f.nombre},
                 ${f.cond_iva}, ${f.id}, ${arca.HOMOLOGACION})
         RETURNING *`;
       const r = await emitir(nc, { tipo: FACTURA_C, numero: f.numero,
         fecha: new Date(f.fecha || Date.now()).toISOString().slice(0, 10) });
       // Anulada la factura, sus cobros vuelven a quedar sin facturar.
-      if (r.ok) await sql`UPDATE order_payments SET factura_id = NULL WHERE factura_id = ${f.id}`;
+      if (r.ok) {
+        await sql`UPDATE order_payments SET factura_id = NULL WHERE factura_id = ${f.id}`;
+        await sql`DELETE FROM facturas WHERE parte_de = ${f.id}`;
+      }
       return res.status(r.ok ? 200 : 400).json(r);
     }
 

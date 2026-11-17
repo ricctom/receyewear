@@ -145,7 +145,11 @@ async function cargar(){
 }
 
 /* ---------- cuentas ---------- */
-const cobrado = o => Number(o.cobrado) || 0;
+const cobrado = o => Number(o.cobrado) || 0;   // incluye las garantías (bajan lo que debe)
+// Garantías: lo que se le descontó al cliente por anteojos fallados. Van como
+// "cobros" marcados garantia, pero no son plata que entró.
+const garantias = o => (o.pagos||[]).filter(pg => pg.garantia).reduce((a,pg) => a + Number(pg.monto), 0);
+const cobradoPlata = o => cobrado(o) - garantias(o);
 // En blanco = va a factura. Lo cobrado en blanco que todavía no tiene factura es lo que hay que facturar.
 const medioEnBlanco = m => /^(transferencia|mercado ?pago|cheque|echeq)/i.test(m || '');
 const enBlanco = pg => pg.en_blanco == null ? medioEnBlanco(pg.medio) : !!pg.en_blanco;
@@ -153,7 +157,9 @@ const facturado = pg => !!pg.factura_id || !!pg.facturado_aparte;
 // Facturas C que valen (ni rechazadas ni anuladas). Las "sin_cobro" se hicieron
 // antes de cobrar, por un monto del pedido.
 const facturasVivas = o => (o.facturas||[]).filter(f => f.tipo === 11 && f.estado !== 'rechazada' && !anulada(o, f));
-const facturadoTotal = o => facturasVivas(o).reduce((a,f) => a + Number(f.total), 0);
+// aplica: en una factura de varios pedidos, lo que cubre de este (el total es de todos).
+const facturadoTotal = o => facturasVivas(o).reduce((a,f) => a + Number(f.aplica ?? f.total), 0);
+const otrosPedidos = (o, f) => (f.reparto||[]).map(r => r.order_id).filter(id => id !== o.id);
 // Lo que todavía se puede facturar del pedido, cobrado o no.
 const quedaFacturar = o => Math.max(0, Number(o.total) - facturadoTotal(o));
 // Cuánto de cada cobro en blanco sin factura ya está cubierto por una factura
@@ -382,7 +388,8 @@ function menu(o, p){
     ${cobrado(o) ? `<button onclick="modalComoPago(${o.id})"><b>Cómo pagó</b> (repartir en partes)</button>` : ''}
     ${paraFacturar(o) ? `<button onclick="modalFacturar(${o.id})">Facturar lo cobrado en blanco</button>` : ''}
     ${p !== 'cancelado' && quedaFacturar(o) ? `<button onclick="modalFacturar(${o.id}, null, 'monto')"><b>Facturar sin cobrar</b> (una parte, otro CUIT)</button>` : ''}
-    ${cobrado(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
+    ${p !== 'cancelado' ? `<button onclick="modalGarantia(${o.id})"><b>Garantía</b> (descontar un anteojo fallado)</button>` : ''}
+    ${cobradoPlata(o) ? `<button onclick="borrarPagos(${o.id})">Borrar los cobros</button>` : ''}
     ${atras ? `<button onclick="mover(${o.id},'${atras}')">Volver un paso atrás</button>` : ''}
     <hr>
     ${o.etapa === 'cancelado'
@@ -430,7 +437,8 @@ function detalle(o){
     ${(o.costo||[]).map(d => `<div class="dato"><span style="padding-left:12px">${esc(d.nombre)}</span>
       <span class="num">${d.moneda === 'USD' ? 'US$ ' + d.monto.toFixed(2) + ' · ' + fmt(d.monto * dolar(o)) : fmt(d.monto)}</span></div>`).join('')}
     <div class="dato"><span>Te queda</span><span class="num"><b>${costo(o) ? fmt(ganancia(o)) + ' · ' + Math.round(ganancia(o)/o.total*100) + '%' : '—'}</b></span></div>
-    ${cobrado(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobrado(o))}</span></div>` : ''}
+    ${cobradoPlata(o) ? `<div class="dato"><span>Cobrado</span><span class="num">${fmt(cobradoPlata(o))}</span></div>` : ''}
+    ${garantias(o) ? `<div class="dato"><span>Descontado por garantía</span><span class="num">−${fmt(garantias(o))}</span></div>` : ''}
     ${debe(o) && (p==='despachado'||p==='saldado') ? `<div class="dato"><span>Te debe</span><span class="num debe"><b>${fmt(debe(o))}</b></span></div>` : ''}
     ${aFavor(o) ? `<div class="dato"><span>Le quedó a favor</span><span class="num debe"><b>${fmt(aFavor(o))}</b></span></div>` : ''}
     ${facturadoTotal(o) ? `<div class="dato"><span>Facturado</span><span class="num">${fmt(facturadoTotal(o))}</span></div>` : ''}
@@ -451,13 +459,14 @@ function detalle(o){
     ${facts.map(f => `<div class="dato"><span>${nroFactura(f)} · ${fechaCorta(f.fecha)}${
         f.nombre || f.doc_nro ? ' · ' + esc(f.nombre || f.doc_nro) : ''}${
         f.sin_cobro ? ' <span class="tg bl">antes de cobrar</span>' : ''}${
+        otrosPedidos(o, f).length ? ' <span class="tg bl">junto con ' + otrosPedidos(o, f).map(n => '#' + n).join(', ') + '</span>' : ''}${
         f.homologacion ? ' <span class="tg pe">PRUEBA</span>' : ''}${
         f.estado === 'pendiente' ? ' <span class="tg pe">sin confirmar</span>' : ''}${
         anulada(o, f) ? ' <span class="tg ng">anulada</span>' : ''}</span>
-      <span class="num">${f.tipo === 13 ? '−' : ''}${fmt(f.total)}
+      <span class="num">${f.tipo === 13 ? '−' : ''}${fmt(f.aplica ?? f.total)}
         ${f.estado === 'ok' ? `<button class="b sm q" onclick="imprimirFactura(${o.id},${f.id})">Ver</button>` : ''}
         ${f.estado === 'pendiente' ? `<button class="b sm" onclick="revisarFactura(${f.id})">Revisar</button>` : ''}
-        ${f.estado === 'ok' && f.tipo === 11 && !anulada(o, f) ? `<button class="b sm q" onclick="anularFactura(${o.id},${f.id})">Anular</button>` : ''}
+        ${f.estado === 'ok' && f.tipo === 11 && !f.parte_de && !anulada(o, f) ? `<button class="b sm q" onclick="anularFactura(${o.id},${f.id})">Anular</button>` : ''}
       </span></div>`).join('')}</div>` : '';
 
   const envio = sh.razon_social ? `<div class="det"><h4>Envío</h4>
@@ -783,6 +792,13 @@ async function guardarPago(id){
 
 // La etiqueta de cada cobro: en blanco / en negro / facturado. Tocándola se cambia.
 function tagPago(o, pg){
+  if(pg.garantia){
+    const nc = pg.factura_id && facturaDe(o, pg.factura_id);
+    if(nc) return nc.estado === 'pendiente' ? ' <span class="tg pe">nota de crédito…</span>'
+      : ` <button class="tg fc" onclick="imprimirFactura(${o.id},${nc.id})">nota de crédito ${nc.numero ? nroFactura(nc, true) : ''}</button>`;
+    return ' <span class="tg ng">garantía</span>' + (facturasParaNC(o).length
+      ? ` <button class="tg bl" title="Emite la nota de crédito C en ARCA" onclick="modalNotaCredito(${o.id},${pg.id})">hacer nota de crédito</button>` : '');
+  }
   if(pg.facturado_aparte) return '<span class="tg fc">facturado aparte</span>';
   if(pg.factura_id){
     const f = facturaDe(o, pg.factura_id);
@@ -801,7 +817,7 @@ let PARTES = [], PARTES_ID = 0;
 function modalComoPago(id){
   const o = ORDERS.find(x => x.id === id);
   PARTES_ID = id;
-  const libres = (o.pagos||[]).filter(pg => !pg.factura_id);
+  const libres = (o.pagos||[]).filter(pg => !pg.factura_id && !pg.garantia);
   PARTES = libres.length
     ? libres.map(pg => ({ medio: pg.medio || '', monto: pg.usd ? '' : pg.monto, usd: pg.usd || '', cotiz: pg.cotiz || '',
         fecha: String(pg.fecha).slice(0,10), en_blanco: pg.medio ? enBlanco(pg) : false, facturado_aparte: !!pg.facturado_aparte }))
@@ -810,7 +826,8 @@ function modalComoPago(id){
 }
 function objetivoPartes(o){
   // Lo que tienen que sumar las partes: el total menos lo que ya tiene factura del panel.
-  const fijo = (o.pagos||[]).filter(pg => pg.factura_id).reduce((a,pg) => a + Number(pg.monto), 0);
+  // Las garantías tampoco: ya bajaron lo que tiene que pagar.
+  const fijo = (o.pagos||[]).filter(pg => pg.factura_id || pg.garantia).reduce((a,pg) => a + Number(pg.monto), 0);
   return o.total - fijo;
 }
 const montoParte = p => p.medio === 'Dólares' ? Math.round((Number(p.usd)||0) * (Number(p.cotiz)||0)) : (Number(p.monto)||0);
@@ -1317,9 +1334,106 @@ async function anularFactura(id, fid){
   }catch(e){ await cargar(); alert(e.message); }
 }
 
+// ----- Garantía: se le descuenta al cliente un anteojo fallado -----
+// Facturas del pedido contra las que puede ir una nota de crédito (emitidas, sin anular).
+const facturasParaNC = o => (o.facturas||[]).filter(f => f.tipo === 11 && f.estado === 'ok' && !anulada(o, f) &&
+  !(f.parte_de && ORDERS.some(x => (x.facturas||[]).some(n => n.anula_id === f.parte_de && n.estado === 'ok'))));
+// Las líneas del pedido, con el precio de cada una, para elegir qué vino fallado.
+function lineasGarantia(o){
+  const m = new Map();
+  (o.items||[]).forEach(it => {
+    const nom = String(it.name||'').replace(/\s*\(.*$/, '');
+    if(!m.has(nom)) m.set(nom, Number(it.price)||0);
+  });
+  return [...m].map(([nombre, precio]) => ({ nombre, precio }));
+}
+let GAR_ID = 0;
+function modalGarantia(id){
+  const o = ORDERS.find(x => x.id === id);
+  GAR_ID = id;
+  const ls = lineasGarantia(o), fs = facturasParaNC(o);
+  abrirModal(`<h3>Garantía · pedido #${o.id}</h3>
+    <p class="sub">${esc((o.ship&&o.ship.razon_social) || o.name)}. Se le descuenta de la cuenta lo que vale lo que vino fallado
+      ${debe(o) ? '(debe ' + fmt(debe(o)) + ')' : '(ya pagó: le queda a favor)'}.</p>
+    <label>Qué vino fallado</label>
+    <select id="gLinea" onchange="gElegir()">${ls.map((l,i) => `<option value="${i}">${esc(l.nombre)} · ${fmt(l.precio)}</option>`).join('')}
+      <option value="otro">Otra cosa…</option></select>
+    <div id="gOtro" style="display:none"><label>Descripción</label><input type="text" id="gDesc"></div>
+    <div class="fila">
+      <div><label>Cantidad</label><input type="number" id="gQty" value="1" min="1" oninput="gTotal()"></div>
+      <div><label>Precio c/u</label><input type="number" id="gUnit" value="${ls[0] ? ls[0].precio : ''}" oninput="gTotal()"></div>
+      <div><label>Fecha</label><input type="date" id="gFecha" value="${hoyISO()}"></div>
+    </div>
+    <div class="dato" style="border-top:1px solid var(--ln);margin-top:12px;padding-top:12px"><span>Se le descuenta</span><span class="num" id="gTot"></span></div>
+    ${fs.length ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="gNC"> Hacer también la nota de crédito C en ARCA</label>
+      <select id="gFact">${fs.map(f => `<option value="${f.id}">${nroFactura(f)} · ${fechaCorta(f.fecha)} · ${fmt(f.total)}</option>`).join('')}</select>`
+      : '<p class="sub" style="margin-top:12px">Este pedido no tiene factura emitida: queda solo en la cuenta corriente.</p>'}
+    <div class="mfoot">
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" id="gOk" onclick="guardarGarantia(${o.id})">Descontar</button>
+    </div>`);
+  gTotal();
+}
+function gElegir(){
+  const o = ORDERS.find(x => x.id === GAR_ID), v = document.getElementById('gLinea').value;
+  document.getElementById('gOtro').style.display = v === 'otro' ? '' : 'none';
+  if(v !== 'otro') document.getElementById('gUnit').value = lineasGarantia(o)[v].precio;
+  gTotal();
+}
+function gTotal(){
+  const t = (parseInt(document.getElementById('gQty').value,10)||0) * (Math.round(Number(document.getElementById('gUnit').value))||0);
+  document.getElementById('gTot').innerHTML = '<b>' + fmt(t) + '</b>';
+}
+async function guardarGarantia(id){
+  const o = ORDERS.find(x => x.id === id), v = document.getElementById('gLinea').value;
+  const desc = v === 'otro' ? document.getElementById('gDesc').value.trim() : lineasGarantia(o)[v].nombre;
+  const qty = parseInt(document.getElementById('gQty').value, 10), unit = Math.round(Number(document.getElementById('gUnit').value));
+  const nc = !!(document.getElementById('gNC') && document.getElementById('gNC').checked);
+  const fid = nc ? parseInt(document.getElementById('gFact').value, 10) : null;
+  if(!desc || !(qty > 0) || !(unit > 0)) return alert('Poné qué fue, cuántos y cuánto vale cada uno');
+  if(nc){
+    const f = facturaDe(o, fid);
+    if(!confirm(`Se descuentan ${fmt(qty*unit)} (${qty} × ${desc}) y se EMITE en ARCA una Nota de crédito C por ${fmt(qty*unit)} contra la ${nroFactura(f)}.\n\nNo se puede deshacer. ¿Seguimos?`)) return;
+  }
+  const btn = document.getElementById('gOk'); btn.disabled = true; btn.textContent = nc ? 'Emitiendo…' : 'Guardando…';
+  let r;
+  try{
+    r = await post({ id, garantia: { desc, qty, unit, fecha: document.getElementById('gFecha').value } });
+  }catch(e){ btn.disabled = false; btn.textContent = 'Descontar'; return alert(e.message); }
+  if(nc){
+    try{ await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ notaCredito: { pago_id: r.pago_id, factura_id: fid } }) }); }
+    catch(e){ cerrarModal(); FACT = null; await cargar(); return alert('La garantía quedó descontada, pero la nota de crédito no salió: ' + e.message +
+      '\n\nPodés reintentarla desde el cobro de garantía ("hacer nota de crédito").'); }
+  }
+  cerrarModal(); FACT = null; await cargar(); showToast(nc ? 'Garantía descontada y nota de crédito emitida' : 'Garantía descontada');
+}
+// Nota de crédito para una garantía que ya estaba cargada.
+function modalNotaCredito(id, pid){
+  const o = ORDERS.find(x => x.id === id), pg = (o.pagos||[]).find(x => x.id === pid), fs = facturasParaNC(o);
+  if(!fs.length) return alert('Este pedido no tiene factura emitida');
+  abrirModal(`<h3>Nota de crédito por garantía</h3>
+    <p class="sub">${esc(pg.nota || '')} · ${fmt(pg.monto)}. Se emite en ARCA una Nota de crédito C por ese monto. No se puede deshacer.</p>
+    <label>Contra qué factura</label>
+    <select id="ncFact">${fs.map(f => `<option value="${f.id}">${nroFactura(f)} · ${fechaCorta(f.fecha)} · ${fmt(f.total)}</option>`).join('')}</select>
+    <div class="mfoot">
+      <button class="b q" onclick="cerrarModal()">Cancelar</button>
+      <button class="b p" style="flex:none" id="ncOk" onclick="emitirNotaCredito(${pid})">Emitir nota de crédito</button>
+    </div>`);
+}
+async function emitirNotaCredito(pid){
+  const btn = document.getElementById('ncOk'); btn.disabled = true; btn.textContent = 'Emitiendo…';
+  try{
+    await api('/api/admin?facturas=1', { method:'POST', body: JSON.stringify({ notaCredito: { pago_id: pid,
+      factura_id: parseInt(document.getElementById('ncFact').value, 10) } }) });
+    cerrarModal(); FACT = null; await cargar(); showToast('Nota de crédito emitida');
+  }catch(e){ btn.disabled = false; btn.textContent = 'Emitir nota de crédito'; FACT = null; await cargar(); alert(e.message); }
+}
+
 // El comprobante impreso, con el QR de ARCA (RG 4892).
 async function imprimirFactura(id, fid){
   const o = ORDERS.find(x => x.id === id), f = facturaDe(o, fid);
+  // La parte de una factura de varios pedidos: se imprime la factura entera.
+  if(f.parte_de) return imprimirFactura(f.reparto[0].order_id, f.parte_de);
   try{ if(!FACT || !FACT.qr[fid]) await cargarFact(); }catch(e){ return alert(e.message); }
   const em = FACT.emisor || {}, cuit = FACT.config.cuit || '';
   const cuitTxt = cuit.length === 11 ? cuit.slice(0,2) + '-' + cuit.slice(2,10) + '-' + cuit.slice(10) : cuit;
@@ -1327,7 +1441,8 @@ async function imprimirFactura(id, fid){
   if(window.qrcode && FACT.qr[fid]){ const q = qrcode(0, 'M'); q.addData(FACT.qr[fid]); q.make(); qrImg = q.createDataURL(4, 0); }
   const docTxt = f.doc_tipo === 80 ? 'CUIT ' + f.doc_nro : f.doc_tipo === 96 ? 'DNI ' + f.doc_nro : 'Sin identificar';
   const titulo = f.tipo === 13 ? 'NOTA DE CRÉDITO' : 'FACTURA';
-  const anula = f.anula_id ? facturaDe(o, f.anula_id) : null;
+  const asocId = f.anula_id || f.asociada_id;
+  const anula = asocId ? (facturaDe(o, asocId) || ORDERS.flatMap(x => x.facturas||[]).find(x => x.id === asocId)) : null;
   imprimir(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${nroFactura(f)}</title>
 <style>@page{size:A4;margin:12mm}${HOJA}body{max-width:190mm}
 .fc{display:grid;grid-template-columns:1fr 64px 1fr;border:1px solid #111}
@@ -1350,7 +1465,7 @@ ${f.homologacion ? '<div class="prueba">COMPROBANTE DE PRUEBA · SIN VALIDEZ FIS
   Condición frente al IVA: ${COND_IVA[f.cond_iva] || '—'} · Condición de venta: Contado
   ${anula ? '<br>Comprobante asociado: ' + nroFactura(anula) + ' del ' + fechaCorta(anula.fecha) : ''}</div>
 <table style="margin-top:16px"><thead><tr><th>Descripción</th><th class="q">Cant.</th><th class="m">Precio u.</th><th class="m">Subtotal</th></tr></thead>
-<tbody>${lineasFactura(o, f.total).map(l => `<tr><td>${esc(l.desc)}</td><td class="q">${l.qty}</td><td class="m">${fmtU(l.unit)}</td><td class="m">${fmt(l.sub)}</td></tr>`).join('')}</tbody></table>
+<tbody>${(f.lineas || lineasFactura(o, f.total)).map(l => `<tr><td>${esc(l.desc)}</td><td class="q">${l.qty}</td><td class="m">${fmtU(l.unit)}</td><td class="m">${fmt(l.sub)}</td></tr>`).join('')}</tbody></table>
 <div class="tot"><span>Total</span><span>${fmt(f.total)}</span></div>
 <div class="pie">${qrImg ? `<img src="${qrImg}" style="width:110px;height:110px">` : ''}
   <div style="line-height:1.8"><b>Comprobante autorizado por ARCA</b><br>CAE: ${esc(f.cae || '')}<br>Vencimiento del CAE: ${fechaCorta(f.cae_vence)}</div></div>
@@ -1550,8 +1665,9 @@ ${l.modelos.map(m => `<tr><td>${esc(m.modelo||'—')}</td><td>${esc(m.color||'�
 ${cupon(o) ? `<div class="tot" style="font-size:13px;font-weight:400"><span>Subtotal</span><span>${fmt(o.total + cupon(o))}</span></div>
 <div class="tot" style="border-top:none;margin-top:4px;padding-top:0;font-size:13px;font-weight:400"><span>Cupón de descuento</span><span>−${fmt(cupon(o))}</span></div>
 <div class="tot" style="border-top:1px solid #111;margin-top:8px"><span>Total</span><span>${fmt(o.total)}</span></div>` : `<div class="tot"><span>Total</span><span>${fmt(o.total)}</span></div>`}
-${cobrado(o) ? `<div class="tot" style="border-top:none;font-size:13px"><span>Cobrado</span><span>${fmt(cobrado(o))}</span></div>
-<div class="tot" style="border-top:none;font-size:13px"><span>Saldo</span><span>${fmt(debe(o))}</span></div>` : ''}
+${(o.pagos||[]).filter(pg => pg.garantia).map(pg => `<div class="tot" style="border-top:none;font-size:13px;font-weight:400"><span>Garantía: ${esc(pg.nota || '')}</span><span>−${fmt(pg.monto)}</span></div>`).join('')}
+${cobradoPlata(o) ? `<div class="tot" style="border-top:none;font-size:13px"><span>Cobrado</span><span>${fmt(cobradoPlata(o))}</span></div>` : ''}
+${cobrado(o) ? `<div class="tot" style="border-top:none;font-size:13px"><span>Saldo</span><span>${fmt(debe(o))}</span></div>` : ''}
 <p style="margin-top:24px;font-size:10px;color:#888;text-align:center">Precios en pesos. Este comprobante no es factura.</p>
 <script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
 }

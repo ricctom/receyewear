@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
                    COALESCE((SELECT sum(p.monto)::int FROM order_payments p WHERE p.order_id = o.id), 0) AS cobrado,
                    COALESCE((SELECT json_agg(json_build_object('id',p.id,'fecha',p.fecha,'monto',p.monto,'medio',p.medio,'nota',p.nota,
                                                          'en_blanco',p.en_blanco,'usd',p.usd,'cotiz',p.cotiz,'factura_id',p.factura_id,
-                                                         'facturado_aparte',p.facturado_aparte) ORDER BY p.id)
+                                                         'facturado_aparte',p.facturado_aparte,'garantia',p.garantia) ORDER BY p.id)
                              FROM order_payments p WHERE p.order_id = o.id), '[]'::json) AS pagos,
                    COALESCE((SELECT json_agg(f ORDER BY f.id) FROM facturas f WHERE f.order_id = o.id), '[]'::json) AS facturas,
                    u.cond_iva
@@ -477,18 +477,21 @@ module.exports = async (req, res) => {
 
     /* ----- Cobros ----- */
     if (b.resetPagos) {
-      const [f] = await sql`SELECT count(*)::int AS n FROM order_payments WHERE order_id = ${id} AND factura_id IS NOT NULL`;
+      const [f] = await sql`SELECT count(*)::int AS n FROM order_payments WHERE order_id = ${id} AND factura_id IS NOT NULL
+        AND NOT COALESCE(garantia, false)`;
       if (f.n) return res.status(400).json({ error: 'Hay cobros ya facturados: borrá los otros de a uno' });
-      await sql`DELETE FROM order_payments WHERE order_id = ${id}`;
+      // Las garantías no son cobros: quedan.
+      await sql`DELETE FROM order_payments WHERE order_id = ${id} AND NOT COALESCE(garantia, false)`;
       return res.status(200).json({ ok: true, cobrado: 0 });
     }
     // Cambiar cómo se pagó un cobro (medio, si va en blanco). Uno ya facturado
     // no se toca: para eso está la nota de crédito.
     if (b.pagoEdit) {
       const pid = parseInt(b.pagoEdit.id, 10);
-      const [pg] = await sql`SELECT id, factura_id FROM order_payments WHERE id = ${pid} AND order_id = ${id}`;
+      const [pg] = await sql`SELECT id, factura_id, garantia FROM order_payments WHERE id = ${pid} AND order_id = ${id}`;
       if (!pg) return res.status(404).json({ error: 'No existe ese cobro' });
       if (pg.factura_id) return res.status(400).json({ error: 'Ese cobro ya está facturado' });
+      if (pg.garantia) return res.status(400).json({ error: 'Es una garantía: borrala y cargala de nuevo' });
       const medio = b.pagoEdit.medio !== undefined ? (String(b.pagoEdit.medio || '').slice(0, 40) || null) : undefined;
       if (medio !== undefined) await sql`UPDATE order_payments SET medio = ${medio} WHERE id = ${pid}`;
       if (b.pagoEdit.en_blanco !== undefined) {
@@ -500,7 +503,8 @@ module.exports = async (req, res) => {
     // digan (mitad echeq y mitad transferencia, etc.). Lo ya facturado queda.
     if (Array.isArray(b.rehacerPagos)) {
       const [row] = await sql`SELECT total,
-          COALESCE((SELECT sum(monto)::int FROM order_payments WHERE order_id = ${id} AND factura_id IS NOT NULL), 0) AS fijo
+          COALESCE((SELECT sum(monto)::int FROM order_payments WHERE order_id = ${id}
+                     AND (factura_id IS NOT NULL OR COALESCE(garantia, false))), 0) AS fijo
         FROM orders WHERE id = ${id}`;
       if (!row) return res.status(404).json({ error: 'No existe el pedido' });
       const partes = [];
@@ -523,7 +527,7 @@ module.exports = async (req, res) => {
       if (!partes.some((p) => p.usd) && row.fijo + suma > row.total) {
         return res.status(400).json({ error: 'Te pasás: el pedido es de ' + row.total + ' y suman ' + (row.fijo + suma) });
       }
-      await sql`DELETE FROM order_payments WHERE order_id = ${id} AND factura_id IS NULL`;
+      await sql`DELETE FROM order_payments WHERE order_id = ${id} AND factura_id IS NULL AND NOT COALESCE(garantia, false)`;
       for (const p of partes) {
         await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota, en_blanco, usd, cotiz, facturado_aparte)
           VALUES (${id}, COALESCE(${p.fecha}::date, CURRENT_DATE), ${p.monto}, ${p.medio}, ${p.nota},
@@ -536,8 +540,27 @@ module.exports = async (req, res) => {
       const [pg] = await sql`SELECT factura_id FROM order_payments WHERE id = ${pid} AND order_id = ${id}`;
       if (!pg) return res.status(404).json({ error: 'No existe ese cobro' });
       if (pg.factura_id) return res.status(400).json({ error: 'Ese cobro ya está facturado: primero anulá la factura' });
+      // (Una garantía con nota de crédito tampoco se borra: la nota ya está en ARCA.)
       await sql`DELETE FROM order_payments WHERE id = ${pid}`;
       return res.status(200).json({ ok: true });
+    }
+    // Garantía: se le descuenta al cliente lo que vale lo que vino fallado.
+    //   { garantia: { desc, qty, unit, fecha } }  -> { ok, pago_id, monto }
+    // Baja lo que debe (si ya pagó, le queda a favor). No es plata que entra:
+    // va en negro y marcada como garantía, fuera de los ingresos del mes.
+    if (b.garantia) {
+      const desc = String(b.garantia.desc || '').trim().slice(0, 120);
+      const qty = parseInt(b.garantia.qty, 10);
+      const unit = Math.round(Number(b.garantia.unit) || 0);
+      if (!desc || !(qty > 0) || !(unit > 0)) return res.status(400).json({ error: 'Poné qué fue, cuántos y cuánto vale cada uno' });
+      const [ped] = await sql`SELECT id FROM orders WHERE id = ${id}`;
+      if (!ped) return res.status(404).json({ error: 'No existe el pedido' });
+      const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(b.garantia.fecha || '')) ? b.garantia.fecha : null;
+      const monto = qty * unit;
+      const [pg] = await sql`INSERT INTO order_payments (order_id, fecha, monto, medio, nota, en_blanco, garantia)
+        VALUES (${id}, COALESCE(${fecha}::date, CURRENT_DATE), ${monto}, 'Garantía', ${qty + ' × ' + desc}, false, true)
+        RETURNING id`;
+      return res.status(200).json({ ok: true, pago_id: pg.id, monto });
     }
     if (b.pago) {
       const [row] = await sql`SELECT total,
