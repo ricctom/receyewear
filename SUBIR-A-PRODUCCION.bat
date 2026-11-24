@@ -58,7 +58,7 @@ echo Guardado en git.
 echo.
 echo Paso 2 de 2: mandando el codigo a GitHub...
 echo.
-git push
+git -c maintenance.auto=false push
 if errorlevel 1 (
   echo.
   echo ============================================
