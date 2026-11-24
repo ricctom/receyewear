@@ -22,7 +22,7 @@
 //   POST { giraVentas:{ id, ventas:[id], pedidos:[id] } } -> qué ventas (y pedidos sin consignación) son de esa gira;
 //          las marcadas que eran de otra gira se pasan a esta
 //   POST { gasto:{ gira_id, fecha, concepto, monto, medio } } / { borrarGasto: id } / { borrarGira: id }
-const { sql, ensureTables, norm, usdRate, enBlancoPorMedio, costTables, costoDe, costoLineasDe } = require('./_db');
+const { sql, ensureTables, norm, usdRate, enBlancoPorMedio, costTables, costoDe: costoPedidoDe, costoLineasDe } = require('./_db');
 const { getSession } = require('./_auth');
 const { notifyVentaCliente } = require('./_notify');
 
@@ -205,7 +205,7 @@ module.exports = async (req, res) => {
                                      costos: [{ moneda: v.moneda, monto: Number(v.costo) }] })),
           ...pedidosGira.map((o) => {
             // Igual que en Pedidos: si ya confirmó lo que llegó, el costo es el de eso.
-            const c = o.recibido ? costoLineasDe(o.recibido, tablas) : costoDe(o.items, tablas);
+            const c = o.recibido ? costoLineasDe(o.recibido, tablas) : costoPedidoDe(o.items, tablas);
             return {
               id: o.id, tipo: 'pedido', fecha: o.fecha, email: o.email, cliente: null,
               name: o.name, razon_social: o.razon_social, gira_id: o.gira_id,
