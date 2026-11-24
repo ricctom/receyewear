@@ -201,4 +201,4 @@ async function notifyVentaCliente({ email, cliente, orderId, items, total, subto
 }
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-module.exports = { notifyOrder, notifyVentaCliente };
+module.exports = { notifyOrder, notifyVentaCliente, sendEmail };

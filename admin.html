@@ -57,12 +57,14 @@ button.tg{cursor:pointer}
     </div>
     <div class="der">
       <button class="b sm q" onclick="abrirFacturacion()">Facturación</button>
+      <button class="b sm q" id="dolarWebBtn" onclick="editarDolarWeb()"></button>
       <button class="b sm q" id="usdBtn" onclick="editarDolar()"></button>
       <button class="b sm q ico" onclick="cargar()" title="Actualizar">↻</button>
     </div>
   </div>
   <div class="resumen" id="resumen"></div>
   <div class="filtros" id="filtros"></div>
+  <div id="avisoDolar"></div>
   <div id="avisoMartin"></div>
   <div id="avisoCostos"></div>
   <div id="lista"></div>
@@ -71,6 +73,7 @@ button.tg{cursor:pointer}
 <div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
 <div class="modal" id="modal"><div id="modalBody"></div></div>
 
+<script src="/precios.js"></script>
 <script src="panel.js"></script>
 <script>
 /* Cada pedido está en UN paso y muestra UNA acción. Lo demás se calla. */
@@ -125,7 +128,7 @@ const VISTAS = [
   ['saldado',    'Saldados'],
 ];
 
-let ORDERS = [], USD = { valor:0 }, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [], PROVS = [], CLIENTES = [];
+let ORDERS = [], USD = { valor:0 }, DOLARWEB = null, ARTICULOS = [], SIN_MAPEAR = [], COSTMAP = [], PROVS = [], CLIENTES = [];
 let vista = 'pendientes';
 const abiertos = new Set();
 
@@ -134,7 +137,7 @@ async function cargar(){
   if(!ORDERS.length) lista.innerHTML = '<div class="empty">Cargando…</div>';
   try{
     const d = await api('/api/admin');
-    ORDERS = d.orders; USD = d.usd || { valor:0 };
+    ORDERS = d.orders; USD = d.usd || { valor:0 }; DOLARWEB = d.dolar || null;
     ARTICULOS = d.articulos || []; SIN_MAPEAR = d.sin_mapear || [];
     COSTMAP = d.cost_map || []; PROVS = d.proveedores || []; CLIENTES = d.clientes || [];
     pintar();
@@ -264,6 +267,8 @@ function pintar(){
         todavía no ${sinCargar.length === 1 ? 'está cargado' : 'están cargados'} en la cuenta del proveedor:
         <b>${sinCargar.map(o => '#' + o.id).join(', ')}</b>.
         <button class="b sm" style="margin-left:6px" onclick="cargarPendientesMartin()">Cargarlos ahora</button></div>` : '';
+
+  pintarDolarWeb();
 
   const av = document.getElementById('avisoCostos');
   av.innerHTML = SIN_MAPEAR.length
@@ -1001,6 +1006,57 @@ async function guardarCuenta(id){
     const r = await post({ id, cuenta:{ email, nombre } });
     cerrarModal(); await cargar();
     if(r.nueva) alert('Listo. Se creó la cuenta de ' + email + ': va a ver el pedido cuando entre con Google con ese mail.');
+  }catch(e){ alert(e.message); }
+}
+
+/* ---------- dólar de los precios de la web (banda del 5%, api/_dolar.js) ---------- */
+const plataD = (n) => '$' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+const pctD = (x) => (x > 0 ? '+' : '') + (x * 100).toFixed(1).replace('.', ',') + '%';
+function pintarDolarWeb(){
+  const D = DOLARWEB, btn = document.getElementById('dolarWebBtn');
+  if(!D){ btn.style.display = 'none'; document.getElementById('avisoDolar').innerHTML = ''; return; }
+  btn.style.display = '';
+  btn.innerHTML = 'Dólar web ' + Number(D.publicado).toLocaleString('es-AR') + (D.propuesto ? ' <b style="color:#c0392b">●</b>' : '');
+  const mov = D.propuesto ? D.propuesto / D.publicado - 1 : 0;
+  document.getElementById('avisoDolar').innerHTML = D.propuesto
+    ? `<div class="aviso">El dólar MEP se salió de la banda: promedio de ${D.dias} días <b>${plataD(D.propuesto)}</b>
+        (${pctD(mov)} contra ${plataD(D.publicado)}, al que están los precios de la web).
+        Si lo aplicás, los precios ${mov > 0 ? 'suben' : 'bajan'} más o menos ${pctD(Math.abs(mov)).replace('+','')}, redondeados.
+        <button class="b sm" style="margin-left:6px" onclick="editarDolarWeb()">Ver y decidir</button></div>` : '';
+}
+function editarDolarWeb(){
+  const D = DOLARWEB; if(!D) return;
+  const ej = [15600, 19200, 27600, 33500];
+  const propuesto = D.propuesto;
+  const factorNuevo = propuesto ? propuesto / D.base : D.factor;
+  const filasEj = ej.map(b => `<tr><td>${plataD(precioConDolar(b, D.factor))}</td><td>→</td><td><b>${plataD(precioConDolar(b, factorNuevo))}</b></td></tr>`).join('');
+  abrirModal(`<h3>Dólar de los precios de la web</h3>
+    <p class="sub">Los precios están armados con el MEP a <b>${plataD(D.publicado)}</b>. Se quedan quietos mientras el promedio
+      de los últimos ${D.dias} días esté entre ${plataD(D.piso)} y ${plataD(D.techo)} (±${Math.round(D.banda * 100)}%).
+      Todos los días a las 11 se lee el MEP.</p>
+    <p class="sub">Últimas lecturas: ${D.lecturas.length ? D.lecturas.slice(0, 5).map(l => esc(l.fecha.slice(8, 10) + '/' + l.fecha.slice(5, 7)) + ' ' + plataD(l.valor)).join(' · ') : 'todavía ninguna'}${
+      D.promedio ? ' · promedio ' + plataD(D.promedio) + ' (' + pctD(D.movimiento) + ')' : ''}</p>
+    ${propuesto ? `<div class="aviso">Propuesta: pasar los precios a <b>${plataD(propuesto)}</b> (${pctD(propuesto / D.publicado - 1)}).
+      <table style="margin-top:8px">${filasEj}</table></div>` : ''}
+    <label>O ponerlo a mano</label><input type="number" id="dwVal" value="${propuesto || D.publicado}">
+    <div class="mfoot">
+      <button class="b q" onclick="dolarWeb({ leer:true })">Leer el MEP ahora</button>
+      ${propuesto ? '<button class="b q" onclick="dolarWeb({ descartar:true })">Dejar los precios así</button>' : ''}
+      <button class="b q" onclick="dolarWebMano()">Usar el de a mano</button>
+      ${propuesto ? '<button class="b p" style="flex:none" onclick="dolarWeb({ aplicar:true })">Aplicar</button>' : ''}
+    </div>`);
+}
+function dolarWebMano(){
+  const v = Number(document.getElementById('dwVal').value);
+  if(!(v > 0)) return alert('Poné un valor.');
+  if(!confirm('¿Pasar los precios de la web al dólar ' + plataD(v) + '? Cambian en unos minutos.')) return;
+  dolarWeb({ valor: v });
+}
+async function dolarWeb(accion){
+  try{
+    const r = await post({ dolarWeb: accion });
+    DOLARWEB = r.dolar; pintarDolarWeb();
+    if(accion.leer) editarDolarWeb(); else { cerrarModal(); showToast(accion.descartar ? 'Quedan como están' : 'Listo: la web cambia en unos minutos'); }
   }catch(e){ alert(e.message); }
 }
 

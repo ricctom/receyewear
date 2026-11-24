@@ -909,6 +909,10 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   <div class="footer-btm">Tienda creada con <strong>empretienda</strong> · © 2025 REC Eyewear</div>
 </footer>
 
+<!-- Precios según el dólar MEP (banda del 5%): los de abajo son los de base y
+     se multiplican por el factor que publica el servidor. Ver api/_dolar.js. -->
+<script src="/precios.js"></script>
+<script src="/api/config?js=1"></script>
 <script>
 /* ============================================================
    PRODUCTS DATA — 187 productos (173 Excel + 14 originales)
@@ -1178,6 +1182,7 @@ const PRODUCTS = [
   {id:428,name:'UNA PLACA (SC010)',sku:'SC010',price:27600,oldPrice:32471,discount:14,imgs:['imgs/SC010.jpeg'],cats:['clipon','clipon-1placa','ofertas'],desc:'Clipon de una placa magnético. Precio Contado.',colors:['Gris/lente gris','Gris/lente marrón','Azul','Negro']},
 
 ];
+if (window.aplicarDolar && window.REC_DOLAR) aplicarDolar(PRODUCTS, window.REC_DOLAR.factor);
 
 /* ============================================================
    FAQS

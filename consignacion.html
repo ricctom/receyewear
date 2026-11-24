@@ -300,6 +300,8 @@
 <div class="modal-ov" id="ov" onclick="cerrarModal()"></div>
 <div class="modal" id="modal"><div id="modalBody"></div></div>
 
+<script src="/precios.js"></script>
+<script src="/api/config?js=1"></script>
 <script src="panel.js"></script>
 <script>
 /* La mercadería que me dejó el proveedor en consignación (api/consignacion.js).
@@ -327,6 +329,8 @@ async function cargarCatalogo(){
     const desde = html.indexOf('[', ini);
     const hasta = html.indexOf('\n];', desde);
     PRODUCTOS_WEB = ini < 0 || hasta < 0 ? [] : new Function('return ' + html.slice(desde, hasta + 2))();
+    // Los mismos precios que ve el cliente: los de base por el factor del dólar.
+    if(window.aplicarDolar && window.REC_DOLAR) aplicarDolar(PRODUCTOS_WEB, window.REC_DOLAR.factor);
   }catch(e){ PRODUCTOS_WEB = []; }
 }
 

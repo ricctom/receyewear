@@ -22,12 +22,10 @@ const PROMO = {
   // Juan; el QR que muestra el vendedor lleva ?d=gira). Antes fue BIENVENIDA50.
   // Se entrega desde el domingo 8/11/2026 a las 00:00 de Argentina...
   desde:  new Date('2026-11-08T03:00:00Z'),
-  // ...y se puede reclamar hasta el lunes 30/11/2026 a las 23:59 de Argentina.
-  vence:  new Date('2026-12-01T02:59:59Z'),
-
-  // Se puede usar hasta el mismo día: así el "vence el 30/11" es parejo para
-  // todos y sirve de apuro.
-  venceUso: new Date('2026-12-01T02:59:59Z'),
+  // Iba hasta el 30/11, pero Tomás la cortó el martes 24/11/2026 a las 11:00
+  // de Argentina: no se entrega más y los cupones ya dados dejan de valer.
+  vence:  new Date('2026-11-24T14:00:00Z'),
+  venceUso: new Date('2026-11-24T14:00:00Z'),
 };
 
 // El acceso a la base se pide recién cuando hace falta, para que /api/config
@@ -56,6 +54,9 @@ async function otorgar(userId) {
 
 // El cupón que el usuario puede usar ahora: sin gastar y sin vencer.
 async function vigente(userId) {
+  // Terminada la campaña, ningún cupón se muestra ni descuenta, aunque en la
+  // base haya quedado guardado con una fecha más larga.
+  if (ahora() > PROMO.venceUso) return null;
   const sql = db();
   const rows = await sql`
     SELECT id, codigo, monto, minimo, vence, created_at

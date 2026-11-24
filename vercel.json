@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/config?cron=dolar", "schedule": "0 14 * * *" }
+  ]
+}

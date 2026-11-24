@@ -363,6 +363,12 @@ function ensureTables() {
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS gira_id INTEGER`;
     // Un pedido común (sin consignación) también puede ser de una gira, a mano.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS gira_id INTEGER`;
+    // El dólar MEP de cada día a las 11, para la banda de precios de la web (ver _dolar.js).
+    await sql`CREATE TABLE IF NOT EXISTS dolar_mep (
+      fecha DATE PRIMARY KEY,
+      valor NUMERIC NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`;
     // Mercadería de consignación que tapó lo que no llegó de un pedido de la
     // web ("Vino distinto" en Pedidos): el pedido queda entero para el cliente,
     // a Martín no se le suma a la cuenta corriente y se le debe por consignación.

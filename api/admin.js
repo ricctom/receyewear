@@ -16,6 +16,7 @@
 //   POST { usd:{...} } / { costmap:{...} }
 const { sql, ensureTables, splitNombre, norm, setSetting, usdRate,
         costTables, costoDe, costoLineasDe, enBlancoPorMedio } = require('./_db');
+const dolarWeb = require('./_dolar');
 const { getSession } = require('./_auth');
 const facturas = require('./_facturas');
 const { devolver } = require('./_promo');
@@ -98,7 +99,7 @@ module.exports = async (req, res) => {
     await ensureTables();
 
     if (req.method === 'GET') {
-      const [rows, usd, tablas] = await Promise.all([
+      const [rows, usd, tablas, dolar] = await Promise.all([
         sql`SELECT o.id, o.items, o.recibido, o.total, COALESCE(o.descuento, 0) AS descuento,
                    o.etapa, o.created_at, o.ship, o.faltante,
                    o.supplier_move_id, o.pedido_original,
@@ -119,6 +120,7 @@ module.exports = async (req, res) => {
             ORDER BY o.id DESC LIMIT 500`,
         usdRate(),
         costTables(),
+        dolarWeb.estado().catch(() => null),
       ]);
 
       // A quién se le pide cada línea. Lo que todavía no tiene proveedor
@@ -204,7 +206,7 @@ module.exports = async (req, res) => {
              ORDER BY l.created_at DESC LIMIT 1000`,
       ]);
       return res.status(200).json({
-        orders, usd, proveedores: provs,
+        orders, usd, dolar, proveedores: provs,
         articulos: precios,
         cost_map: mapa,
         sin_mapear: [...sinMapear.values()],
@@ -261,6 +263,26 @@ module.exports = async (req, res) => {
       }
 
       return res.status(400).json({ error: 'Acción inválida' });
+    }
+
+    /* ----- Dólar de los precios de la web (banda del 5%, ver _dolar.js) ----- */
+    //   { dolarWeb:{ aplicar:true } } -> publica el dólar propuesto
+    //   { dolarWeb:{ valor } }        -> publica ese dólar, a mano
+    //   { dolarWeb:{ descartar:true } } -> deja los precios como están (mañana se vuelve a mirar)
+    //   { dolarWeb:{ leer:true } }    -> lee el MEP ahora, sin esperar a las 11
+    if (b.dolarWeb) {
+      const x = b.dolarWeb;
+      if (x.leer) await dolarWeb.chequeoDiario({ forzar: true });
+      else if (x.descartar) await setSetting('dolar_web_propuesto', null);
+      else {
+        const e = await dolarWeb.estado();
+        const v = x.aplicar ? e.propuesto : Number(x.valor);
+        if (!(v > 0)) return res.status(400).json({ error: 'Dólar inválido' });
+        await setSetting('dolar_web_publicado', Math.round(v * 100) / 100);
+        await setSetting('dolar_web_publicado_at', new Date().toISOString());
+        await setSetting('dolar_web_propuesto', null);
+      }
+      return res.status(200).json({ ok: true, dolar: await dolarWeb.estado() });
     }
 
     /* ----- Cotización ----- */
