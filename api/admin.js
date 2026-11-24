@@ -18,6 +18,7 @@ const { sql, ensureTables, splitNombre, norm, setSetting, usdRate,
         costTables, costoDe, costoLineasDe, enBlancoPorMedio } = require('./_db');
 const { getSession } = require('./_auth');
 const facturas = require('./_facturas');
+const { devolver } = require('./_promo');
 
 const ETAPAS = ['nuevo', 'pedido', 'recibido', 'despachado', 'cancelado'];
 // Se sigue escribiendo el viejo "status" para que "Mis pedidos" del cliente
@@ -626,6 +627,24 @@ module.exports = async (req, res) => {
     /* ----- Nota interna ----- */
     if (b.nota !== undefined && !b.items) {
       await sql`UPDATE orders SET nota = ${b.nota ? String(b.nota).slice(0, 500) : null} WHERE id = ${id}`;
+      return res.status(200).json({ ok: true });
+    }
+
+    /* ----- Sacar el cupón: el pedido vuelve a su precio lleno ----- */
+    // Para cuando el cupón no corresponde (p. ej. un pedido armado desde mi
+    // cuenta para un cliente). El cupón vuelve a quedar sin usar.
+    if (b.quitar_cupon) {
+      const [o] = await sql`SELECT COALESCE(descuento, 0) AS descuento, voucher_id FROM orders WHERE id = ${id}`;
+      if (!o) return res.status(404).json({ error: 'No existe el pedido' });
+      const d = Number(o.descuento) || 0;
+      if (!d) return res.status(400).json({ error: 'Este pedido no tiene cupón' });
+      // pedido_original guarda el total ya con el cupón restado: también se le suma.
+      await sql`UPDATE orders SET total = total + ${d}, descuento = 0, voucher_id = NULL,
+          pedido_original = CASE WHEN pedido_original ? 'total'
+            THEN jsonb_set(pedido_original, '{total}', to_jsonb((pedido_original->>'total')::numeric + ${d}))
+            ELSE pedido_original END
+        WHERE id = ${id}`;
+      if (o.voucher_id) await devolver(o.voucher_id).catch(() => {});
       return res.status(200).json({ ok: true });
     }
 

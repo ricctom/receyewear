@@ -427,7 +427,9 @@ function detalle(o){
       <div class="mod">${l.modelos.map(m => esc(m.modelo||'—') + (m.color?' '+esc(m.color):'') + ' ×' + m.qty).join(' · ')}</div>`).join('')}
     ${cupon(o) ? `<div class="ln" style="border-top:1px solid var(--ln);margin-top:6px;padding-top:9px">
       <span>Subtotal</span><span class="num">${fmt(o.total + cupon(o))}</span></div>
-    <div class="ln"><span style="color:var(--ok)">Cupón de descuento</span><span class="num" style="color:var(--ok)">−${fmt(cupon(o))}</span></div>` : ''}
+    <div class="ln"><span style="color:var(--ok)">Cupón de descuento
+      <button type="button" onclick="sacarCupon(${o.id})" style="margin-left:6px;border:1px solid var(--ln);background:none;border-radius:6px;padding:1px 7px;font-size:12px;color:var(--mt);cursor:pointer">Sacar</button></span>
+      <span class="num" style="color:var(--ok)">−${fmt(cupon(o))}</span></div>` : ''}
     <div class="ln" style="${cupon(o) ? '' : 'border-top:1px solid var(--ln);margin-top:6px;padding-top:9px'}">
       <span><b>Total</b></span><span class="num"><b>${fmt(o.total)}</b></span></div></div>`;
 
@@ -943,6 +945,14 @@ function editarNota(id){
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
     <button class="b p" style="flex:none" onclick="guardarNota(${id})">Guardar</button></div>`);
 }
+async function sacarCupon(id){
+  const o = ORDERS.find(x => x.id === id);
+  if(!o || !cupon(o)) return;
+  if(!confirm(`¿Sacarle el cupón de ${fmt(cupon(o))} al pedido #${id}? El total pasa a ${fmt(o.total + cupon(o))}.`)) return;
+  try{ await post({ id, quitar_cupon: true }); await cargar(); }
+  catch(e){ alert(e.message); }
+}
+
 async function guardarNota(id){
   try{ await post({ id, nota: document.getElementById('nTxt').value }); cerrarModal(); await cargar(); }
   catch(e){ alert(e.message); }
