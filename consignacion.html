@@ -1194,8 +1194,13 @@ function resumenGira(g){
   }));
   const cobrado = Object.values(medios).reduce((a, n) => a + n, 0);
   // La mercadería: en la moneda de cada proveedor, y todo junto en pesos.
-  const usdT = ventas.filter(v => v.moneda === 'USD').reduce((a, v) => a + v.costo, 0);
-  const arsT = ventas.filter(v => v.moneda !== 'USD').reduce((a, v) => a + v.costo, 0);
+  // Cada venta trae costos: [{ moneda, monto }] (un pedido puede tener más de un proveedor).
+  const costoEn = (enUsd) => ventas.reduce((a, v) => a + (v.costos || [{ moneda: v.moneda, monto: v.costo }])
+    .filter(c => (c.moneda === 'USD') === enUsd).reduce((b, c) => b + (Number(c.monto) || 0), 0), 0);
+  const usdT = costoEn(true);
+  const arsT = costoEn(false);
+  // Líneas de pedidos sin costo cargado: se avisa, porque la cuenta queda corta.
+  const sinCosto = [...new Set(ventas.flatMap(v => v.sin_costo || []))];
   const mercaderia = arsT + usdT * tasa();
   // De lo vendido, lo que era mercadería mía: no se le debe a nadie, así que
   // entra entero en lo que queda.
@@ -1204,7 +1209,7 @@ function resumenGira(g){
   const gastos = (g.gastos || []).reduce((a, x) => a + Number(x.monto), 0);
   const gastosMedio = {};
   (g.gastos || []).forEach(x => { const m = x.medio || 'Sin decir'; gastosMedio[m] = (gastosMedio[m] || 0) + Number(x.monto); });
-  return { ventas, vendido, medios, cobrado, falta: Math.max(0, vendido - cobrado), usdT, arsT, mercaderia, propio,
+  return { ventas, vendido, medios, cobrado, falta: Math.max(0, vendido - cobrado), usdT, arsT, mercaderia, propio, sinCosto,
     gastos, gastosMedio, queda: vendido - mercaderia - gastos,
     unidades: ventas.reduce((a, v) => a + unidadesDe(v), 0),
     sinTasa: usdT > 0 && !tasa() };
@@ -1262,7 +1267,8 @@ function pintarGiras(){
             <tr><td>Vendiste<span class="g">${R.ventas.length} ${R.ventas.length === 1 ? 'venta' : 'ventas'}, ya con los descuentos${
               R.propio ? ' · ' + fmt(R.propio) + ' de mercadería tuya, que queda entera para vos' : ''}</span></td><td class="mas">${fmt(R.vendido)}</td></tr>
             <tr><td>Mercadería<span class="g">Lo que le debés a los proveedores por lo vendido${
-              R.usdT ? ': ' + usd(R.usdT) : ''}${R.arsT ? (R.usdT ? ' + ' : ': ') + fmt(R.arsT) : ''}</span></td>
+              R.usdT ? ': ' + usd(R.usdT) : ''}${R.arsT ? (R.usdT ? ' + ' : ': ') + fmt(R.arsT) : ''}${
+              R.sinCosto.length ? '<br>Sin costo cargado: ' + esc(R.sinCosto.join(', ')) + ' (no se cuenta)' : ''}</span></td>
               <td class="menos">${R.sinTasa ? 'sin cotización' : '−' + fmt(R.mercaderia)}</td></tr>
             <tr><td>Gastos<span class="g">${(g.gastos || []).length} cargados</span></td><td class="menos">−${fmt(R.gastos)}</td></tr>
           </tbody><tfoot>
@@ -1301,7 +1307,7 @@ function pintarGiras(){
               return `<div class="mov">
                 <div><div>${esc(clienteDe(v))}</div>
                   <p class="f">${fechaCorta(v.fecha)} · ${esc((v.items || []).map(i => i.cantidad + '× ' + i.articulo).join(' · '))}${
-                    D.proveedores.length > 1 ? ' · ' + esc(v.proveedor) : ''}</p></div>
+                    v.tipo === 'pedido' || D.proveedores.length > 1 ? ' · ' + esc(v.proveedor) : ''}</p></div>
                 <div style="text-align:right">
                   <span class="num">${fmt(vta)}</span>
                   <p class="f">${cob >= vta && vta ? 'Cobrada' : cob ? 'Cobró ' + fmt(cob) : 'Sin cobrar'}</p>
@@ -1387,30 +1393,44 @@ async function borrarGasto(id){
   catch(e){ alert(e.message); }
 }
 
-// Las que se pueden elegir: las de esta gira y las que no son de ninguna.
+// Se pueden elegir todas: las de esta gira, las sueltas y las de otras giras
+// (marcarla la pasa a esta). Entran también los pedidos sin consignación.
+// Arriba las de las fechas de la gira; el resto, plegado.
+const claveGV = (v) => (v.tipo === 'pedido' ? 'p' : 'v') + v.id;
 function modalGiraVentas(giraId){
   const g = giraDe(giraId);
   const hasta = g.hasta ? String(g.hasta).slice(0, 10) : '9999';
   const enFechas = (v) => String(v.fecha).slice(0, 10) >= String(g.desde).slice(0, 10) && String(v.fecha).slice(0, 10) <= hasta;
-  const lista = D.ventasGira.filter(v => v.gira_id === g.id || !v.gira_id)
+  const todas = D.ventasGira.slice()
     .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || b.id - a.id);
-  if(!lista.length) return alert('No hay ventas sueltas para sumar a esta gira.');
-  abrirModal(`<h3>Ventas de ${esc(g.nombre)}</h3>
-    <p class="sub">Marcá las que fueron de esta gira. Las de otras giras no aparecen.</p>
-    <div id="gvLista">${lista.map(v => `<label class="pagar-l">
-        <input type="checkbox" value="${v.id}" ${v.gira_id === g.id ? 'checked' : ''}>
-        <span>${esc(clienteDe(v))}
+  if(!todas.length) return alert('No hay ventas para sumar a esta gira.');
+  const fila = (v) => {
+    const otra = v.gira_id && v.gira_id !== g.id ? giraDe(v.gira_id) : null;
+    return `<label class="pagar-l">
+        <input type="checkbox" value="${claveGV(v)}" ${v.gira_id === g.id ? 'checked' : ''}>
+        <span>${esc(clienteDe(v))}${v.tipo === 'pedido' ? ' <span class="tag gris">Pedido #' + v.id + '</span>' : ''}${
+          otra ? ' <span class="tag gris">En ' + esc(otra.nombre) + '</span>' : ''}
           <span class="g">${fechaCorta(v.fecha)}${enFechas(v) ? '' : ' · fuera de las fechas'} · ${esc((v.items || []).map(i => i.cantidad + '× ' + i.articulo).join(' · '))}</span></span>
         <span class="m">${fmt(ventaDe(v))}</span>
-      </label>`).join('')}</div>
+      </label>`;
+  };
+  const arriba = todas.filter(v => v.gira_id === g.id || enFechas(v));
+  const resto = todas.filter(v => !(v.gira_id === g.id || enFechas(v)));
+  abrirModal(`<h3>Ventas de ${esc(g.nombre)}</h3>
+    <p class="sub">Marcá las que fueron de esta gira, con o sin consignación. Si marcás una que está en otra gira, se pasa a esta.</p>
+    <div id="gvLista">${arriba.length ? arriba.map(fila).join('') : '<div class="empty" style="padding:16px 0">Nada en estas fechas.</div>'}
+      ${resto.length ? `<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--mt);font-size:13.5px;padding:6px 0">
+          Otras fechas (${resto.length})</summary>${resto.map(fila).join('')}</details>` : ''}</div>
     <div class="mfoot"><button class="b q" onclick="cerrarModal()">Cancelar</button>
     <button class="b p" style="flex:none" onclick="guardarGiraVentas(${g.id})">Guardar</button></div>`);
 }
 async function guardarGiraVentas(giraId){
-  const ventas = [...document.querySelectorAll('#gvLista input:checked')].map(x => parseInt(x.value, 10));
-  try{ await post({ giraVentas:{ id: giraId, ventas } }); cerrarModal(); showToast('Listo'); await cargar(); }
+  const marcadas = [...document.querySelectorAll('#gvLista input:checked')].map(x => x.value);
+  const ids = (letra) => marcadas.filter(k => k[0] === letra).map(k => parseInt(k.slice(1), 10));
+  try{ await post({ giraVentas:{ id: giraId, ventas: ids('v'), pedidos: ids('p') } }); cerrarModal(); showToast('Listo'); await cargar(); }
   catch(e){ alert(e.message); }
 }
+
 
 /* ---------- borrar ---------- */
 async function borrarVenta(id){

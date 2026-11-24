@@ -41,7 +41,10 @@ set "MSG="
 set /p MSG=Escribi en una linea que cambiaste (Enter = fecha y hora): 
 if not defined MSG set "MSG=Cambios del %DATE% %TIME:~0,5%"
 git add -A
-git commit -m "%MSG%"
+REM gc.auto=0: que git no se ponga a ordenar su carpeta interna al guardar.
+REM Con la carpeta en OneDrive, eso se traba preguntando "Should I try again?"
+REM por cada subcarpeta (256 veces). No hace falta para subir.
+git -c gc.auto=0 commit -m "%MSG%"
 if errorlevel 1 (
   echo.
   echo NO SE PUDO GUARDAR EN GIT. No subo nada hasta que esto se resuelva.

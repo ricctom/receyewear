@@ -361,6 +361,8 @@ function ensureTables() {
       created_at TIMESTAMPTZ DEFAULT now()
     )`;
     await sql`ALTER TABLE consign_sales ADD COLUMN IF NOT EXISTS gira_id INTEGER`;
+    // Un pedido común (sin consignación) también puede ser de una gira, a mano.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS gira_id INTEGER`;
     // Mercadería de consignación que tapó lo que no llegó de un pedido de la
     // web ("Vino distinto" en Pedidos): el pedido queda entero para el cliente,
     // a Martín no se le suma a la cuenta corriente y se le debe por consignación.

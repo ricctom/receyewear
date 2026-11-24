@@ -19,9 +19,10 @@
 //   POST { borrarVenta: id } / { borrarEntrada: id } / { borrarPago: id }
 // Giras (de todos los proveedores juntos):
 //   POST { gira:{ id?, nombre, desde, hasta, nota } }  -> crea o cambia; engancha las ventas sueltas de esas fechas
-//   POST { giraVentas:{ id, ventas:[id] } }            -> qué ventas son de esa gira
+//   POST { giraVentas:{ id, ventas:[id], pedidos:[id] } } -> qué ventas (y pedidos sin consignación) son de esa gira;
+//          las marcadas que eran de otra gira se pasan a esta
 //   POST { gasto:{ gira_id, fecha, concepto, monto, medio } } / { borrarGasto: id } / { borrarGira: id }
-const { sql, ensureTables, norm, usdRate, enBlancoPorMedio } = require('./_db');
+const { sql, ensureTables, norm, usdRate, enBlancoPorMedio, costTables, costoDe, costoLineasDe } = require('./_db');
 const { getSession } = require('./_auth');
 const { notifyVentaCliente } = require('./_notify');
 
@@ -87,7 +88,7 @@ module.exports = async (req, res) => {
     prov = { ...prov, moneda: prov.moneda || 'USD' };
 
     if (req.method === 'GET') {
-      const [consign, precios, ventas, entradas, pagos, clientes, usd, mapa, giras, ventasGira] = await Promise.all([
+      const [consign, precios, ventas, entradas, pagos, clientes, usd, mapa, giras, ventasGira, pedidosGira, tablas] = await Promise.all([
         sql`SELECT articulo, cantidad, sale_id FROM supplier_consign WHERE supplier_id = ${prov.id}`,
         sql`SELECT articulo, precio FROM supplier_prices WHERE supplier_id = ${prov.id} AND activo ORDER BY articulo`,
         sql`SELECT v.id, v.fecha, v.email, v.cliente, v.items, v.total_venta, v.costo, v.order_id,
@@ -131,6 +132,19 @@ module.exports = async (req, res) => {
              WHERE v.repone_order IS NULL
                AND (v.gira_id IS NOT NULL OR v.fecha >= (SELECT min(desde) FROM giras))
              ORDER BY v.fecha, v.id`,
+        // Los pedidos comunes (sin la parte de consignación) que pueden entrar
+        // en una gira: no entran solos, se eligen a mano. Los cancelados y los
+        // que son el pedido de una venta de consignación no van.
+        sql`SELECT o.id, (o.created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date AS fecha,
+                   o.items, o.recibido, o.total, o.gira_id, u.email, u.name, u.razon_social,
+                   COALESCE((SELECT jsonb_agg(jsonb_build_object('monto', p.monto, 'medio', p.medio) ORDER BY p.id)
+                             FROM order_payments p WHERE p.order_id = o.id), '[]'::jsonb) AS cobros
+              FROM orders o LEFT JOIN users u ON u.id = o.user_id
+             WHERE COALESCE(o.etapa, 'nuevo') <> 'cancelado'
+               AND NOT EXISTS (SELECT 1 FROM consign_sales cs WHERE cs.order_id = o.id)
+               AND (o.gira_id IS NOT NULL OR o.created_at >= (SELECT min(desde) FROM giras) - interval '1 day')
+             ORDER BY o.created_at, o.id`,
+        costTables(),
       ]);
 
       const precioDe = (art) => {
@@ -183,7 +197,26 @@ module.exports = async (req, res) => {
         proveedores: provs, proveedor: prov, stock, precios, ventas: lista,
         entradas: entradas.map((e) => ({ ...e, precio: Number(e.precio) })),
         pagos: listaPagos, clientes, resumen, usd, mapa,
-        giras, ventasGira: ventasGira.map((v) => ({ ...v, costo: Number(v.costo) })),
+        giras,
+        // Ventas de consignación y pedidos comunes, con la misma forma. Lo de
+        // la mercadería va en costos: [{ moneda, monto }], uno por proveedor.
+        ventasGira: [
+          ...ventasGira.map((v) => ({ ...v, tipo: 'venta', costo: Number(v.costo),
+                                     costos: [{ moneda: v.moneda, monto: Number(v.costo) }] })),
+          ...pedidosGira.map((o) => {
+            // Igual que en Pedidos: si ya confirmó lo que llegó, el costo es el de eso.
+            const c = o.recibido ? costoLineasDe(o.recibido, tablas) : costoDe(o.items, tablas);
+            return {
+              id: o.id, tipo: 'pedido', fecha: o.fecha, email: o.email, cliente: null,
+              name: o.name, razon_social: o.razon_social, gira_id: o.gira_id,
+              proveedor: 'Pedido #' + o.id, total_venta: Number(o.total) || 0, cobros: o.cobros,
+              items: (o.items || []).map((it) => ({ articulo: it.name, cantidad: parseInt(it.qty, 10) || 1,
+                                                   precio: Number(it.price) || 0, ...(it.propio ? { propio: true } : {}) })),
+              costos: c.detalle.map((d) => ({ moneda: d.moneda, monto: d.monto })),
+              sin_costo: c.sinCosto.map((x) => x.linea),
+            };
+          }),
+        ],
       });
     }
 
@@ -480,17 +513,25 @@ module.exports = async (req, res) => {
     // Qué ventas son de la gira: las marcadas entran, las que estaban y no, salen.
     if (b.giraVentas) {
       const id = parseInt(b.giraVentas.id, 10);
-      const ids = (Array.isArray(b.giraVentas.ventas) ? b.giraVentas.ventas : []).map((x) => parseInt(x, 10)).filter(Boolean);
+      const enteros = (a) => (Array.isArray(a) ? a : []).map((x) => parseInt(x, 10)).filter(Boolean);
+      const ids = enteros(b.giraVentas.ventas);
       const [g] = await sql`SELECT id FROM giras WHERE id = ${id}`;
       if (!g) return res.status(404).json({ error: 'No existe esa gira' });
       await sql`UPDATE consign_sales SET gira_id = NULL WHERE gira_id = ${id} AND NOT (id = ANY(${ids}::int[]))`;
       if (ids.length) await sql`UPDATE consign_sales SET gira_id = ${id} WHERE id = ANY(${ids}::int[])`;
+      // Los pedidos, solo si la página los manda (una versión vieja no los conoce).
+      if (Array.isArray(b.giraVentas.pedidos)) {
+        const ped = enteros(b.giraVentas.pedidos);
+        await sql`UPDATE orders SET gira_id = NULL WHERE gira_id = ${id} AND NOT (id = ANY(${ped}::int[]))`;
+        if (ped.length) await sql`UPDATE orders SET gira_id = ${id} WHERE id = ANY(${ped}::int[])`;
+      }
       return res.status(200).json({ ok: true });
     }
 
     if (b.borrarGira) {
       const id = parseInt(b.borrarGira, 10);
       await sql`UPDATE consign_sales SET gira_id = NULL WHERE gira_id = ${id}`;
+      await sql`UPDATE orders SET gira_id = NULL WHERE gira_id = ${id}`;
       const [row] = await sql`DELETE FROM giras WHERE id = ${id} RETURNING id`;
       if (!row) return res.status(404).json({ error: 'No existe esa gira' });
       return res.status(200).json({ ok: true });
